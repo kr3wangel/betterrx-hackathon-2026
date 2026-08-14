@@ -3,7 +3,8 @@ import { writeFileSync } from 'node:fs'
 import { db } from './db'
 import { applyEvent, escalate } from './statemachine'
 import { getOrder, getVendor, listOrders, listOrderEvents, rowToMessage } from './store'
-import { handleInbound, applyParsed, sendToVendor, orderRequestText, pickupRequestText } from './messaging'
+import { handleInbound, applyParsed, sendToVendor, orderRequestText } from './messaging'
+import { setPatientStatus } from './pickups'
 import type { Escalation, ParsedMessage, Patient, PatientStatus, Vendor } from '../shared/types'
 
 export const routes = Router()
@@ -103,20 +104,14 @@ routes.post('/orders/:id/pod', (req, res) => {
   res.json(order)
 })
 
+routes.post('/patients/:id/status', (req, res) => {
+  const { status } = req.body as { status: PatientStatus }
+  res.json(setPatientStatus(Number(req.params.id), status, 'nurse'))
+})
+
 routes.post('/emr/patient-status', (req, res) => {
   const { patient_id, status } = req.body as { patient_id: number; status: PatientStatus }
-  db.prepare('UPDATE patients SET status = ? WHERE id = ?').run(status, patient_id)
-
-  const triggered: number[] = []
-  if (status === 'deceased' || status === 'discharged') {
-    const delivered = listOrders('delivered').filter((o) => o.patient_id === patient_id)
-    for (const order of delivered) {
-      applyEvent(order.id, 'pickup_triggered', { patient_status: status }, 'system')
-      sendToVendor(order.vendor_id, order.id, pickupRequestText(order))
-      triggered.push(order.id)
-    }
-  }
-  res.json({ patient_id, status, pickups_triggered: triggered })
+  res.json(setPatientStatus(patient_id, status, 'emr'))
 })
 
 routes.post('/messages/inbound', async (req, res) => {
