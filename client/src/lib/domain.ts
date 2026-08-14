@@ -1,13 +1,15 @@
-import type { OrderState } from '../../../shared/types'
+import type { MessageIntent, OrderState } from '../../../shared/types'
 
 // Single source of truth, grounded in the CMS DMEPOS public use file.
 export { CATALOG, byCode, BED_CODE } from '../../../shared/catalog'
 export type { CatalogItem } from '../../../shared/catalog'
 
+// Plain-English status vocabulary — never show raw state names on screen.
+// See docs/DESIGN-SYSTEM.md "Plain-English status vocabulary".
 export const STATE_LABEL: Record<OrderState, string> = {
   ordered: 'Ordered',
-  dispatched: 'Dispatched',
-  in_transit: 'In transit',
+  dispatched: 'Accepted',
+  in_transit: 'On the truck',
   delivered: 'Delivered',
   pickup_pending: 'Pickup pending',
   pickup_overdue: 'Pickup overdue',
@@ -24,6 +26,67 @@ export const STATE_TONE: Record<OrderState, 'gray' | 'green' | 'yellow' | 'red' 
   pickup_overdue: 'red',
   picked_up: 'green',
   cancelled: 'gray',
+}
+
+// The status "spine" color (6px left rail) + StatusPill tone, mapped to Badge variants.
+// Semantic: neutral=ordered · navy=in motion (accepted / on the truck) · green=done with proof · red=overdue.
+export type StatusTone = 'ordered' | 'motion' | 'done' | 'risk'
+
+export const STATE_STATUS_TONE: Record<OrderState, StatusTone> = {
+  ordered: 'ordered',
+  dispatched: 'motion',
+  in_transit: 'motion',
+  delivered: 'done',
+  pickup_pending: 'motion',
+  pickup_overdue: 'risk',
+  picked_up: 'done',
+  cancelled: 'ordered',
+}
+
+// Plain-English labels for message review outcomes — never render raw review_status enums.
+// See shared/types.ts ReviewStatus.
+export const REVIEW_STATUS_LABEL: Record<'auto_applied' | 'needs_review' | 'confirmed' | 'rejected', string> = {
+  auto_applied: 'Applied automatically',
+  needs_review: 'Needs review',
+  confirmed: 'Confirmed',
+  rejected: 'Rejected',
+}
+
+// Human labels for the event timeline — replaces raw event_type enums on screen.
+export const EVENT_TYPE_LABEL: Record<string, string> = {
+  order_placed: 'Order placed',
+  vendor_accepted: 'Vendor accepted',
+  eta_set: 'ETA set',
+  out_for_delivery: 'Out for delivery',
+  delivered: 'Delivered',
+  pickup_triggered: 'Pickup triggered',
+  pickup_overdue: 'Pickup overdue',
+  picked_up: 'Picked up',
+  vendor_swapped: 'Vendor swapped',
+  cancelled: 'Cancelled',
+  risk_updated: 'Risk updated',
+  family_notified: 'Family notified',
+}
+
+export function eventLabel(type: string): string {
+  return EVENT_TYPE_LABEL[type] ?? type.replaceAll('_', ' ')
+}
+
+// Plain-English labels for parsed message intents — never render the raw intent enum.
+export const INTENT_LABEL: Record<MessageIntent, string> = {
+  accept: 'Accepting the order',
+  eta_update: 'Sharing an ETA',
+  delay: 'Reporting a delay',
+  out_for_delivery: 'Out for delivery',
+  delivered: 'Marking delivered',
+  pickup_scheduled: 'Scheduling a pickup',
+  picked_up: 'Marking picked up',
+  decline: 'Declining the order',
+  unknown: 'Unclear — needs a look',
+}
+
+export function intentLabel(intent: MessageIntent): string {
+  return INTENT_LABEL[intent] ?? intent
 }
 
 export const BOARD_COLUMNS: { title: string; states: OrderState[] }[] = [

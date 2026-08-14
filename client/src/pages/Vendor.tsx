@@ -3,6 +3,8 @@ import { api } from '../lib/api'
 import { useLive } from '../lib/useLive'
 import { Badge, Button, Card } from '../components/ui'
 import { OrderCard } from '../components/OrderCard'
+import { PersonaHeader } from '@/components/PersonaHeader'
+import { intentLabel, REVIEW_STATUS_LABEL } from '../lib/domain'
 import type { Message, Order, Patient, Vendor } from '../../../shared/types'
 
 export default function VendorPage() {
@@ -18,6 +20,7 @@ export default function VendorPage() {
 
   return (
     <div className="space-y-4">
+      <PersonaHeader persona="Dispatcher" title="Vendor phone" />
       <div className="flex items-center gap-3">
         <select
           className="rounded-md border border-slate-300 px-2 py-1.5 text-sm"
@@ -64,9 +67,9 @@ function PhoneSimulator({ vendorId, vendorName, messages }: { vendorId: number; 
               {m.body}
               {m.direction === 'in' && m.parsed && (
                 <div className="mt-1 text-[10px] opacity-80">
-                  → {m.parsed.intent} · {Math.round((m.parsed.confidence ?? 0) * 100)}% ·{' '}
+                  → {intentLabel(m.parsed.intent)} · {Math.round((m.parsed.confidence ?? 0) * 100)}% ·{' '}
                   <Badge tone={m.review_status === 'auto_applied' ? 'green' : m.review_status === 'needs_review' ? 'yellow' : 'gray'}>
-                    {m.review_status}
+                    {m.review_status ? REVIEW_STATUS_LABEL[m.review_status] : '—'}
                   </Badge>
                 </div>
               )}

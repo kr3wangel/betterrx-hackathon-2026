@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react'
 import { api } from '../lib/api'
 import { useLive } from '../lib/useLive'
-import { BOARD_COLUMNS, CATALOG } from '../lib/domain'
+import { BOARD_COLUMNS, CATALOG, intentLabel } from '../lib/domain'
 import { Badge, Button, Card } from '../components/ui'
 import { OrderCard } from '../components/OrderCard'
+import { PersonaHeader } from '@/components/PersonaHeader'
 import type { Escalation, Message, Order, Patient, Vendor } from '../../../shared/types'
 
 type VendorWithStats = Vendor & { avg_on_time_rate: number | null }
@@ -20,6 +21,7 @@ export default function Hospice() {
 
   return (
     <div className="space-y-4">
+      <PersonaHeader persona="Case Manager" title="Hospice board" />
       {escalations && escalations.length > 0 && (
         <div className="space-y-2 rounded-lg border border-red-300 bg-red-50 p-3">
           <div className="text-sm font-semibold text-red-800">
@@ -174,7 +176,7 @@ function ReviewItem({ message, orders }: { message: Message; orders: Order[] }) 
       <div className="font-medium text-slate-800">“{message.body}”</div>
       {message.parsed ? (
         <div className="mt-1 text-slate-600">
-          reads as <Badge tone="blue">{message.parsed.intent}</Badge> · confidence{' '}
+          reads as <Badge tone="blue">{intentLabel(message.parsed.intent)}</Badge> · confidence{' '}
           {Math.round((message.parsed.confidence ?? 0) * 100)}%
           {message.parsed.eta_iso && <> · ETA {new Date(message.parsed.eta_iso).toLocaleString()}</>}
         </div>
