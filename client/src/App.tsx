@@ -91,7 +91,8 @@ export default function App() {
             <Route path="/vendor" element={<VendorPage />} />
             <Route path="/driver" element={<Driver />} />
             <Route path="/vendor-portal" element={<VendorPortal />} />
-            <Route path="/portal/:token" element={<VendorStatus />} />
+            <Route path="/portal/:token" element={<VendorPortal />} />
+            <Route path="/status/:token" element={<VendorStatus />} />
             <Route path="/reports" element={<Reports />} />
           </Routes>
         </main>
