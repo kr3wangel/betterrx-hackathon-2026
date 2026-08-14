@@ -1,8 +1,12 @@
 import { useMemo, useState } from 'react'
+import { Camera, PackageCheck, Truck } from 'lucide-react'
 import { api } from '../lib/api'
 import { useLive, fmt } from '../lib/useLive'
-import { Badge, Button, Card } from '../components/ui'
-import { STATE_LABEL, STATE_TONE } from '../lib/domain'
+import { Card, CardContent } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { StatusPill } from '@/components/StatusPill'
+import { EmptyState } from '@/components/EmptyState'
+import { ConditionChecklist, EMPTY_CONDITION, type ConditionState } from '@/components/ConditionChecklist'
 import { SignaturePad } from '../components/SignaturePad'
 import { PhotoInput } from '../components/PhotoInput'
 import { PersonaHeader } from '@/components/PersonaHeader'
@@ -17,15 +21,22 @@ export default function Driver() {
   const patientById = useMemo(() => new Map((patients ?? []).map((p) => [p.id, p])), [patients])
 
   return (
-    <div className="mx-auto max-w-md space-y-3">
-      <PersonaHeader persona="Driver" title="Today's route" />
+    <div className="mx-auto max-w-md space-y-5">
+      <PersonaHeader
+        persona="Driver"
+        title="Today's route"
+        description="Deliveries and pickups, in order. Snap a photo, grab a signature, done."
+      />
+
       <select
-        className="w-full rounded-md border border-slate-300 px-2 py-2 text-sm"
+        className="h-11 w-full rounded-md border border-input bg-card px-3 text-sm text-foreground shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background"
         value={vendorId}
         onChange={(e) => setVendorId(Number(e.target.value))}
       >
         {(vendors ?? []).map((v) => (
-          <option key={v.id} value={v.id}>{v.name} — driver view</option>
+          <option key={v.id} value={v.id}>
+            {v.name} — driver view
+          </option>
         ))}
       </select>
 
@@ -33,9 +44,11 @@ export default function Driver() {
         <JobCard key={job.id} job={job} patient={patientById.get(job.patient_id)} />
       ))}
       {jobs && jobs.length === 0 && (
-        <div className="rounded-lg border border-slate-200 bg-white p-6 text-center text-sm text-slate-400">
-          No jobs on the route.
-        </div>
+        <EmptyState
+          icon={<Truck />}
+          title="Route's clear"
+          description="No deliveries or pickups assigned right now."
+        />
       )}
     </div>
   )
@@ -45,63 +58,97 @@ function JobCard({ job, patient }: { job: Order; patient?: Patient }) {
   const [capturing, setCapturing] = useState(false)
   const [photo, setPhoto] = useState<string | null>(null)
   const [signature, setSignature] = useState<string | null>(null)
+  const [condition, setCondition] = useState<ConditionState>(EMPTY_CONDITION)
+  const [submitting, setSubmitting] = useState(false)
   const isPickup = job.state === 'pickup_pending' || job.state === 'pickup_overdue'
+
+  async function submitPod() {
+    setSubmitting(true)
+    try {
+      await api.post(`/api/orders/${job.id}/pod`, {
+        kind: isPickup ? 'pickup' : 'delivery',
+        photo_data_url: photo,
+        signature_data_url: signature,
+        // The three delivery attestations (PodCondition). On a pickup the equipment is
+        // leaving the home, so the checklist is a delivery-only capture.
+        condition: isPickup ? null : condition,
+      })
+      setCapturing(false)
+    } finally {
+      setSubmitting(false)
+    }
+  }
 
   return (
     <Card>
-      <div className="flex items-start justify-between">
-        <div>
-          <div className="text-sm font-semibold">
-            {isPickup ? 'PICK UP' : 'DELIVER'} · {job.equipment_name}
+      <CardContent className="space-y-3 pt-6">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="text-xs font-extrabold uppercase tracking-[0.14em] text-primary">
+              {isPickup ? 'Pick up' : 'Deliver'}
+            </div>
+            <div className="mt-1 font-display text-lg font-bold text-foreground">{job.equipment_name}</div>
+            <div className="mt-0.5 text-sm text-muted-foreground">
+              {patient?.name}
+              {patient?.address ? ` · ${patient.address}` : ''}
+            </div>
+            {job.target_at && (
+              <div className="mt-0.5 text-sm text-muted-foreground tabular-nums">by {fmt(job.target_at)}</div>
+            )}
           </div>
-          <div className="text-xs text-slate-500">
-            {patient?.name} · {patient?.address}
-          </div>
-          {job.target_at && <div className="text-xs text-slate-500">by {fmt(job.target_at)}</div>}
+          <StatusPill state={job.state} />
         </div>
-        <Badge tone={STATE_TONE[job.state]}>{STATE_LABEL[job.state]}</Badge>
-      </div>
 
-      {isPickup && (
-        <p className="mt-2 rounded-md bg-slate-50 p-2 text-xs text-slate-600">
-          The family is grieving. Call ahead, be brief and kind.
-        </p>
-      )}
-
-      <div className="mt-3 space-y-2">
-        {job.state === 'dispatched' && (
-          <Button className="w-full" onClick={() => api.post(`/api/orders/${job.id}/events`, { type: 'out_for_delivery', actor: 'driver' })}>
-            Start delivery
-          </Button>
+        {isPickup && (
+          <p className="rounded-xl border border-border bg-coral-tint px-4 py-3 text-sm leading-relaxed text-[#8a4a2e]">
+            <b>The family is grieving.</b> Call ahead, be brief and kind.
+          </p>
         )}
 
-        {(job.state === 'in_transit' || isPickup) && !capturing && (
-          <Button className="w-full" onClick={() => setCapturing(true)}>
-            {isPickup ? 'Complete pickup' : 'Complete delivery'}
-          </Button>
-        )}
-
-        {capturing && (
-          <div className="space-y-3 rounded-md border border-slate-200 p-2">
-            <PhotoInput onCapture={setPhoto} />
-            <SignaturePad onCapture={setSignature} />
+        <div className="space-y-2 pt-1">
+          {job.state === 'dispatched' && (
             <Button
               className="w-full"
-              disabled={!signature}
-              onClick={async () => {
-                await api.post(`/api/orders/${job.id}/pod`, {
-                  kind: isPickup ? 'pickup' : 'delivery',
-                  photo_data_url: photo,
-                  signature_data_url: signature,
-                })
-                setCapturing(false)
-              }}
+              onClick={() => api.post(`/api/orders/${job.id}/events`, { type: 'out_for_delivery', actor: 'driver' })}
             >
-              Submit proof {isPickup ? 'of pickup' : 'of delivery'}
+              <Truck /> Start delivery
             </Button>
-          </div>
-        )}
-      </div>
+          )}
+
+          {(job.state === 'in_transit' || isPickup) && !capturing && (
+            <Button className="w-full" onClick={() => setCapturing(true)}>
+              <PackageCheck /> {isPickup ? 'Complete pickup' : 'Complete delivery'}
+            </Button>
+          )}
+
+          {capturing && (
+            <div className="space-y-4 rounded-xl border border-border bg-muted/30 p-3">
+              <div className="space-y-2">
+                <label className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+                  <Camera className="size-3.5" /> Photo of the equipment
+                </label>
+                <PhotoInput onCapture={setPhoto} />
+              </div>
+
+              {!isPickup && (
+                <div className="space-y-2">
+                  <label className="text-xs font-semibold text-muted-foreground">Condition attestation</label>
+                  <ConditionChecklist value={condition} onChange={setCondition} />
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-muted-foreground">Signature</label>
+                <SignaturePad onCapture={setSignature} />
+              </div>
+
+              <Button className="w-full" disabled={!signature || submitting} onClick={submitPod}>
+                {submitting ? 'Submitting…' : isPickup ? 'Confirm pickup' : 'Confirm delivery'}
+              </Button>
+            </div>
+          )}
+        </div>
+      </CardContent>
     </Card>
   )
 }
