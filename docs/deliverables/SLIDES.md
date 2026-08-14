@@ -303,7 +303,7 @@ script before code freeze. **If it isn't in this inbox, it won't be on stage.**
 
 - Driver attests clean / functional / patient-ready at delivery; a failed check auto-escalates to the hospice — POD flow on `/driver` (`server/pods.ts`) — slide 2 (FAQ §9 named condition a strong differentiator)
 - Pickup-overdue clock anchors to the pickup trigger, not order age — no false reds on stage (`pickupAnchor()` in `server/watchdog.ts`) — demo-reliability, not a slide
-- 
+- DON reports view: "phone calls that never happened" coral hero (265 auto-updates from the real event ledger) + vendor scorecards from real endpoints (Beehive surfaces at 62% on-time with a Saturday-CPAP routing hint) + cost-of-care and DON cost approvals — `/reports` (`client/src/pages/Reports.tsx`) — the reporting-cost + oversight slide
 - 
 - 
 - 
