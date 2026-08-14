@@ -35,7 +35,7 @@ npm run build        # typecheck + vite build
 
 ## Team docs
 
-`docs/BUILD-DAY-TASKS.md` is the shared task list (claim items by name). `docs/BACKEND-SPEC.md` is the architecture spec. `docs/deliverables/` holds the four submission drafts (AI approach, differentiation, integration sketch, demo script) — keep them in sync with reality as the build evolves.
+`docs/PROBLEM-THESIS.md` is the why behind the design (the reporting-cost framing, the vendor adoption ladder, the integration asymmetry) — read it before changing scope or pitch content. `docs/BUILD-DAY-TASKS.md` is the shared task list (claim items by name). `docs/BACKEND-SPEC.md` is the architecture spec. `docs/deliverables/` holds the four submission drafts (AI approach, differentiation, integration sketch, demo script) — keep them in sync with reality as the build evolves.
 
 ## Demo scenarios (build everything toward these)
 
