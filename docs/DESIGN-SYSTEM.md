@@ -82,3 +82,33 @@ proof · neutral `#E7EBEE` = ordered.
 3. Match the reference's **spacing and type weight**, not just its colors — the roominess and the
    rounded-bold headings are what make it read as BetterRX.
 4. Open `docs/design/hospice-board-reference.html` and compare your surface against it before committing.
+   More screen references: `docs/design/screens-gallery.html` (order form, vendor status page, driver POD,
+   vendor portal, DON reports).
+
+## ⚠️ shadcn/ui conventions & Foundation handoff — READ BEFORE BUILDING UI
+
+The Foundation lane is done and on `main`. If you're building any frontend, follow these or you'll fight it:
+
+- **DO NOT re-run `npx shadcn init` / `add`.** On Tailwind v4 the CLI clobbers `client/src/index.css`,
+  scaffolds a second project, and expects a `package.json` in the client dir (ours is root-level). The
+  new-york Radix primitives were **hand-authored** into `client/src/components/ui/` (button, card, badge,
+  dialog, input, select, checkbox, table, tabs, sonner, skeleton, separator, avatar, tooltip). **Add new
+  primitives by hand** following the existing files, or ask the Foundation author.
+- **Legacy `client/src/components/ui.tsx`** (old Badge/Button/Card) is still imported by
+  `OrderCard`/`Hospice`/`Vendor`/`Driver`. **Migrate your lane's pages to the shadcn primitives** as part
+  of your work; don't add *new* usages of the legacy file.
+- **Atoms** (import from `@/components/...`): `StatusPill state={OrderState}`, `EvidenceBadge verified`,
+  `RiskBadge score` (exports `RISK_THRESHOLD=70`), `ConditionChecklist value onChange`
+  (value = `{clean,functional,patient_ready}` = the upstream `PodCondition` → pass straight to `POST /pod`),
+  `PersonaHeader persona title`, `EmptyState`.
+- **Hook:** `usePortal(token)` from `@/hooks/usePortal` → `{vendor, orders, confirm, setEta, decline, reload}`,
+  SSE-refetching. Shared by the vendor status page and the portal.
+- **Mocks** (`@/lib/mocks`, each swaps to a real fetch later): `mockVendorInventory`, `mockUnitLocations`,
+  `mockHcpcsPricing`, `mockPatientCostOfCare`, `mockApprovals` + `COST_APPROVAL_THRESHOLD_USD`,
+  `mockEvidenceSource`. **Use the REAL `ReportSummary`/`VendorScorecard` server endpoints for scorecards** —
+  mocks are only for the cost-of-care + approvals gaps.
+- **Token utility classes** available: `bg-success`/`text-success`, `bg-coral-tint`, `text-faint`,
+  `bg-status-{ordered,motion,done,risk}` (card status spine).
+- **Two distinct condition concepts — don't conflate:** the **driver POD** captures a 3-checkbox
+  `PodCondition` (clean/functional/patient-ready) via `ConditionChecklist` → `POST /pod`; the **caregiver**
+  channel is a separate **1–5 rating** (`ConditionReport`) that feeds the vendor scorecard.
