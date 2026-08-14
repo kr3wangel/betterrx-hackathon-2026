@@ -9,7 +9,10 @@
 > **Rules of the road** (repo git agreement): work on `main`, `git pull --rebase` before pushing,
 > `npm test` before every push — **never push red; main must always seed and boot**. Small, frequent,
 > conventional commits (`feat(hospice): …`). UI stays test-free. Plain-English on screen — never raw
-> state names. Sizes: **XS** ≈ 15–30m · **S** ≈ 30–60m · **M** ≈ 1–3h · `(S1/S2/S3)` = demo scenario served.
+> state names. **Build the UI with [shadcn/ui](https://ui.shadcn.com/) (new-york style) primitives** —
+> Card, Button, Badge, Dialog, Table, Tabs, Select, Input, Checkbox, Sonner, Skeleton — themed to the
+> BetterRX tokens; our atoms are thin wrappers/variants over these. Sizes: **XS** ≈ 15–30m · **S** ≈ 30–60m ·
+> **M** ≈ 1–3h · `(S1/S2/S3)` = demo scenario served.
 
 **Backend already available to build against:** `GET /api/orders[?state=]`, `/api/orders/:id`,
 `/api/patients`, `/api/vendors`, `/api/messages…`, `/api/escalations…`, `/api/driver/jobs`,
@@ -31,30 +34,42 @@
 
 ## Lane 0 — Design + frontend foundation *(BLOCKING — lands before A–E)*
 
-Owner: `[ ]`  ·  Owns the shared client files so no feature lane edits them.
+Owner: `[ ]`  ·  Owns the shared client files so no feature lane edits them. **Stack:** Tailwind v4 +
+React 19 + Vite. **Adopt [shadcn/ui](https://ui.shadcn.com/)** as the component library — every atom
+below is a thin wrapper/variant over a shadcn primitive, not a hand-rolled element.
 
-- [ ] **FE-0.1 · S · Brand tokens** — add a `@theme` block to `client/src/index.css` (v4 CSS-first; **no**
-  `tailwind.config.ts`): navy `#0f172a`, blue `#3b82f6`, at-risk red `#dc2626`, green `#16a34a`, amber
-  `#ca8a04`, neutrals. **Done when:** tokens are referenceable and the app still builds.
-- [ ] **FE-0.2 · S · Status/risk/evidence pills** — in `client/src/components/ui.tsx`: `StatusPill`
-  (plain-English via `STATE_LABEL`/`STATE_TONE`), `RiskBadge` (green/amber/red by score), `EvidenceBadge`
-  (verified vs vendor-reported). **Done when:** each renders in isolation with the token colors.
-- [ ] **FE-0.3 · S · Layout atoms** — `PersonaHeader` (surface title + persona label), `ConditionChecklist`
-  (clean/functional/patient-ready), `EmptyState`. **Done when:** importable and styled.
-- [ ] **FE-0.4 · XS · Fix plain-English leaks** — `client/src/lib/domain.ts` + review-queue: stop rendering
+- [ ] **FE-0.1 · S · Init shadcn/ui** — run `npx shadcn@latest init` (use a shadcn version that supports
+  **Tailwind v4** — the theme is CSS-variables in `client/src/index.css`, **not** a `tailwind.config.ts`).
+  Style: **"new-york"**. Configure `components.json` and the Vite path aliases (`@/components`, `@/lib`,
+  `@/hooks`) so `@/components/ui/*` resolves in the client. **Done when:** `components.json` exists, aliases
+  resolve, and the app still builds.
+- [ ] **FE-0.2 · S · Add base shadcn components** — `npx shadcn@latest add button card badge dialog input
+  select checkbox table tabs sonner skeleton separator avatar tooltip`. **Done when:** each lands under
+  `client/src/components/ui/` and imports cleanly.
+- [ ] **FE-0.3 · S · Map BetterRX tokens onto shadcn CSS variables** — in `client/src/index.css`, set
+  shadcn's `--primary` (coral `#E27B5E`), `--secondary` (navy-slate `#2C3A49`), `--destructive`
+  (`#CB3E3A`), `--background` (`#F7F5F3`), `--card` (`#FFFFFF`), `--muted`/`--muted-foreground`,
+  `--border` (`#EBE7E3`), `--radius` (`14px`), plus the display-font stack (see Design system below).
+  **Done when:** shadcn primitives render in BetterRX colors and the app builds.
+- [ ] **FE-0.4 · S · Atoms as shadcn wrappers/variants** — `StatusPill` + `EvidenceBadge` = `Badge`
+  variants (plain-English via `STATE_LABEL`/`STATE_TONE`; verified vs vendor-reported); `RiskBadge` =
+  `Badge` (green/amber/red by score); `PersonaHeader` (surface title + persona label);
+  `ConditionChecklist` = shadcn `Checkbox` rows (clean/functional/patient-ready); `EmptyState`. **Done
+  when:** each renders in isolation over its shadcn primitive with the token colors.
+- [ ] **FE-0.5 · XS · Fix plain-English leaks** — `client/src/lib/domain.ts` + review-queue: stop rendering
   raw enums (`needs_review`, `auto_applied`); confirm `STATE_LABEL` ("Accepted"/"On the truck"). **Done
   when:** no snake_case state/status appears on any screen.
-- [ ] **FE-0.5 · M · Mock/adapter layer** — `client/src/lib/mocks.ts`: typed stand-ins for data the backend
+- [ ] **FE-0.6 · M · Mock/adapter layer** — `client/src/lib/mocks.ts`: typed stand-ins for data the backend
   doesn't serve yet (serialized vendor inventory + per-unit location, CMS HCPCS pricing, cost-threshold
   approvals, message `evidence_source`), each a function that today returns mock data and later swaps to a
   fetch. **Done when:** typed, imported by a smoke usage, documented at top of file.
-- [ ] **FE-0.6 · S · `usePortal(token)` hook** — wrap `GET /api/portal/:token` (+ confirm/eta/decline
+- [ ] **FE-0.7 · S · `usePortal(token)` hook** — wrap `GET /api/portal/:token` (+ confirm/eta/decline
   POSTs) as a shared hook for lanes C & E. **Done when:** returns `{vendor, orders, confirm, setEta,
   decline}` and refetches on SSE.
-- [ ] **FE-0.7 · S · Routes + stub pages** — `client/src/App.tsx`: add routes/nav for `/order`, `/reports`,
+- [ ] **FE-0.8 · S · Routes + stub pages** — `client/src/App.tsx`: add routes/nav for `/order`, `/reports`,
   `/vendor-portal`, `/portal/:token`, and `/nurse`, each pointing at an empty stub page. **Done when:**
   every route resolves to a placeholder without errors.
-- [ ] **FE-0.8 · XS · Persona labels on existing surfaces** — add `PersonaHeader` to `/hospice`
+- [ ] **FE-0.9 · XS · Persona labels on existing surfaces** — add `PersonaHeader` to `/hospice`
   ("Case Manager"), `/vendor` ("Dispatcher"), `/driver` ("Driver"). **Done when:** each surface names its persona.
 
 ---
@@ -62,6 +77,7 @@ Owner: `[ ]`  ·  Owns the shared client files so no feature lane edits them.
 ## Lane A — Case manager / hospice board *(highest value; ~70% of scoring)*
 
 Owner: `[ ]`  ·  Owns `client/src/pages/Hospice.tsx`, `client/src/components/OrderCard.tsx`.
+**Build with shadcn/ui components** (Card, Button, Badge, Dialog, Table, Tabs, Select, Input, Checkbox, Sonner).
 
 - [ ] **FE-A.1 · S · At-risk selector** — a `useMemo`/helper that derives orders that are at-risk (score
   ≥70) or about to miss a delivery/pickup deadline. **Done when:** returns a sorted list; unit-free.
@@ -87,6 +103,7 @@ Owner: `[ ]`  ·  Owns `client/src/pages/Hospice.tsx`, `client/src/components/Or
 ## Lane B — Admissions / ordering nurse
 
 Owner: `[ ]`  ·  Owns new `client/src/pages/Order.tsx`, `client/src/pages/Nurse.tsx`.
+**Build with shadcn/ui components** (Card, Button, Badge, Dialog, Table, Tabs, Select, Input, Checkbox, Sonner).
 
 - [ ] **FE-B.1 · S · Order form scaffold** — `/order` layout + fields shell (patient, equipment, qty,
   urgency, target date, vendor), phone + desktop, big touch targets. **Done when:** renders, no submit yet.
@@ -102,6 +119,7 @@ Owner: `[ ]`  ·  Owns new `client/src/pages/Order.tsx`, `client/src/pages/Nurse
 ## Lane C — Driver + no-login vendor status page
 
 Owner: `[ ]`  ·  Owns `client/src/pages/Driver.tsx`, POD components, new `client/src/pages/VendorStatus.tsx`.
+**Build with shadcn/ui components** (Card, Button, Badge, Dialog, Table, Tabs, Select, Input, Checkbox, Sonner).
 
 - [ ] **FE-C.1 · S · Condition checklist on POD** (S1, S2) — add `ConditionChecklist` to POD capture; submit
   with photo+signature on `POST /api/orders/:id/pod`. **Done when:** the 3 attestations persist and show.
@@ -118,6 +136,7 @@ Owner: `[ ]`  ·  Owns `client/src/pages/Driver.tsx`, POD components, new `clien
 ## Lane D — Director of Nursing reports
 
 Owner: `[ ]`  ·  Owns new `client/src/pages/Reports.tsx`.
+**Build with shadcn/ui components** (Card, Button, Badge, Dialog, Table, Tabs, Select, Input, Checkbox, Sonner).
 
 - [ ] **FE-D.1 · S · Reports scaffold + persona header** — `/reports` layout with section slots. **Done when:** renders empty sections.
 - [ ] **FE-D.2 · M · Vendor scorecards** — on-time by equipment × weekday (`vendor_stats` via `/api/vendors`),
@@ -134,6 +153,7 @@ Owner: `[ ]`  ·  Owns new `client/src/pages/Reports.tsx`.
 ## Lane E — DME vendor portal *(user-requested)*
 
 Owner: `[ ]`  ·  Owns new `client/src/pages/VendorPortal.tsx`. Shares `usePortal(token)` with Lane C.
+**Build with shadcn/ui components** (Card, Button, Badge, Dialog, Table, Tabs, Select, Input, Checkbox, Sonner).
 
 - [ ] **FE-E.1 · S · Portal home** — `GET /api/portal/:token`: the vendor's live orders + delivery/pickup
   queue in one no-login place. **Done when:** orders + queue render for a token.

@@ -4,7 +4,9 @@
 > foundation only — the frontend is NOT gated by the backend.** Build the full UI as if the backend can
 > provide anything; where data isn't served yet (vendor equipment location, cost pricing, approvals,
 > evidence source), build against a **typed client mock/adapter** so it's swappable later. These agents
-> make **no backend/schema changes**. Vendor side gets the **full treatment: SMS/IVR + driver POD +
+> make **no backend/schema changes**. **Component library: [shadcn/ui](https://ui.shadcn.com/)** (new-york
+> style, themed to the BetterRX tokens below) — the Foundation agent installs it and our atoms become thin
+> wrappers over its primitives. Vendor side gets the **full treatment: SMS/IVR + driver POD +
 > magic-link status page + a DME vendor portal** (all their equipment and where each piece is).
 
 ## Context
@@ -35,25 +37,35 @@ Rubric (structure everything to earn these): Differentiation 30% · Core problem
 
 ## Design system (dedicated agent — lands first, everyone builds on it)
 
-BetterRX brand read (from betterrx.com): **clinical-but-humane** — navy + white, modern, trustworthy;
-warmth for end-of-life dignity. Extend the existing Tailwind defaults, don't rebrand from scratch.
+BetterRX brand read (from betterrx.com/technology): **warm, human, confident** — a coral pill "betterRX"
+logo, big rounded-bold headings, roomy whitespace over a warm off-white. Clinical-but-humane, with
+warmth for end-of-life dignity. **Component library is [shadcn/ui](https://ui.shadcn.com/) (new-york
+style)** — the Foundation agent runs `npx shadcn@latest init` and adds base components, then themes them
+to the tokens below. Don't hand-roll primitives; wrap shadcn's.
 
-**Palette (maps 1:1 to Tailwind scales so every agent stays consistent):**
-| Token | Hex | Tailwind | Use |
+**Finalized BetterRX palette (mapped onto shadcn's CSS variables in `client/src/index.css`):**
+| Role | shadcn var | Hex | Use |
 |---|---|---|---|
-| Primary navy | `#0f172a` | `slate-900` | primary buttons, headers, brand anchor |
-| Brand blue | `#3b82f6` | `blue-500` | secondary, "On the truck", links |
-| At-risk red | `#dc2626` | `red-600` | risk ≥70 border/ring, escalation, overdue |
-| Success green | `#16a34a` | `green-600` | delivered / picked up |
-| Warning amber | `#ca8a04` | `amber-600` | pickup pending, urgent, review queue |
-| Neutral | `#6b7280`→white | `slate-*` | text, borders, bg |
+| Primary (coral) | `--primary` | `#E27B5E` (hover `#D2694C`, fg white) | CTAs, logo, eyebrows, brand accents |
+| Secondary / dark (navy-slate) | `--secondary` | `#2C3A49` (fg white) | dark sections, secondary buttons, "in motion" status |
+| Background (warm off-white) | `--background` | `#F7F5F3` | app canvas |
+| Card / surface | `--card` | `#FFFFFF` | cards, surfaces, panels |
+| Foreground / ink | `--foreground` | `#263240` | body + heading text |
+| Muted foreground | `--muted-foreground` | `#5C6B75` | secondary text, timestamps |
+| Border | `--border` | `#EBE7E3` | dividers, card borders |
+| Destructive / at-risk | `--destructive` | `#CB3E3A` (distinct from coral) | risk ≥70, escalation, overdue |
+| Success | *(token)* | `#3E9C6B` | delivered / picked up |
+| Radius | `--radius` | `14px` | rounded, friendly |
 
-**Typography:** keep system font stack; scale `text-xs` (badges/timestamps) → `text-lg` (section
-headers); weights 400/500/600/700. Min 14px body on mobile. **Touch targets ≥44×44px** (`py-2 px-4`).
-Mobile-first → tablet 2–3 col → desktop full board.
+**Typography:** display font `ui-rounded, "SF Pro Rounded", system-ui, sans-serif` (**heavy weights**) for
+headings, counts, and patient names; body `system-ui`. **Coral uppercase letter-spaced eyebrows** above
+section headers. Min 14px body on mobile. **Touch targets ≥44×44px**. Mobile-first → tablet 2–3 col →
+desktop full board. (Reference: matches betterrx.com/technology.)
 
-**Component tokens:** at-risk card = `border-red-400 ring-1 ring-red-200`, reasons in `text-red-700`.
-Escalation banner = `border-red-300 bg-red-50 p-3`. Review queue = `border-amber-200 bg-amber-50 p-3`.
+**Component tokens (via shadcn variants):** at-risk card = destructive border + subtle ring, reasons in
+destructive text. Escalation banner = destructive border on a tinted destructive surface. Review queue =
+muted/secondary-tinted surface. Route everything through shadcn's `Card`/`Button`/`Badge` so the tokens
+stay the single source of truth.
 
 **Plain-English status vocabulary (the on-screen rule — never show state-machine terms):**
 `ordered`→"Ordered" · `dispatched`→**"Accepted"** · `in_transit`→**"On the truck"** · `delivered`→
@@ -64,9 +76,11 @@ in `lib/domain.ts`. Fix the review-queue leak that renders raw `needs_review`/`a
 **Copy register:** family-adjacent = respectful ("The family is grieving. Call ahead, be brief and
 kind."); risk reasons = human sentences ("Vendor 2 is 62% on-time for beds on Fridays"), never `k=v`.
 
-**Tailwind v4 encoding (IMPORTANT — no JS config exists):** add brand tokens via a `@theme` block in
-`client/src/index.css` (v4 CSS-first) — do **not** create `tailwind.config.ts`. Route all buttons through
-`ui.tsx` variants and all status through `STATE_TONE`; add shared atoms (below) so agents never hardcode.
+**Tailwind v4 + shadcn encoding (IMPORTANT — no JS config exists):** the stack is **Tailwind v4 + React 19
++ Vite**, so shadcn's CSS-variables theme goes in a `@theme`/`:root` block in `client/src/index.css` — do
+**not** create `tailwind.config.ts`. Use a shadcn version that supports Tailwind v4. Configure
+`components.json` and path aliases (`@/components`, `@/lib`, `@/hooks`) for the Vite client. Route all
+buttons/cards/badges/status through shadcn primitives (themed to the tokens) so agents never hardcode.
 
 ## Requirements → frontend task map
 
@@ -120,8 +134,9 @@ yellow/red/blue). **Key components:** `OrderCard.tsx`, `PhotoInput.tsx` (camera)
 **Domain map:** `lib/domain.ts` = `CATALOG` (4 HCPCS), `STATE_LABEL`, `STATE_TONE`, `BOARD_COLUMNS`.
 
 **Recipe to add a surface** (no test burden — "UI stays test-free"): new `pages/X.tsx` using
-`useLive`+`api`+atoms → add `<Route>`+`NavLink` in `App.tsx` → ensure the backend route broadcasts SSE
-so `useLive` refetches. Tailwind utilities only. Commit straight to `main`, `git pull --rebase` first.
+`useLive`+`api`+shadcn primitives/atoms → add `<Route>`+`NavLink` in `App.tsx` → ensure the backend route
+broadcasts SSE so `useLive` refetches. Build with shadcn/ui components (themed to the BetterRX tokens);
+Tailwind utilities for layout. Commit straight to `main`, `git pull --rebase` first.
 
 **Confirmed gaps (frontend):**
 1. `/reports` DON view — **not built** (data exists: `vendor_stats`, escalations, order history).
@@ -176,9 +191,16 @@ demo runs off whatever main is at freeze). UI stays test-free; don't touch core-
 ### Agent 0 — Design + frontend foundation (BLOCKING; lands before the rest)
 Owns the hot/shared **client** files so feature lanes don't collide on them. **No `shared/types.ts` DB
 schema changes** — view-model types live client-side:
-- `client/src/index.css`: `@theme` brand tokens. `components/ui.tsx`: shared atoms — `StatusPill`
-  (plain-English), `EvidenceBadge` (verified vs vendor-reported), `RiskBadge`, `PersonaHeader`,
-  `ConditionChecklist`, empty-states. `lib/domain.ts`: fix raw-enum leaks, confirm labels.
+- **Install shadcn/ui**: `npx shadcn@latest init` (new-york style; Tailwind-v4-compatible version — theme
+  is CSS vars in `client/src/index.css`, not `tailwind.config.ts`); configure `components.json` + Vite
+  aliases (`@/components`, `@/lib`, `@/hooks`); add base components: `button card badge dialog input select
+  checkbox table tabs sonner skeleton separator avatar tooltip` under `client/src/components/ui/`.
+- `client/src/index.css`: map the BetterRX tokens onto shadcn's CSS variables (`--primary` coral,
+  `--secondary` navy-slate, `--destructive`, `--background`, `--card`, `--muted`, `--border`, `--radius`
+  14px, display font). `components/ui.tsx`: shared atoms as **thin wrappers/variants over shadcn** —
+  `StatusPill` + `EvidenceBadge` (`Badge` variants, plain-English / verified-vs-reported), `RiskBadge`
+  (`Badge`), `PersonaHeader`, `ConditionChecklist` (shadcn `Checkbox` rows), empty-states. `lib/domain.ts`:
+  fix raw-enum leaks, confirm labels.
 - **`lib/mocks.ts` + client view-model types**: the typed adapter/mocks for data the backend doesn't
   serve yet (vendor serialized inventory + per-unit location, CMS HCPCS pricing, cost-threshold
   approvals, message `evidence_source`). One import surface so every lane builds a complete UI without
@@ -187,6 +209,7 @@ schema changes** — view-model types live client-side:
   committing **stub pages** so lanes just fill them. Add **persona labels** to the 3 existing surfaces.
 
 ### Lane A — Case manager / hospice board *(highest value; ~70% weight)* — owns `Hospice.tsx`, `OrderCard.tsx`
+*(Build with shadcn/ui components — Card, Button, Badge, Dialog, Table, Tabs, Select, Input, Checkbox, Sonner.)*
 - **"Needs attention" band** at the top: at-risk orders / ones about to miss a deadline, surfaced above
   the columns *(user idea)*. Below it, the live order/patient list *(user idea)*.
 - Verified-vs-reported `EvidenceBadge` on the message/timeline; a vendor text never clears an at-risk
@@ -195,6 +218,7 @@ schema changes** — view-model types live client-side:
   risk reasons.
 
 ### Lane B — Admissions/ordering nurse — owns new `pages/Order.tsx`, nurse-pickup surface
+*(Build with shadcn/ui components — Card, Button, Badge, Dialog, Table, Tabs, Select, Input, Checkbox, Sonner.)*
 - **`/order`** phone-friendly placement form *(user idea)*: patient lookup, HCPCS select, urgency, target
   date, vendor — sub-60s.
 - **Nurse-initiated pickup** one-tap mobile surface. ✅ **Backend already exists** (team just landed
@@ -202,6 +226,7 @@ schema changes** — view-model types live client-side:
   `payload.source:'nurse'`). **This lane is now frontend-only** — a phone surface that POSTs there.
 
 ### Lane C — Driver + no-login vendor status — owns `Driver.tsx`, POD components, new `pages/VendorStatus.tsx`
+*(Build with shadcn/ui components — Card, Button, Badge, Dialog, Table, Tabs, Select, Input, Checkbox, Sonner.)*
 - **Condition attestation** 3-checkbox on POD (clean/functional/patient-ready) — via foundation's
   `ConditionChecklist`; show it back on the order card.
 - POD polish; phone-LAN access (`host:true` in `client/vite.config.ts`); respectful pickup copy.
@@ -210,11 +235,13 @@ schema changes** — view-model types live client-side:
   `POST …/orders/:id/confirm|eta|decline` routes.
 
 ### Lane D — Director of Nursing `/reports` — owns new `pages/Reports.tsx`
+*(Build with shadcn/ui components — Card, Button, Badge, Dialog, Table, Tabs, Select, Input, Checkbox, Sonner.)*
 - Vendor scorecards from `vendor_stats`, open-escalation age, pickup latency, **cost-of-care** (DME +
   med spend via mock CMS HCPCS pricing), and the **"phone calls that never happened" counter**.
 - Cost-threshold approval surface (approval-pending via shared atom + `lib/mocks.ts`, no `OrderCard` edit).
 
 ### Lane E — DME vendor portal — owns new `pages/VendorPortal.tsx` *(user-requested)*
+*(Build with shadcn/ui components — Card, Button, Badge, Dialog, Table, Tabs, Select, Input, Checkbox, Sonner.)*
 - The "one place to see my orders" surface, fed by the **real** `GET /api/portal/:token`. Enrich into
   **all the vendor's equipment and where each piece is** — serialized inventory (in stock / out for
   delivery / at patient / overdue for pickup), per-unit location/status tied to orders, delivery+pickup
