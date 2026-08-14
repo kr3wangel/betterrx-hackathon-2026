@@ -5,6 +5,7 @@ import { applyEvent, escalate } from './statemachine'
 import { getOrder, getVendor, listOrders, listOrderEvents, rowToMessage } from './store'
 import { handleInbound, applyParsed, sendToVendor, orderRequestText } from './messaging'
 import { setPatientStatus } from './pickups'
+import { resolveTargetAt } from './sla'
 import { resolveToken, portalOrders, portalConfirm, portalSetEta, portalDecline } from './portal'
 import type { Escalation, ParsedMessage, Patient, PatientStatus, Vendor } from '../shared/types'
 
@@ -27,11 +28,20 @@ routes.get('/vendors', (_req, res) => {
 
 routes.post('/orders', (req, res) => {
   const { patient_id, vendor_id, hcpcs_code, equipment_name, quantity, urgency, target_at } = req.body
+  const resolvedUrgency = urgency ?? 'routine'
   const result = db
     .prepare(
       'INSERT INTO orders (patient_id, vendor_id, hcpcs_code, equipment_name, quantity, urgency, target_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
     )
-    .run(patient_id, vendor_id, hcpcs_code, equipment_name, quantity ?? 1, urgency ?? 'routine', target_at ?? null)
+    .run(
+      patient_id,
+      vendor_id,
+      hcpcs_code,
+      equipment_name,
+      quantity ?? 1,
+      resolvedUrgency,
+      resolveTargetAt(target_at, resolvedUrgency),
+    )
   const orderId = Number(result.lastInsertRowid)
   const order = applyEvent(orderId, 'order_placed', null, 'hospice')
 
