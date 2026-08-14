@@ -284,6 +284,8 @@ routes.get('/orders/:id/condition', (req, res) => {
 /** Vendor scorecard input — the reason for collecting any of this. */
 routes.get('/vendors/condition', (_req, res) => {
   res.json(vendorConditionStats())
+})
+
 routes.get('/reports/vendor-scorecards', (_req, res) => {
   res.json(vendorScorecards())
 })

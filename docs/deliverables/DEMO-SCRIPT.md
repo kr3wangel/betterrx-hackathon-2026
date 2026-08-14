@@ -91,10 +91,10 @@ ACK_ESCALATE_HOURS=0           # escalate on the tick after the nag
 # PICKUP_WINDOW_HOURS — LEAVE UNSET (24).
 ```
 
-> `[QUIRK]` Do **not** set `PICKUP_WINDOW_HOURS=0` "to demo the overdue path": the watchdog measures
-> the pickup clock from `order.eta_at ?? order.created_at` (`server/watchdog.ts:63`), which for
-> seeded orders is *order creation*, not the pickup trigger. Every card in scenario 2 would flip to
-> red **Pickup overdue** within 30s and wreck the clean pickup. Narrate the overdue path instead.
+> `[QUIRK]` Do **not** set `PICKUP_WINDOW_HOURS=0` "to demo the overdue path": the pickup clock now
+> correctly anchors to the `pickup_triggered` event (`pickupAnchor()` in `server/watchdog.ts`), but
+> with a 0-hour window every freshly triggered pickup still flips to red **Pickup overdue** on the
+> next 30s tick and wrecks the clean pickup. Narrate the overdue path instead.
 
 **3. Boot order**
 

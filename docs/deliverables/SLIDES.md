@@ -301,6 +301,8 @@ script before code freeze. **If it isn't in this inbox, it won't be on stage.**
 
 <!-- Format that helps: "<what it is> — <where to click it / file> — <which slide it might strengthen>" -->
 
+- Driver attests clean / functional / patient-ready at delivery; a failed check auto-escalates to the hospice — POD flow on `/driver` (`server/pods.ts`) — slide 2 (FAQ §9 named condition a strong differentiator)
+- Pickup-overdue clock anchors to the pickup trigger, not order age — no false reds on stage (`pickupAnchor()` in `server/watchdog.ts`) — demo-reliability, not a slide
 - 
 - 
 - 

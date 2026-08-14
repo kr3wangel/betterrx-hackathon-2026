@@ -248,12 +248,12 @@ intent→event map to keep in sync.
 
 Two behaviors worth pinning down because the code makes them non-obvious:
 
-- **`pickup_confirm` press 1 sends `eta_iso: null` deliberately.** The pickup watchdog measures
-  overdue from `order.eta_at ?? order.created_at`. Writing an ETA on a pickup confirmation would
-  silently restart the 24h overdue clock — a vendor could stay "not overdue" forever by pressing 1
-  once a day. Leaving `eta_at` untouched keeps the clock honest. (Separately: `created_at` there is
-  the *order's* creation time, not the pickup trigger time. That's a pre-existing quirk; this spec
-  doesn't touch it.)
+- **`pickup_confirm` press 1 sends `eta_iso: null` deliberately.** The pickup watchdog anchors the
+  overdue clock to the `pickup_triggered` event, but honors an `eta_set` that lands *after* the
+  trigger — so writing an ETA on a pickup confirmation would silently restart the 24h overdue
+  clock, and a vendor could stay "not overdue" forever by pressing 1 once a day. Leaving `eta_at`
+  untouched keeps the clock honest. (The old order-creation-time quirk here was fixed —
+  `pickupAnchor()` in `server/watchdog.ts`.)
 - **`eta_check` press 1 sets `eta_at = target_at`,** i.e. "on schedule" means "I'm committing to the
   deadline." `applyParsed()` rewrites `eta_update` → `accept` when state is `ordered`, but the ETA
   moment never fires in `ordered`, so the rewrite can't bite here.
