@@ -23,6 +23,10 @@ export function pickupRequestText(order: Order): string {
   return `Pickup needed for order #${order.id} (${order.equipment_name}). Family is present — please schedule promptly and reply with your pickup window.`
 }
 
+export function ackNagText(order: Order): string {
+  return `Order #${order.id} (${order.equipment_name}) hasn't been confirmed — reply YES to accept or NO if you can't fill it.`
+}
+
 const PARSE_SCHEMA = {
   type: 'object',
   properties: {

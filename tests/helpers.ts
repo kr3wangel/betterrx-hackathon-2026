@@ -18,11 +18,12 @@ export function seedOrder(overrides: Record<string, unknown> = {}): number {
     target_at: null,
     eta_at: null,
     risk_score: null,
+    created_at: new Date().toISOString(),
   }
   const row = { ...defaults, ...overrides }
   const result = db
     .prepare(
-      'INSERT INTO orders (patient_id, vendor_id, hcpcs_code, equipment_name, state, target_at, eta_at, risk_score) VALUES (@patient_id, @vendor_id, @hcpcs_code, @equipment_name, @state, @target_at, @eta_at, @risk_score)',
+      'INSERT INTO orders (patient_id, vendor_id, hcpcs_code, equipment_name, state, target_at, eta_at, risk_score, created_at) VALUES (@patient_id, @vendor_id, @hcpcs_code, @equipment_name, @state, @target_at, @eta_at, @risk_score, @created_at)',
     )
     .run(row)
   return Number(result.lastInsertRowid)

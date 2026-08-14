@@ -1,9 +1,36 @@
+import { db } from './db'
 import { applyEvent, escalate } from './statemachine'
+import { ackNagText, sendToVendor } from './messaging'
 import { computeRisk, RISK_THRESHOLD } from './risk'
 import { listOrders, vendorStats } from './store'
+import type { Order } from '../shared/types'
 
 const ACTIVE = ['ordered', 'dispatched', 'in_transit']
 const PICKUP_WINDOW_HOURS = Number(process.env.PICKUP_WINDOW_HOURS ?? 24)
+const ACK_NAG_HOURS = Number(process.env.ACK_NAG_HOURS ?? 2)
+const ACK_ESCALATE_HOURS = Number(process.env.ACK_ESCALATE_HOURS ?? 2)
+
+function hoursSince(iso: string, now: Date): number {
+  return (now.getTime() - new Date(iso).getTime()) / 3_600_000
+}
+
+function requestAnchor(order: Order): string {
+  const row = db
+    .prepare(
+      "SELECT created_at FROM order_events WHERE order_id = ? AND type IN ('order_placed', 'vendor_swapped') ORDER BY id DESC LIMIT 1",
+    )
+    .get(order.id) as { created_at: string } | undefined
+  return row?.created_at ?? order.created_at
+}
+
+function ackNagSentAt(order: Order, anchor: string): string | null {
+  const row = db
+    .prepare(
+      "SELECT created_at FROM messages WHERE order_id = ? AND direction = 'out' AND body = ? AND created_at >= ? ORDER BY id DESC LIMIT 1",
+    )
+    .get(order.id, ackNagText(order), anchor) as { created_at: string } | undefined
+  return row?.created_at ?? null
+}
 
 export function tick(now = new Date()): void {
   for (const order of listOrders()) {
@@ -19,9 +46,22 @@ export function tick(now = new Date()): void {
       }
     }
 
+    if (order.state === 'ordered') {
+      const anchor = requestAnchor(order)
+      const nagSentAt = ackNagSentAt(order, anchor)
+      if (!nagSentAt) {
+        if (hoursSince(anchor, now) > ACK_NAG_HOURS) {
+          sendToVendor(order.vendor_id, order.id, ackNagText(order))
+        }
+      } else if (hoursSince(nagSentAt, now) > ACK_ESCALATE_HOURS) {
+        const h = Math.round(hoursSince(anchor, now))
+        escalate(order.id, `No response to the automated check-in — order #${order.id} is still unconfirmed ${h}h after placement`)
+      }
+    }
+
     if (order.state === 'pickup_pending') {
       const triggeredAt = order.eta_at ?? order.created_at
-      const hours = (now.getTime() - new Date(triggeredAt).getTime()) / 3_600_000
+      const hours = hoursSince(triggeredAt, now)
       if (hours > PICKUP_WINDOW_HOURS) {
         applyEvent(order.id, 'pickup_overdue', { hours_waiting: Math.round(hours) }, 'system')
         escalate(order.id, `Pickup not completed after ${Math.round(hours)}h — family is still waiting`)
