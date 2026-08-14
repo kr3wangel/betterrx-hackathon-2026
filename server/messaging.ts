@@ -153,4 +153,16 @@ export function applyParsed(orderId: number, parsed: ParsedMessage, actor: Actor
   if (parsed.intent === 'delay') {
     escalate(orderId, `Vendor reported a delay: ${parsed.notes ?? 'no details'}`)
   }
+  if (parsed.intent === 'delivered') {
+    escalate(
+      orderId,
+      `Order #${orderId} marked delivered by the vendor without proof of delivery — confirm with the family or request a POD`,
+    )
+  }
+  if (parsed.intent === 'picked_up') {
+    escalate(
+      orderId,
+      `Order #${orderId} marked picked up by the vendor without proof of pickup — confirm with the family or request a POD`,
+    )
+  }
 }

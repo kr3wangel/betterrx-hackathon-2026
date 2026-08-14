@@ -18,6 +18,8 @@ function order(overrides: Partial<Order> = {}): Order {
     eta_at: null,
     risk_score: null,
     risk_reasons: null,
+    delivery_verified: false,
+    pickup_verified: false,
     created_at: '2026-08-14T00:00:00Z',
     ...overrides,
   }

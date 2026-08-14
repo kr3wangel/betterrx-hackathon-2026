@@ -65,6 +65,8 @@ export interface Order {
   eta_at: string | null
   risk_score: number | null
   risk_reasons: string[] | null
+  delivery_verified: boolean
+  pickup_verified: boolean
   created_at: string
 }
 

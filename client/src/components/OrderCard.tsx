@@ -22,6 +22,8 @@ export function OrderCard({
 }) {
   const [detail, setDetail] = useState<Detail | null>(null)
   const atRisk = (order.risk_score ?? 0) >= RISK_THRESHOLD
+  const verified =
+    order.state === 'delivered' ? order.delivery_verified : order.state === 'picked_up' ? order.pickup_verified : null
 
   return (
     <div
@@ -44,6 +46,11 @@ export function OrderCard({
 
       <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-600">
         {order.urgency !== 'routine' && <Badge tone="yellow">{order.urgency}</Badge>}
+        {verified !== null &&
+          (verified ? <Badge tone="green">✓ Verified</Badge> : <Badge tone="gray">Vendor-reported</Badge>)}
+        {(order.state === 'dispatched' || order.state === 'in_transit') && (
+          <span className="text-slate-400">vendor-reported</span>
+        )}
         {order.target_at && <span>due {fmt(order.target_at)}</span>}
         {order.eta_at && <span>ETA {fmt(order.eta_at)}</span>}
         {order.risk_score !== null && (
