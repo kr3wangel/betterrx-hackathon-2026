@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 import { db } from './db'
+import { notifyFamilyOfEta } from './messaging'
 import { applyEvent, escalate } from './statemachine'
 import { getOrder, listOrders } from './store'
 import type { Order, Vendor } from '../shared/types'
@@ -35,12 +36,16 @@ function ownOrder(vendorId: number, orderId: number): Order {
 
 export function portalConfirm(vendorId: number, orderId: number, etaIso?: string): Order {
   ownOrder(vendorId, orderId)
-  return applyEvent(orderId, 'vendor_accepted', { eta_iso: etaIso ?? null, source: 'portal' }, 'vendor')
+  const order = applyEvent(orderId, 'vendor_accepted', { eta_iso: etaIso ?? null, source: 'portal' }, 'vendor')
+  if (etaIso) notifyFamilyOfEta(order)
+  return order
 }
 
 export function portalSetEta(vendorId: number, orderId: number, etaIso: string): Order {
   ownOrder(vendorId, orderId)
-  return applyEvent(orderId, 'eta_set', { eta_iso: etaIso, source: 'portal' }, 'vendor')
+  const order = applyEvent(orderId, 'eta_set', { eta_iso: etaIso, source: 'portal' }, 'vendor')
+  notifyFamilyOfEta(order)
+  return order
 }
 
 export function portalDecline(vendorId: number, orderId: number, reason?: string): void {

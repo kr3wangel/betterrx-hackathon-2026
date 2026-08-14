@@ -1,6 +1,6 @@
 import { db } from './db'
 import { applyEvent, escalate } from './statemachine'
-import { ackNagText, sendToVendor } from './messaging'
+import { ackNagText, etaCheckText, sendToVendor } from './messaging'
 import { computeRisk, RISK_THRESHOLD } from './risk'
 import { listOrders, vendorStats } from './store'
 import type { Order } from '../shared/types'
@@ -9,6 +9,7 @@ const ACTIVE = ['ordered', 'dispatched', 'in_transit']
 const PICKUP_WINDOW_HOURS = Number(process.env.PICKUP_WINDOW_HOURS ?? 24)
 const ACK_NAG_HOURS = Number(process.env.ACK_NAG_HOURS ?? 2)
 const ACK_ESCALATE_HOURS = Number(process.env.ACK_ESCALATE_HOURS ?? 2)
+const ETA_CHECK_HOUR = Number(process.env.ETA_CHECK_HOUR ?? 8)
 
 function hoursSince(iso: string, now: Date): number {
   return (now.getTime() - new Date(iso).getTime()) / 3_600_000
@@ -39,13 +40,32 @@ function pickupAnchor(order: Order): string {
   return triggered.created_at
 }
 
+// Matched by template, not by body: the moment anyone makes the nag copy time-dependent
+// ("still unconfirmed 5h after placement") body equality stops matching and the vendor
+// gets re-nagged every thirty seconds, forever.
 function ackNagSentAt(order: Order, anchor: string): string | null {
   const row = db
     .prepare(
-      "SELECT created_at FROM messages WHERE order_id = ? AND direction = 'out' AND body = ? AND created_at >= ? ORDER BY id DESC LIMIT 1",
+      "SELECT created_at FROM messages WHERE order_id = ? AND direction = 'out' AND template = 'v_ack_nag' AND created_at >= ? ORDER BY id DESC LIMIT 1",
     )
-    .get(order.id, ackNagText(order), anchor) as { created_at: string } | undefined
+    .get(order.id, anchor) as { created_at: string } | undefined
   return row?.created_at ?? null
+}
+
+function etaCheckSentToday(order: Order, now: Date): boolean {
+  const midnight = new Date(now)
+  midnight.setHours(0, 0, 0, 0)
+  return !!db
+    .prepare(
+      "SELECT id FROM messages WHERE order_id = ? AND direction = 'out' AND template = 'v_eta_check' AND created_at >= ?",
+    )
+    .get(order.id, midnight.toISOString())
+}
+
+function dueToday(order: Order, now: Date): boolean {
+  if (!order.target_at) return false
+  const target = new Date(order.target_at)
+  return target.toDateString() === now.toDateString()
 }
 
 export function tick(now = new Date()): void {
@@ -67,12 +87,21 @@ export function tick(now = new Date()): void {
       const nagSentAt = ackNagSentAt(order, anchor)
       if (!nagSentAt) {
         if (hoursSince(anchor, now) > ACK_NAG_HOURS) {
-          sendToVendor(order.vendor_id, order.id, ackNagText(order))
+          sendToVendor(order.vendor_id, order.id, ackNagText(order), 'v_ack_nag')
         }
       } else if (hoursSince(nagSentAt, now) > ACK_ESCALATE_HOURS) {
         const h = Math.round(hoursSince(anchor, now))
         escalate(order.id, `No response to the automated check-in — order #${order.id} is still unconfirmed ${h}h after placement`)
       }
+    }
+
+    if (
+      (order.state === 'dispatched' || order.state === 'in_transit') &&
+      dueToday(order, now) &&
+      now.getHours() >= ETA_CHECK_HOUR &&
+      !etaCheckSentToday(order, now)
+    ) {
+      sendToVendor(order.vendor_id, order.id, etaCheckText(order), 'v_eta_check')
     }
 
     if (order.state === 'pickup_pending') {

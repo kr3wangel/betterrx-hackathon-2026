@@ -21,10 +21,13 @@ export function setPatientStatus(
 
   const triggered: number[] = []
   if (status === 'deceased' || status === 'discharged') {
+    const patient = db.prepare('SELECT market FROM patients WHERE id = ?').get(patientId) as
+      | { market: string }
+      | undefined
     const delivered = listOrders('delivered').filter((o) => o.patient_id === patientId)
     for (const order of delivered) {
       applyEvent(order.id, 'pickup_triggered', { patient_status: status, source }, source === 'nurse' ? 'hospice' : 'system')
-      sendToVendor(order.vendor_id, order.id, pickupRequestText(order))
+      sendToVendor(order.vendor_id, order.id, pickupRequestText(order, patient?.market), 'v_pickup_request')
       triggered.push(order.id)
     }
   }
