@@ -4,7 +4,7 @@ type ExtractOptions = {
   prompt: string
   schema: Record<string, unknown>
   system?: string
-  model?: string
+  model?: string | undefined
   maxTokens?: number
 }
 

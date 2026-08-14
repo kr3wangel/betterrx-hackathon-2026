@@ -82,6 +82,7 @@ export async function handleInbound(vendorId: number, body: string): Promise<Mes
   if (process.env.ANTHROPIC_API_KEY) {
     try {
       parsed = await extractJson<ParsedMessage>({
+        model: process.env.PARSE_MODEL,
         system: [
           'You parse SMS replies from durable medical equipment vendors into structured status updates for a hospice coordination system.',
           `Current datetime: ${new Date().toISOString()}. Resolve relative times ("thursday morning", "late afternoon") to ISO datetimes in the future.`,

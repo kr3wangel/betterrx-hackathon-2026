@@ -32,6 +32,8 @@ const CASES: { body: string; expect: string; note?: string }[] = [
   { body: "cant do the cpap this week, truck's down", expect: 'decline', note: 'should escalate' },
 ]
 
+console.log(`model: ${process.env.PARSE_MODEL ?? 'claude-opus-5 (default)'}`)
+
 let pass = 0
 for (const [i, c] of CASES.entries()) {
   console.log(`\n─── ${i + 1}/6: "${c.body}"`)
