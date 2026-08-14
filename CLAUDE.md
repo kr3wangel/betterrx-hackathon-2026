@@ -33,6 +33,10 @@ npm run build        # typecheck + vite build
 - Vendor stats carry the deliberately planted risk signal (vendor 2 is 79% on-time; vendor 1 drops to 62% for Friday beds) — the risk engine only looks interesting because the data makes it so.
 - POD photos/signatures are data URLs → files under `data/pods/` (gitignored), served at `/api/pods`.
 
+## Team docs
+
+`docs/BUILD-DAY-TASKS.md` is the shared task list (claim items by name). `docs/BACKEND-SPEC.md` is the architecture spec. `docs/deliverables/` holds the four submission drafts (AI approach, differentiation, integration sketch, demo script) — keep them in sync with reality as the build evolves.
+
 ## Demo scenarios (build everything toward these)
 
 1. **Discharge readiness**: seed scenario1 → order at risk → escalation banner → swap vendor → delivered with POD.
