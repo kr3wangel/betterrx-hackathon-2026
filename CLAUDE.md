@@ -2,6 +2,15 @@
 
 Hackathon entry (BetterRX DME bounty, Builder Day 2026): a coordination layer between hospices and DME vendors — shared order visibility from admission to equipment pickup, with a vendor channel that works over plain SMS parsed by Claude so vendors need zero software. Hackathon code: favor the smallest working change and demo-readiness — but the core logic (state machine, risk engine, message parse/gate) is vitest-covered; keep those tests passing (`npm test`) and extend them when you touch that logic. UI and routes stay test-free.
 
+## Git workflow (3 people, one repo)
+
+Work directly on `main`: `git pull --rebase` before pushing, run `npm test` before every push
+(never push red — **main must always seed and boot**; the demo runs off whatever main is at code
+freeze). Exception: a change that would leave main broken for more than ~an hour (e.g. a schema
+change) rides a short-lived branch the author rebase-merges themselves the same session — no PR
+ceremony, delete the branch after. Schema changes additionally get a "run
+`npm run db:reset && npm run seed`" ping to the team (see Gotchas).
+
 ## Commands
 
 ```bash
@@ -22,6 +31,7 @@ npm run build        # typecheck + vite build
 - `server/risk.ts` — deliberately rules-based (not ML): explainable scoring with human-readable reasons. Threshold 70 = `RISK_THRESHOLD`. ⚠️ duplicated as a local const in `client/src/components/OrderCard.tsx` — keep in sync.
 - `server/messaging.ts` — outbound SMS templates fire as side effects of transitions; inbound goes through `extractJson()` (`server/llm.ts`, Claude with `output_config.format` JSON schema) with vendor's open orders as context. **Confidence gate: ≥ 0.8 with a resolved order auto-applies; otherwise → review queue** (`review_status = 'needs_review'`). This gate is the project's AI-safety story — don't bypass it.
 - `server/watchdog.ts` — 30s tick: recompute risk, escalate threshold crossings, flag overdue pickups.
+- `server/pickups.ts` — `setPatientStatus()` owns death/discharge → pickup triggering, shared by the nurse route (`POST /api/patients/:id/status`, actor `hospice`, the sponsor-preferred primary trigger) and the EMR webhook (`POST /api/emr/patient-status`, actor `system`, the redundant fallback). Events carry `payload.source: 'nurse' | 'emr'`.
 - Client: three surfaces (`/hospice`, `/vendor`, `/driver`) in one React app. Pages fetch with `useLive()` (`client/src/lib/useLive.ts`), which refetches on every SSE event — no manual cache invalidation; after a POST the SSE broadcast triggers the refresh.
 - SQLite via better-sqlite3 (synchronous API — no `await` on db calls). Timestamps are ISO-8601 UTC strings. JSON columns (`risk_reasons`, `payload`, `parsed`) are TEXT; use the `rowTo*` mappers in `server/store.ts`.
 

@@ -11,7 +11,7 @@ BetterRX DME bounty — Builder Day 2026. Hospice ↔ DME vendor coordination: s
 
 ### Working agreements
 
-- Commit straight to `main`; `git pull --rebase` before pushing.
+- Commit straight to `main`; `git pull --rebase` before pushing; `npm test` before every push (never push red — main must always seed and boot). Only changes that would break main for >1h get a short-lived, self-merged branch. Full detail in `CLAUDE.md`.
 - Core logic (state machine, risk, parse/gate) is vitest-covered — keep `npm test` green and extend tests when you touch it. UI and routes stay test-free.
 - UI language is plain-English per the north star ("Accepted", "On the truck" — never `dispatched`/`in_transit` on screen), and everything family-adjacent gets a respectful-tone pass.
 
