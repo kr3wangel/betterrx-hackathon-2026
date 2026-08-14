@@ -80,4 +80,30 @@ CREATE TABLE IF NOT EXISTS pods (
   signature_path TEXT,
   captured_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
+CREATE TABLE IF NOT EXISTS condition_reports (
+  id INTEGER PRIMARY KEY,
+  order_id INTEGER NOT NULL,
+  vendor_id INTEGER NOT NULL,
+  patient_id INTEGER NOT NULL,
+  score INTEGER NOT NULL,
+  source TEXT NOT NULL DEFAULT 'caregiver',
+  comment TEXT,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+CREATE INDEX IF NOT EXISTS idx_condition_vendor ON condition_reports (vendor_id);
+CREATE INDEX IF NOT EXISTS idx_condition_order ON condition_reports (order_id);
 `)
+
+// Additive columns for the caregiver condition channel. Wrapped because teammates have
+// existing dev databases that predate them and SQLite has no ADD COLUMN IF NOT EXISTS.
+for (const stmt of [
+  "ALTER TABLE patients ADD COLUMN caregiver_name TEXT NOT NULL DEFAULT ''",
+  "ALTER TABLE patients ADD COLUMN caregiver_phone TEXT NOT NULL DEFAULT ''",
+  'ALTER TABLE patients ADD COLUMN contact_ok INTEGER NOT NULL DEFAULT 1',
+]) {
+  try {
+    db.exec(stmt)
+  } catch {
+    // column already present
+  }
+}

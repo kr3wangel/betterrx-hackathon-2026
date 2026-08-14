@@ -106,19 +106,24 @@ const VENDORS: VendorProfile[] = [
   },
 ]
 
+/**
+ * Caregivers, not patients, are the contact for the condition channel. Hospice patients
+ * frequently can't answer a phone; the family member who takes delivery at the door can.
+ * See server/condition.ts.
+ */
 const PATIENTS = [
-  { id: 1, name: 'Eleanor Vance', address: '412 Maple St', market: 'Salt Lake City' },
-  { id: 2, name: 'Harold Whitfield', address: '88 Canyon Rd', market: 'Salt Lake City' },
-  { id: 3, name: 'Margaret Osei', address: '2201 Bench Dr', market: 'Provo' },
-  { id: 4, name: 'Frank Delgado', address: '15 Willow Ln', market: 'Provo' },
-  { id: 5, name: 'Ruth Nakamura', address: '907 Alta Ave', market: 'Ogden' },
-  { id: 6, name: 'Alma Restrepo', address: '3390 Foothill Blvd', market: 'Salt Lake City' },
-  { id: 7, name: 'Walter Kimball', address: '77 Center St', market: 'Provo' },
-  { id: 8, name: 'Dorothy Chen', address: '1425 Harrison Ave', market: 'Ogden' },
-  { id: 9, name: 'Samuel Begay', address: '620 Redwood Rd', market: 'Salt Lake City' },
-  { id: 10, name: 'Rosemary Tillotson', address: '204 Orchard Way', market: 'Ogden' },
-  { id: 11, name: 'Gerald Okafor', address: '5561 Cottonwood Ln', market: 'Salt Lake City' },
-  { id: 12, name: 'Lucille Barrantes', address: '18 Provo Canyon Rd', market: 'Provo' },
+  { id: 1, name: 'Eleanor Vance', address: '412 Maple St', market: 'Salt Lake City', caregiver: 'Marcy Vance', phone: '801-555-1201' },
+  { id: 2, name: 'Harold Whitfield', address: '88 Canyon Rd', market: 'Salt Lake City', caregiver: 'Joan Whitfield', phone: '801-555-1202' },
+  { id: 3, name: 'Margaret Osei', address: '2201 Bench Dr', market: 'Provo', caregiver: 'Kwame Osei', phone: '385-555-1203' },
+  { id: 4, name: 'Frank Delgado', address: '15 Willow Ln', market: 'Provo', caregiver: 'Rosa Delgado', phone: '385-555-1204' },
+  { id: 5, name: 'Ruth Nakamura', address: '907 Alta Ave', market: 'Ogden', caregiver: 'Ken Nakamura', phone: '801-555-1205' },
+  { id: 6, name: 'Alma Restrepo', address: '3390 Foothill Blvd', market: 'Salt Lake City', caregiver: 'Diego Restrepo', phone: '801-555-1206' },
+  { id: 7, name: 'Walter Kimball', address: '77 Center St', market: 'Provo', caregiver: 'Susan Kimball', phone: '385-555-1207' },
+  { id: 8, name: 'Dorothy Chen', address: '1425 Harrison Ave', market: 'Ogden', caregiver: 'Lily Chen', phone: '801-555-1208' },
+  { id: 9, name: 'Samuel Begay', address: '620 Redwood Rd', market: 'Salt Lake City', caregiver: 'Nina Begay', phone: '801-555-1209' },
+  { id: 10, name: 'Rosemary Tillotson', address: '204 Orchard Way', market: 'Ogden', caregiver: 'Grant Tillotson', phone: '801-555-1210' },
+  { id: 11, name: 'Gerald Okafor', address: '5561 Cottonwood Ln', market: 'Salt Lake City', caregiver: 'Ada Okafor', phone: '801-555-1211' },
+  { id: 12, name: 'Lucille Barrantes', address: '18 Provo Canyon Rd', market: 'Provo', caregiver: 'Elena Barrantes', phone: '385-555-1212' },
 ]
 
 /** CMS national beneficiary counts as demand weights — oxygen and CPAP dominate, as they do in reality. */
@@ -153,7 +158,33 @@ interface SimOrder {
   dow: number
   pickup_triggered_at: Date | null
   picked_up_at: Date | null
-  condition_ok: boolean
+  /** 1-5 from the caregiver, or null when nobody replied to the text. */
+  condition_score: number | null
+}
+
+/**
+ * Caregiver condition ratings. Beehive runs an older, harder-used fleet, which is the
+ * signal the scorecard is meant to expose — a vendor can hit its delivery windows and
+ * still be sending out equipment nobody would want in their living room.
+ *
+ * Only ~68% of households reply. A channel that assumed a 100% response rate would be
+ * the tell that this was never tested against reality.
+ */
+function conditionScoreFor(vendorId: number): number | null {
+  if (rand() > 0.68) return null
+  const roll = rand()
+  if (vendorId === 2) {
+    if (roll < 0.06) return 1
+    if (roll < 0.17) return 2
+    if (roll < 0.42) return 3
+    if (roll < 0.78) return 4
+    return 5
+  }
+  if (roll < 0.015) return 1
+  if (roll < 0.05) return 2
+  if (roll < 0.19) return 3
+  if (roll < 0.62) return 4
+  return 5
 }
 
 function onTimeOdds(v: VendorProfile, code: string, dow: number): number {
@@ -209,7 +240,7 @@ for (let d = HISTORY_DAYS; d >= 1; d--) {
       dow,
       pickup_triggered_at,
       picked_up_at,
-      condition_ok: rand() > (vendor.id === 2 ? 0.11 : 0.03),
+      condition_score: conditionScoreFor(vendor.id),
     })
   }
 }
@@ -220,8 +251,12 @@ db.exec(
   'DELETE FROM pods; DELETE FROM escalations; DELETE FROM messages; DELETE FROM order_events; DELETE FROM orders; DELETE FROM vendor_stats; DELETE FROM vendors; DELETE FROM patients;',
 )
 
-const insertPatient = db.prepare('INSERT INTO patients (id, name, status, address, market) VALUES (?, ?, ?, ?, ?)')
-for (const p of PATIENTS) insertPatient.run(p.id, p.name, 'active', p.address, p.market)
+db.exec('DELETE FROM condition_reports;')
+
+const insertPatient = db.prepare(
+  'INSERT INTO patients (id, name, status, address, market, caregiver_name, caregiver_phone, contact_ok) VALUES (?, ?, ?, ?, ?, ?, ?, 1)',
+)
+for (const p of PATIENTS) insertPatient.run(p.id, p.name, 'active', p.address, p.market, p.caregiver, p.phone)
 
 const insertVendor = db.prepare(
   'INSERT INTO vendors (id, name, phone, channel, service_area, contact_name) VALUES (?, ?, ?, ?, ?, ?)',
@@ -295,6 +330,9 @@ const insertMessage = db.prepare(
 const insertEscalation = db.prepare(
   'INSERT INTO escalations (order_id, reason, status, created_at) VALUES (?, ?, ?, ?)',
 )
+const insertCondition = db.prepare(
+  'INSERT INTO condition_reports (order_id, vendor_id, patient_id, score, source, comment, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+)
 
 const iso = (d: Date) => d.toISOString()
 let nextId = 2000
@@ -330,8 +368,19 @@ for (const h of history.filter((x) => x.day_offset <= MATERIALIZE_DAYS)) {
       iso(h.delivered_at),
     )
   }
-  if (!h.condition_ok) {
-    insertEscalation.run(id, 'equipment arrived in unacceptable condition', 'resolved', iso(h.delivered_at))
+  if (h.condition_score !== null) {
+    // Caregiver got the text a couple of hours after delivery and replied.
+    const at = new Date(h.delivered_at.getTime() + between(0.5, 6) * 3_600_000)
+    insertEvent.run(id, 'family_notified', JSON.stringify({ kind: 'condition_check', channel: 'sms' }), 'system', iso(h.delivered_at))
+    insertCondition.run(id, h.vendor_id, h.patient_id, h.condition_score, 'caregiver', null, iso(at))
+    if (h.condition_score <= 2) {
+      insertEscalation.run(
+        id,
+        `Equipment condition reported as ${h.condition_score}/5 by the household`,
+        'resolved',
+        iso(at),
+      )
+    }
   }
   if (h.pickup_triggered_at) {
     insertEvent.run(id, 'pickup_triggered', null, 'system', iso(h.pickup_triggered_at))
@@ -426,9 +475,13 @@ for (const v of VENDORS) {
   const avgPickup =
     pickups.reduce((a, h) => a + (h.picked_up_at!.getTime() - h.pickup_triggered_at!.getTime()) / 3_600_000, 0) /
     Math.max(1, pickups.length)
+  const rated = mine.filter((h) => h.condition_score !== null)
+  const avgCond = rated.reduce((a, h) => a + h.condition_score!, 0) / Math.max(1, rated.length)
+  const badRate = rated.filter((h) => h.condition_score! <= 2).length / Math.max(1, rated.length)
   console.log(
     `    ${v.name.padEnd(24)} ${((ot / mine.length) * 100).toFixed(0)}% on-time  ` +
-      `pickup avg ${avgPickup.toFixed(0)}h  n=${mine.length}`,
+      `pickup avg ${avgPickup.toFixed(0)}h  condition ${avgCond.toFixed(2)}/5 ` +
+      `(${(badRate * 100).toFixed(0)}% rated 1-2)  n=${mine.length}`,
   )
 }
 

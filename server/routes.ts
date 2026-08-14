@@ -7,6 +7,12 @@ import { handleInbound, applyParsed, sendToVendor, orderRequestText } from './me
 import { setPatientStatus } from './pickups'
 import { resolveTargetAt } from './sla'
 import { resolveToken, portalOrders, portalConfirm, portalSetEta, portalDecline } from './portal'
+import {
+  handleCaregiverReply,
+  recordConditionReport,
+  sendConditionCheck,
+  vendorConditionStats,
+} from './condition'
 import type { Escalation, ParsedMessage, Patient, PatientStatus, Vendor } from '../shared/types'
 
 export const routes = Router()
@@ -214,6 +220,43 @@ routes.get('/escalations', (req, res) => {
 routes.post('/escalations/:id/ack', (req, res) => {
   db.prepare("UPDATE escalations SET status = 'acked' WHERE id = ?").run(Number(req.params.id))
   res.json({ ok: true })
+})
+
+// --- Caregiver equipment-condition channel -----------------------------------------
+// The household is the only party that ever sees what actually arrived. See
+// server/condition.ts for the three design constraints these routes enforce.
+
+/** Send the 1-5 condition check to the caregiver. Returns the body so the demo can show it. */
+routes.post('/orders/:id/condition-check', (req, res) => {
+  const result = sendConditionCheck(Number(req.params.id))
+  if (!result.sent) return res.status(409).json({ error: result.reason })
+  res.json(result)
+})
+
+/** Simulated inbound caregiver SMS. Deterministic parse — no model call. */
+routes.post('/orders/:id/condition-reply', (req, res) => {
+  const body = String(req.body.body ?? '')
+  if (!body.trim()) return res.status(400).json({ error: 'body required' })
+  res.json(handleCaregiverReply(Number(req.params.id), body))
+})
+
+/** Direct entry, for the nurse or driver rather than the household. */
+routes.post('/orders/:id/condition', (req, res) => {
+  const { score, source, comment } = req.body as { score: number; source?: string; comment?: string }
+  res.json(recordConditionReport(Number(req.params.id), Number(score), { source, comment }))
+})
+
+routes.get('/orders/:id/condition', (req, res) => {
+  res.json(
+    db
+      .prepare('SELECT * FROM condition_reports WHERE order_id = ? ORDER BY id DESC')
+      .all(Number(req.params.id)),
+  )
+})
+
+/** Vendor scorecard input — the reason for collecting any of this. */
+routes.get('/vendors/condition', (_req, res) => {
+  res.json(vendorConditionStats())
 })
 
 export { escalate }
