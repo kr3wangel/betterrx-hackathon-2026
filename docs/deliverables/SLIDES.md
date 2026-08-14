@@ -308,6 +308,7 @@ script before code freeze. **If it isn't in this inbox, it won't be on stage.**
 - 
 - Sub-60s order placement with a live "why it matters" rail — the nurse sees the stakes (who, what, by when, which vendor) as she fills it, then it lands on the board instantly — `/order` (`client/src/pages/Order.tsx`) — slide 1 (discharge readiness)
 - One-tap nurse pickup: pick a patient → "went home" or "passed away" → equipment pickup auto-appears for the driver, with respectful copy the whole way — `/nurse` (`client/src/pages/Nurse.tsx`) — slide 2 (post-death pickup; the sponsor-preferred primary trigger, no EMR needed)
+- DON reports view: "phone calls that never happened" coral hero (265 auto-updates from the real event ledger) + vendor scorecards from real endpoints (Beehive surfaces at 62% on-time with a Saturday-CPAP routing hint) + cost-of-care and DON cost approvals — `/reports` (`client/src/pages/Reports.tsx`) — the reporting-cost + oversight slide
 - 
 - 
 - 
