@@ -63,7 +63,7 @@ visible.
 |---|---|---|---|
 | **Ordering nurse** | Places the order at admission (often in the field); triggers pickup at death/discharge from the home | Phone-friendly order flow + the one-tap pickup trigger | Scenario 2 opens with her tap |
 | **Case worker** | Coordinates: lifecycle board, risk flags, escalations, vendor swaps, review queue | The `/hospice` board as built | Scenario 1 is her save |
-| **Directing nurse (reporting)** | Oversight across patients and vendors: scorecards, SLA compliance, spend, open escalations | Reports view — vendor scorecards fall out of `vendor_stats` for free; home of the **"phone calls that never happened"** counter | 15-second leadership beat |
+| **Director of Nursing (DON)** | Oversight across patients and vendors: scorecards, SLA compliance, spend, open escalations | Reports view — vendor scorecards fall out of `vendor_stats` for free; home of the **"phone calls that never happened"** counter | 15-second leadership beat |
 
 The ordering nurse is the "mom's least technical friend" bar personified — her flows (order form,
 pickup tap) must be finishable in under a minute by someone who has never seen the screen.
