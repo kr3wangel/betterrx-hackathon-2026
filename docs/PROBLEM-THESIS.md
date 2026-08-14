@@ -53,6 +53,21 @@ experience," this is the UI bar:
   do next, without anyone standing behind her? Say the line back to them in the pitch when showing
   the board.
 
+## The three hospice personas (from the briefing)
+
+The hospice side — where judging weight sits — is three distinct users, and each maps to a surface
+and a demo beat. Name them on screen; personas the judges can see are problem-grounding made
+visible.
+
+| Persona | Role in the loop | Surface | Demo beat |
+|---|---|---|---|
+| **Ordering nurse** | Places the order at admission (often in the field); triggers pickup at death/discharge from the home | Phone-friendly order flow + the one-tap pickup trigger | Scenario 2 opens with her tap |
+| **Case worker** | Coordinates: lifecycle board, risk flags, escalations, vendor swaps, review queue | The `/hospice` board as built | Scenario 1 is her save |
+| **Directing nurse (reporting)** | Oversight across patients and vendors: scorecards, SLA compliance, spend, open escalations | Reports view — vendor scorecards fall out of `vendor_stats` for free; home of the **"phone calls that never happened"** counter | 15-second leadership beat |
+
+The ordering nurse is the "mom's least technical friend" bar personified — her flows (order form,
+pickup tap) must be finishable in under a minute by someone who has never seen the screen.
+
 ## The problem, precisely
 
 Hospices are accountable for two moments they can't observe or control, because a separate DME vendor executes both: **equipment in place before a discharge home**, and **equipment picked up promptly after a death**. Coordination runs on phone, fax, and per-vendor portals, so neither side sees the other's status. The hospice absorbs the blame (family experience, CAHPS scores) for failures it literally cannot watch happen.
