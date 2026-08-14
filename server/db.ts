@@ -4,7 +4,7 @@ import { mkdirSync } from 'node:fs'
 mkdirSync('data', { recursive: true })
 mkdirSync('data/pods', { recursive: true })
 
-export const db = new Database('data/app.db')
+export const db = new Database(process.env.DB_PATH ?? 'data/app.db')
 db.pragma('journal_mode = WAL')
 
 db.exec(`

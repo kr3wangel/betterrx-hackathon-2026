@@ -1,6 +1,6 @@
 # betterrx-hackathon-2026
 
-Hackathon entry (BetterRX DME bounty, Builder Day 2026): a coordination layer between hospices and DME vendors — shared order visibility from admission to equipment pickup, with a vendor channel that works over plain SMS parsed by Claude so vendors need zero software. Hackathon code: favor the smallest working change; no tests unless asked; demo-readiness beats robustness.
+Hackathon entry (BetterRX DME bounty, Builder Day 2026): a coordination layer between hospices and DME vendors — shared order visibility from admission to equipment pickup, with a vendor channel that works over plain SMS parsed by Claude so vendors need zero software. Hackathon code: favor the smallest working change and demo-readiness — but the core logic (state machine, risk engine, message parse/gate) is vitest-covered; keep those tests passing (`npm test`) and extend them when you touch that logic. UI and routes stay test-free.
 
 ## Commands
 

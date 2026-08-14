@@ -9,6 +9,8 @@
     "dev:client": "vite client",
     "build": "npm run typecheck && vite build client",
     "typecheck": "tsc --noEmit && tsc --noEmit -p client",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "db:reset": "tsx scripts/reset-db.ts",
     "seed": "tsx scripts/seed.ts"
   },
@@ -35,6 +37,7 @@
     "tailwindcss": "^4.1.0",
     "tsx": "^4.20.0",
     "typescript": "^5.9.0",
-    "vite": "^7.1.0"
+    "vite": "^7.1.0",
+    "vitest": "^4.1.10"
   }
 }

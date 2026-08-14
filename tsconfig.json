@@ -9,5 +9,5 @@
     "noEmit": true,
     "types": ["node"]
   },
-  "include": ["server", "shared"]
+  "include": ["server", "shared", "scripts", "tests", "vitest.config.ts"]
 }
