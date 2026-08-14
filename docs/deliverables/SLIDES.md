@@ -303,7 +303,8 @@ script before code freeze. **If it isn't in this inbox, it won't be on stage.**
 
 - Driver attests clean / functional / patient-ready at delivery; a failed check auto-escalates to the hospice — POD flow on `/driver` (`server/pods.ts`) — slide 2 (FAQ §9 named condition a strong differentiator)
 - Pickup-overdue clock anchors to the pickup trigger, not order age — no false reds on stage (`pickupAnchor()` in `server/watchdog.ts`) — demo-reliability, not a slide
-- 
+- Sub-60s order placement with a live "why it matters" rail — the nurse sees the stakes (who, what, by when, which vendor) as she fills it, then it lands on the board instantly — `/order` (`client/src/pages/Order.tsx`) — slide 1 (discharge readiness)
+- One-tap nurse pickup: pick a patient → "went home" or "passed away" → equipment pickup auto-appears for the driver, with respectful copy the whole way — `/nurse` (`client/src/pages/Nurse.tsx`) — slide 2 (post-death pickup; the sponsor-preferred primary trigger, no EMR needed)
 - 
 - 
 - 
