@@ -1,0 +1,297 @@
+<title>BetterRX · DME — Hospice board (design direction)</title>
+<style>
+  :root {
+    /* BetterRX family — coral + navy, warm and roomy */
+    --ground: #F7F5F3;
+    --card: #FFFFFF;
+    --ink: #263240;
+    --muted: #5C6B75;
+    --faint: #93A0AA;
+    --line: #EBE7E3;
+    --line-cool: #E7EBEE;
+
+    --coral: #E27B5E;
+    --coral-deep: #D2694C;
+    --coral-tint: #FBEFEA;
+    --coral-edge: #F3DDD2;
+
+    --navy: #2C3A49;
+    --navy-deep: #22303D;
+    --navy-tint: #EAEEF1;
+
+    --risk: #CB3E3A;
+    --risk-tint: #FBEAE8;
+    --go: #3E9C6B;
+    --go-tint: #E7F3EC;
+
+    --rounded: ui-rounded, "SF Pro Rounded", "Hiragino Maru Gothic ProN", "Quicksand", system-ui, sans-serif;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --shadow: 0 1px 2px rgba(38,50,64,.04), 0 14px 34px -20px rgba(38,50,64,.20);
+  }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; }
+
+  .app {
+    min-height: 100vh; background: var(--ground); color: var(--ink);
+    font-family: var(--sans); font-size: 15px; line-height: 1.5; -webkit-font-smoothing: antialiased;
+  }
+  .num { font-variant-numeric: tabular-nums; }
+  h1, h2, .display { font-family: var(--rounded); }
+
+  /* ---------- light chrome ---------- */
+  .topbar { display: flex; align-items: center; gap: 26px; padding: 18px 44px; background: var(--card); border-bottom: 1px solid var(--line); }
+  .logo { background: var(--coral); border-radius: 999px; padding: 8px 17px 8px 18px; display: inline-flex; align-items: baseline; gap: 1px; box-shadow: 0 2px 8px -2px rgba(226,123,94,.5); }
+  .logo b { font-family: var(--rounded); font-weight: 800; font-size: 19px; color: #fff; letter-spacing: -.02em; }
+  .logo sup { font-size: 9px; font-weight: 800; color: #fff; letter-spacing: .04em; }
+
+  .nav { display: flex; gap: 2px; margin-left: 8px; }
+  .nav a { font-size: 14px; font-weight: 550; color: var(--muted); text-decoration: none; padding: 9px 15px; border-radius: 10px; position: relative; }
+  .nav a:hover { background: var(--ground); color: var(--ink); }
+  .nav a.active { color: var(--ink); font-weight: 700; }
+  .nav a.active::after { content: ""; position: absolute; left: 15px; right: 15px; bottom: -19px; height: 3px; background: var(--coral); border-radius: 3px; }
+  .topbar .spacer { flex: 1; }
+  .who { text-align: right; line-height: 1.3; }
+  .who b { font-size: 13.5px; font-weight: 650; }
+  .who span { font-size: 12px; color: var(--muted); display: block; }
+  .avatar { width: 40px; height: 40px; border-radius: 50%; flex: none; background: var(--navy); color: #fff; display: grid; place-items: center; font-weight: 700; font-size: 14px; font-family: var(--rounded); }
+
+  .btn { font: inherit; font-family: var(--sans); font-size: 14px; font-weight: 650; cursor: pointer; border-radius: 11px; padding: 11px 18px; border: 1px solid transparent; }
+  .btn.primary { background: var(--coral); color: #fff; box-shadow: 0 2px 10px -3px rgba(226,123,94,.55); }
+  .btn.primary:hover { background: var(--coral-deep); }
+  .btn.navy { background: var(--navy); color: #fff; }
+  .btn.navy:hover { background: var(--navy-deep); }
+  .btn.ghost { background: #fff; color: var(--ink); border-color: var(--line); }
+  .btn.ghost:hover { border-color: #DAD5D0; }
+  .btn:focus-visible { outline: 3px solid #F2C3B1; outline-offset: 2px; }
+  .new-order svg { width: 15px; height: 15px; margin-right: 7px; vertical-align: -2px; }
+
+  .wrap { max-width: 1200px; margin: 0 auto; padding: 46px 44px 100px; }
+
+  .eyebrow { font-size: 12px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: var(--coral); }
+
+  .glance { display: flex; gap: 42px; align-items: baseline; margin-bottom: 34px; }
+  .glance .stat b { font-family: var(--rounded); font-size: 17px; font-weight: 750; }
+  .glance .stat b em { font-style: normal; color: var(--coral); }
+  .glance .stat span { font-size: 13px; color: var(--muted); margin-left: 2px; }
+
+  /* ---------- needs attention — coral feature block w/ white cards ---------- */
+  .triage {
+    background: var(--coral-tint); border: 1px solid var(--coral-edge);
+    border-radius: 24px; padding: 34px 36px 36px;
+    display: grid; grid-template-columns: 300px 1fr; gap: 44px; align-items: start;
+  }
+  @media (max-width: 900px) { .triage { grid-template-columns: 1fr; gap: 26px; padding: 26px; } }
+
+  .tally .eyebrow { display: flex; align-items: center; gap: 10px; }
+  .tally .pulse { width: 8px; height: 8px; border-radius: 50%; background: var(--risk); box-shadow: 0 0 0 0 rgba(203,62,58,.5); animation: pulse 2.4s infinite; }
+  @keyframes pulse { 70% { box-shadow: 0 0 0 9px rgba(203,62,58,0); } 100% { box-shadow: 0 0 0 0 rgba(203,62,58,0); } }
+  .tally .count { font-family: var(--rounded); font-size: 118px; line-height: .8; font-weight: 800; color: var(--risk); letter-spacing: -.05em; margin-top: 14px; }
+  .tally .lede { font-family: var(--rounded); font-size: 25px; line-height: 1.28; font-weight: 750; margin: 20px 0 0; letter-spacing: -.02em; }
+  .tally .sub { font-size: 14.5px; color: var(--muted); margin-top: 13px; max-width: 260px; }
+
+  .attention { display: flex; flex-direction: column; gap: 18px; }
+  .card { display: flex; background: var(--card); border: 1px solid var(--line); border-radius: 18px; box-shadow: var(--shadow); overflow: hidden; }
+  .spine { width: 6px; flex: none; background: var(--line-cool); }
+  .spine.risk { background: var(--risk); }
+  .spine.navy { background: var(--navy); }
+  .spine.go { background: var(--go); }
+  .body { flex: 1; padding: 22px 24px; min-width: 0; }
+
+  .row1 { display: flex; align-items: center; gap: 12px; }
+  .patient { font-family: var(--rounded); font-size: 21px; font-weight: 750; letter-spacing: -.02em; }
+  .oid { font-size: 13px; color: var(--faint); font-weight: 600; }
+  .equip { color: var(--muted); font-size: 14.5px; margin-top: 6px; }
+  .equip .code { color: var(--faint); }
+  .deadline { font-size: 14.5px; color: var(--muted); margin-top: 12px; }
+  .deadline b { color: var(--ink); font-weight: 700; }
+
+  .reason { display: flex; gap: 11px; align-items: flex-start; margin-top: 16px; background: var(--risk-tint); color: #8E2A27; padding: 13px 15px; border-radius: 12px; font-size: 14px; line-height: 1.5; }
+  .reason.warn { background: var(--coral-tint); color: #9A4A2E; }
+  .reason svg { width: 17px; height: 17px; flex: none; margin-top: 1px; }
+  .reason b { font-weight: 750; }
+
+  .actions { display: flex; gap: 11px; margin-top: 18px; }
+
+  /* ---------- board ---------- */
+  .board-head { margin-top: 68px; display: flex; align-items: center; gap: 14px; }
+  .board-head h2 { font-size: 21px; font-weight: 800; margin: 0; letter-spacing: -.02em; }
+  .board-head .rule { flex: 1; height: 1px; background: var(--line); }
+  .columns { margin-top: 26px; display: grid; grid-template-columns: repeat(5, 1fr); gap: 20px; }
+  @media (max-width: 1040px) { .columns { grid-template-columns: repeat(2, 1fr); } }
+  .col-title { display: flex; align-items: center; gap: 9px; font-size: 13.5px; font-weight: 700; color: var(--ink); padding: 0 2px 14px; font-family: var(--rounded); }
+  .col-title .n { font-size: 12px; color: var(--muted); font-weight: 600; font-family: var(--sans); }
+  .col { display: flex; flex-direction: column; gap: 14px; }
+  .mini { padding: 16px; border-radius: 16px; }
+  .mini .patient { font-size: 16.5px; }
+  .mini .equip { margin-top: 4px; font-size: 13.5px; }
+  .mini .foot { display: flex; align-items: center; justify-content: space-between; margin-top: 14px; gap: 8px; }
+  .mini .oid { font-size: 12px; }
+
+  .chip { font-size: 12px; font-weight: 650; padding: 3px 10px; border-radius: 20px; display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+  .chip.verified { background: var(--go-tint); color: #24734F; }
+  .chip.reported { background: var(--navy-tint); color: #45566A; }
+  .chip svg { width: 12px; height: 12px; }
+  .eta { font-size: 12.5px; color: var(--faint); font-weight: 550; }
+
+  .legend { margin-top: 40px; display: flex; flex-wrap: wrap; gap: 18px 28px; font-size: 13px; color: var(--muted); align-items: center; }
+  .legend .k { display: inline-flex; align-items: center; gap: 9px; }
+  .legend .sw { width: 24px; height: 6px; border-radius: 3px; }
+
+  .note { margin-top: 44px; font-size: 13px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 20px; max-width: 780px; line-height: 1.6; }
+  .note b { color: var(--ink); font-weight: 650; }
+
+  @media (prefers-reduced-motion: reduce) { .tally .pulse { animation: none; } }
+</style>
+
+<div class="app">
+  <header class="topbar">
+    <span class="logo"><b>better</b><sup>RX</sup></span>
+    <nav class="nav">
+      <a href="#">Pharmacy</a>
+      <a href="#" class="active">DME</a>
+      <a href="#">Reports</a>
+    </nav>
+    <div class="spacer"></div>
+    <button class="btn primary new-order"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>New order</button>
+    <div class="who"><b>Dana Okafor</b><span>Wasatch Hospice · Case Manager</span></div>
+    <div class="avatar">DO</div>
+  </header>
+
+  <main class="wrap">
+
+    <div class="glance">
+      <div class="stat"><b class="num"><em>12</em> handoffs</b><span>coordinated today</span></div>
+      <div class="stat"><b class="num"><em>0</em> phone calls</b><span>the team had to make</span></div>
+      <div class="stat"><b class="num"><em>2</em> deliveries</b><span>confirmed with a photo</span></div>
+    </div>
+
+    <section class="triage">
+      <div class="tally">
+        <div class="eyebrow"><span class="pulse" aria-hidden="true"></span> Needs attention</div>
+        <div class="count num">3</div>
+        <p class="lede">Three orders won&rsquo;t make their deadline unless someone acts.</p>
+        <p class="sub">Everything else is on track and updating itself. This is the short list that needs a person.</p>
+      </div>
+
+      <div class="attention">
+
+        <article class="card">
+          <div class="spine risk"></div>
+          <div class="body">
+            <div class="row1"><span class="patient">Eleanor Vance</span><span class="oid num">#1042</span></div>
+            <div class="equip">Hospital bed, semi-electric <span class="code num">· E0260</span> &middot; Beehive DME</div>
+            <div class="deadline">Home discharge <b>tomorrow, 9:00&nbsp;AM</b> &mdash; the bed has to beat her home.</div>
+            <div class="reason">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
+              <span>Beehive is <b>62% on-time</b> for beds on Fridays and hasn&rsquo;t accepted yet &mdash; deadline is in <b>16&nbsp;hours</b>.</span>
+            </div>
+            <div class="actions"><button class="btn primary">Swap vendor</button><button class="btn ghost">Send a nudge</button></div>
+          </div>
+        </article>
+
+        <article class="card">
+          <div class="spine risk"></div>
+          <div class="body">
+            <div class="row1"><span class="patient">Harold Whitfield</span><span class="oid num">#1031</span></div>
+            <div class="equip">Oxygen concentrator <span class="code num">· E1390</span> &middot; Canyon Home Medical</div>
+            <div class="deadline">Pickup triggered <b>2 days ago</b> &mdash; still in the family&rsquo;s living room.</div>
+            <div class="reason warn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+              <span>Past the <b>24-hour pickup window</b>. Vendor said &ldquo;Friday&rdquo; by text &mdash; not yet confirmed.</span>
+            </div>
+            <div class="actions"><button class="btn primary">Escalate pickup</button><button class="btn ghost">View thread</button></div>
+          </div>
+        </article>
+
+        <article class="card">
+          <div class="spine risk"></div>
+          <div class="body">
+            <div class="row1"><span class="patient">Marcus Bellweather</span><span class="oid num">#1049</span></div>
+            <div class="equip">CPAP <span class="code num">· E0601</span> &middot; Beehive DME &middot; <b style="color:var(--coral-deep)">STAT</b></div>
+            <div class="deadline">Needed <b>today by 2:00&nbsp;PM</b> &mdash; vendor&rsquo;s ETA came back 5:10&nbsp;PM.</div>
+            <div class="reason">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
+              <span>Their own ETA <b>misses by ~3 hours</b>. Reported by text, not verified.</span>
+            </div>
+            <div class="actions"><button class="btn primary">Swap vendor</button><button class="btn ghost">Send a nudge</button></div>
+          </div>
+        </article>
+
+      </div>
+    </section>
+
+    <div class="board-head"><h2>All orders</h2><span class="rule"></span></div>
+
+    <section class="columns">
+
+      <div class="col">
+        <div class="col-title">Ordered <span class="n num">4</span></div>
+        <article class="card mini"><div class="spine"></div><div class="body">
+          <div class="patient">Rosalind Pike</div><div class="equip">Wheelchair <span class="code num">· E1130</span></div>
+          <div class="foot"><span class="oid num">#1052</span><span class="eta">finding a vendor</span></div>
+        </div></article>
+        <article class="card mini"><div class="spine"></div><div class="body">
+          <div class="patient">Theodore Ansel</div><div class="equip">Hospital bed <span class="code num">· E0260</span></div>
+          <div class="foot"><span class="oid num">#1053</span><span class="eta">routine</span></div>
+        </div></article>
+      </div>
+
+      <div class="col">
+        <div class="col-title">Accepted <span class="n num">3</span></div>
+        <article class="card mini"><div class="spine navy"></div><div class="body">
+          <div class="patient">Iris Fontaine</div><div class="equip">Oxygen <span class="code num">· E1390</span></div>
+          <div class="foot"><span class="chip reported"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 5h16v11H5.5L4 17.5Z"/></svg>Reported</span><span class="eta num">ETA 3:40 PM</span></div>
+        </div></article>
+        <article class="card mini"><div class="spine navy"></div><div class="body">
+          <div class="patient">Walter Greaves</div><div class="equip">Wheelchair <span class="code num">· E1130</span></div>
+          <div class="foot"><span class="chip reported"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 5h16v11H5.5L4 17.5Z"/></svg>Reported</span><span class="eta num">ETA 11:00 AM</span></div>
+        </div></article>
+      </div>
+
+      <div class="col">
+        <div class="col-title">On the truck <span class="n num">2</span></div>
+        <article class="card mini"><div class="spine navy"></div><div class="body">
+          <div class="patient">Nadia Brightwater</div><div class="equip">Hospital bed <span class="code num">· E0260</span></div>
+          <div class="foot"><span class="chip reported"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 5h16v11H5.5L4 17.5Z"/></svg>Reported</span><span class="eta">~25 min out</span></div>
+        </div></article>
+      </div>
+
+      <div class="col">
+        <div class="col-title">Delivered <span class="n num">6</span></div>
+        <article class="card mini"><div class="spine go"></div><div class="body">
+          <div class="patient">Samuel Ortega</div><div class="equip">Oxygen <span class="code num">· E1390</span></div>
+          <div class="foot"><span class="chip verified"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6 9 17l-5-5"/></svg>Verified</span><span class="eta num">11:52 AM</span></div>
+        </div></article>
+        <article class="card mini"><div class="spine go"></div><div class="body">
+          <div class="patient">Beatrice Lull</div><div class="equip">CPAP <span class="code num">· E0601</span></div>
+          <div class="foot"><span class="chip verified"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6 9 17l-5-5"/></svg>Verified</span><span class="eta num">9:04 AM</span></div>
+        </div></article>
+      </div>
+
+      <div class="col">
+        <div class="col-title">Pickup <span class="n num">3</span></div>
+        <article class="card mini"><div class="spine risk"></div><div class="body">
+          <div class="patient">Harold Whitfield</div><div class="equip">Bed + oxygen <span class="code num">· 2 items</span></div>
+          <div class="foot"><span class="chip reported">Overdue 26h</span><span class="eta">family present</span></div>
+        </div></article>
+        <article class="card mini"><div class="spine go"></div><div class="body">
+          <div class="patient">Ruth Nakamura</div><div class="equip">Wheelchair <span class="code num">· E1130</span></div>
+          <div class="foot"><span class="chip verified"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6 9 17l-5-5"/></svg>Verified</span><span class="eta">picked up</span></div>
+        </div></article>
+      </div>
+
+    </section>
+
+    <div class="legend">
+      <span class="k"><span class="sw" style="background:var(--risk)"></span> Will miss a deadline</span>
+      <span class="k"><span class="sw" style="background:var(--navy)"></span> In motion</span>
+      <span class="k"><span class="sw" style="background:var(--go)"></span> Done, with proof</span>
+      <span class="k"><span class="chip verified" style="padding:2px 8px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6 9 17l-5-5"/></svg>Verified</span> = driver photo + signature</span>
+      <span class="k"><span class="chip reported" style="padding:2px 8px">Reported</span> = the vendor said so by text</span>
+    </div>
+
+    <p class="note"><b>Design direction &mdash; matched to the BetterRX family</b> (coral pill logo, navy + coral, big rounded-bold type, roomy whitespace), shown as the <b>DME</b> tab inside BetterRX. The &ldquo;Needs attention&rdquo; block borrows BetterRX&rsquo;s signature move &mdash; <b>white cards on a coral panel</b> &mdash; to make triage the warm, obvious focus. Real seeded content (Eleanor Vance / #1042 / Beehive DME). <b>Verified vs. Reported</b> keeps a vendor&rsquo;s text from ever passing as proof.</p>
+
+  </main>
+</div>
