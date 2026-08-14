@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Button } from './ui'
+import { Button } from '@/components/ui/button'
 
 export function SignaturePad({ onCapture }: { onCapture: (dataUrl: string) => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
