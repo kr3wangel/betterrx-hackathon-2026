@@ -31,4 +31,10 @@ shared/   types shared by client + server
 - `GET /api/health` — server + db check
 - `GET /api/events` — SSE stream; `broadcast(event)` in `server/sse.ts` pushes to all connected clients (heartbeat every 5s out of the box)
 - `useEventStream()` — client hook consuming the stream
+- `extractJson()` in `server/llm.ts` — structured JSON extraction via Claude (`output_config.format`), logs token usage per call
+- `api.get/post/patch/del` in `client/src/lib/api.ts` — fetch wrapper with error handling
+- UI atoms (`Button`, `Card`, `Badge`) in `client/src/components/ui.tsx`
+- `SignaturePad` + `PhotoInput` capture components — demoed on `/three`
+- `npm run db:reset` — wipe the SQLite file
+- JSON error middleware on the server (Express 5 catches async throws natively)
 - Three placeholder routes to rename (`/one`, `/two`, `/three`)
