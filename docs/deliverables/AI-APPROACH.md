@@ -27,6 +27,10 @@ The dominant DME ordering channel today is phone, fax, and free-text messaging. 
 3. **The state machine is the last line of defense** — even an auto-applied parse can only fire *valid* transitions. A hallucinated "delivered" on an order still in `ordered` state is rejected with a 409 and falls back to review.
 4. **No high-stakes autonomous actions** — the AI never places orders, swaps vendors, or notifies families. Those are human actions; the AI only updates status.
 
-## Cost per order (estimate — to be confirmed with measured usage)
+## Model choice: deliberately small
 
-Each parse call: ~400–600 input tokens (system prompt + the vendor's open orders + the message), ~100 output tokens. At Claude Opus 5 pricing ($5/M input, $25/M output): **≈ $0.005 per message**. A typical order lifecycle involves 3–6 vendor messages → **≈ $0.02–0.03 per order, end to end**. At 1,000 orders/month that's ~$25/month of inference — negligible against a single avoided service failure. Every call's token usage is logged (`[llm]` lines) for the measured version of this estimate.
+The parse runs on **Claude Haiku 4.5** — the smallest, cheapest model in the family — because the task is extraction and classification, not reasoning. This is the same judgment as the rules-based risk engine, applied inside the AI choice: match the tool to the task. A bigger model adds latency and cost without adding accuracy here (our test set scores 6/6 on Haiku after prompt tuning). Latency measured at ~1–2s per message, which also makes the live demo feel instant. The model is config-swappable (`PARSE_MODEL`) if production data ever justified a larger one. One residual ambiguity (an ETA reply on a not-yet-accepted order) is resolved by a deterministic rule in code, not by the model — rules where rules win.
+
+## Cost per order (measured)
+
+Measured per parse call: ~620 input tokens (system prompt + the vendor's open orders + the message), ~50 output tokens. At Claude Haiku 4.5 pricing ($1/M input, $5/M output): **≈ $0.001 per message**. A typical order lifecycle involves 3–6 vendor messages → **≈ $0.003–0.006 per order, end to end**. At 1,000 orders/month: roughly **$5/month of inference** — negligible against a single avoided service failure. Every call's token usage is logged (`[llm]` lines); numbers above are from our test harness (`npm run parse:test`).

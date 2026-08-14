@@ -85,7 +85,8 @@ export async function handleInbound(vendorId: number, body: string): Promise<Mes
         model: process.env.PARSE_MODEL,
         system: [
           'You parse SMS replies from durable medical equipment vendors into structured status updates for a hospice coordination system.',
-          `Current datetime: ${new Date().toISOString()}. Resolve relative times ("thursday morning", "late afternoon") to ISO datetimes in the future.`,
+          `Current local datetime: ${new Date().toString()}. Resolve relative times ("thursday morning", "late afternoon") in the LOCAL timezone — a named weekday means the next future occurrence of that weekday — then return eta_iso converted to UTC ISO 8601.`,
+          `Intent definitions: accept = vendor confirms they will fulfill (use accept even when the message also gives an ETA — still fill eta_iso). eta_update = a new ETA for an order they already accepted. delay = it will still happen, but later than promised. decline = they cannot fulfill it and it needs reassignment — "can't do it", "unable to", "won't be able to" are declines even when a timeframe is mentioned. delivered / picked_up = only when it already happened. When the matched order is in a pickup state (pickup_pending / pickup_overdue), talk of grabbing, collecting, or picking equipment up means pickup_scheduled (future) or picked_up (done) — never accept.`,
           'Open orders for this vendor:',
           vendorContext(vendorId),
           'If the message clearly refers to exactly one open order, set order_ref to that order number. If ambiguous or unrelated, set order_ref to null, intent to "unknown", and confidence below 0.5. Never guess.',
@@ -138,6 +139,9 @@ export async function handleInbound(vendorId: number, body: string): Promise<Mes
 }
 
 export function applyParsed(orderId: number, parsed: ParsedMessage, actor: Actor): void {
+  if (parsed.intent === 'eta_update' && getOrder(orderId)?.state === 'ordered') {
+    parsed = { ...parsed, intent: 'accept' }
+  }
   const eventType = INTENT_EVENT[parsed.intent]
   if (!eventType) throw new Error(`intent ${parsed.intent} has no event mapping`)
   applyEvent(orderId, eventType, { eta_iso: parsed.eta_iso, notes: parsed.notes, source: 'vendor_message' }, actor)

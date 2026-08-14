@@ -47,7 +47,7 @@ export function applyEvent(
     updates.push('state = @state')
     params.state = rule.to
   }
-  if (type === 'eta_set' && payload?.eta_iso) {
+  if ((type === 'eta_set' || type === 'vendor_accepted') && payload?.eta_iso) {
     updates.push('eta_at = @eta')
     params.eta = payload.eta_iso
   }

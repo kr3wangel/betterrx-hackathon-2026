@@ -10,7 +10,7 @@ type ExtractOptions = {
 
 export async function extractJson<T>(opts: ExtractOptions): Promise<T> {
   const response = await anthropic().messages.create({
-    model: opts.model ?? 'claude-opus-5',
+    model: opts.model || 'claude-haiku-4-5',
     max_tokens: opts.maxTokens ?? 2048,
     ...(opts.system ? { system: opts.system } : {}),
     output_config: { format: { type: 'json_schema', schema: opts.schema } },
