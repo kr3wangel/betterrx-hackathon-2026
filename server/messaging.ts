@@ -3,6 +3,7 @@ import { broadcast } from './sse'
 import { extractJson } from './llm'
 import { applyEvent, escalate } from './statemachine'
 import { listOrders, getOrder } from './store'
+import { magicLink } from './portal'
 import type { Actor, Message, Order, OrderEventType, ParsedMessage } from '../shared/types'
 
 export const CONFIDENCE_THRESHOLD = 0.8
@@ -16,15 +17,15 @@ export function sendToVendor(vendorId: number, orderId: number | null, body: str
 
 export function orderRequestText(order: Order, patientArea: string): string {
   const deadline = order.target_at ? new Date(order.target_at).toLocaleString() : 'ASAP'
-  return `New order #${order.id}: ${order.quantity}x ${order.equipment_name} (${order.hcpcs_code}), deliver by ${deadline}, area ${patientArea}. Reply YES to accept, or with your ETA.`
+  return `New order #${order.id}: ${order.quantity}x ${order.equipment_name} (${order.hcpcs_code}), deliver by ${deadline}, area ${patientArea}. Confirm here: ${magicLink(order.vendor_id)}`
 }
 
 export function pickupRequestText(order: Order): string {
-  return `Pickup needed for order #${order.id} (${order.equipment_name}). Family is present — please schedule promptly and reply with your pickup window.`
+  return `Pickup needed for order #${order.id} (${order.equipment_name}). Family is present — please schedule promptly: ${magicLink(order.vendor_id)}`
 }
 
 export function ackNagText(order: Order): string {
-  return `Order #${order.id} (${order.equipment_name}) hasn't been confirmed — reply YES to accept or NO if you can't fill it.`
+  return `Order #${order.id} (${order.equipment_name}) hasn't been confirmed — tap to accept or decline: ${magicLink(order.vendor_id)}`
 }
 
 const PARSE_SCHEMA = {

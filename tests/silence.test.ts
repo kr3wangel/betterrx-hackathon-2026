@@ -26,13 +26,13 @@ function openEscalations(orderId: number) {
 }
 
 describe('ackNagText', () => {
-  it('names the order and equipment and asks for YES/NO', () => {
+  it('names the order and equipment and carries the magic link', () => {
     const id = seedOrder()
     const text = ackNagText(getOrder(id)!)
     expect(text).toContain(`#${id}`)
     expect(text).toContain('Hospital bed')
-    expect(text).toContain('YES')
-    expect(text).toContain('NO')
+    expect(text).toContain('/portal/')
+    expect(text).toMatch(/accept or decline/i)
     expect(text).not.toContain('Test Patient')
   })
 })

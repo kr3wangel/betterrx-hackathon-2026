@@ -5,6 +5,7 @@ import { applyEvent, escalate } from './statemachine'
 import { getOrder, getVendor, listOrders, listOrderEvents, rowToMessage } from './store'
 import { handleInbound, applyParsed, sendToVendor, orderRequestText } from './messaging'
 import { setPatientStatus } from './pickups'
+import { resolveToken, portalOrders, portalConfirm, portalSetEta, portalDecline } from './portal'
 import type { Escalation, ParsedMessage, Patient, PatientStatus, Vendor } from '../shared/types'
 
 export const routes = Router()
@@ -112,6 +113,31 @@ routes.post('/patients/:id/status', (req, res) => {
 routes.post('/emr/patient-status', (req, res) => {
   const { patient_id, status } = req.body as { patient_id: number; status: PatientStatus }
   res.json(setPatientStatus(patient_id, status, 'emr'))
+})
+
+routes.get('/portal/:token', (req, res) => {
+  const vendor = resolveToken(req.params.token)
+  if (!vendor) return res.status(404).json({ error: 'unknown link' })
+  res.json({ vendor, orders: portalOrders(vendor.id) })
+})
+
+routes.post('/portal/:token/orders/:id/confirm', (req, res) => {
+  const vendor = resolveToken(req.params.token)
+  if (!vendor) return res.status(404).json({ error: 'unknown link' })
+  res.json(portalConfirm(vendor.id, Number(req.params.id), req.body?.eta_iso))
+})
+
+routes.post('/portal/:token/orders/:id/eta', (req, res) => {
+  const vendor = resolveToken(req.params.token)
+  if (!vendor) return res.status(404).json({ error: 'unknown link' })
+  res.json(portalSetEta(vendor.id, Number(req.params.id), String(req.body.eta_iso)))
+})
+
+routes.post('/portal/:token/orders/:id/decline', (req, res) => {
+  const vendor = resolveToken(req.params.token)
+  if (!vendor) return res.status(404).json({ error: 'unknown link' })
+  portalDecline(vendor.id, Number(req.params.id), req.body?.reason)
+  res.json({ ok: true })
 })
 
 routes.post('/messages/inbound', async (req, res) => {
