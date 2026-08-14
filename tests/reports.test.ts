@@ -32,10 +32,15 @@ function insertEvent(
   ).run(orderId, type, payload ? JSON.stringify(payload) : null, actor, createdAt)
 }
 
-function insertMessage(vendorId: number, direction: 'in' | 'out', reviewStatus: string | null) {
+function insertMessage(
+  vendorId: number,
+  direction: 'in' | 'out',
+  reviewStatus: string | null,
+  recipientType: 'vendor' | 'family' = 'vendor',
+) {
   db.prepare(
-    'INSERT INTO messages (order_id, vendor_id, direction, body, review_status) VALUES (NULL, ?, ?, ?, ?)',
-  ).run(vendorId, direction, 'test body', reviewStatus)
+    'INSERT INTO messages (order_id, vendor_id, direction, body, review_status, recipient_type) VALUES (NULL, ?, ?, ?, ?, ?)',
+  ).run(vendorId, direction, 'test body', reviewStatus, recipientType)
 }
 
 describe('vendorScorecards', () => {
@@ -124,6 +129,7 @@ describe('reportSummary — calls avoided', () => {
       auto_applied_messages: 0,
       vendor_self_service_updates: 0,
       auto_triggered_pickups: 0,
+      household_confirmations: 0,
     })
   })
 
@@ -136,6 +142,18 @@ describe('reportSummary — calls avoided', () => {
     const summary = reportSummary()
     expect(summary.calls_avoided).toBe(3)
     expect(summary.calls_avoided_definition.length).toBeGreaterThan(0)
+  })
+
+  it('counts household replies under their own name, never as vendor status updates', () => {
+    insertMessage(1, 'in', 'auto_applied')
+    insertMessage(1, 'in', 'auto_applied', 'family')
+    insertMessage(1, 'in', 'needs_review', 'family')
+
+    const summary = reportSummary()
+    expect(summary.calls_avoided_breakdown.auto_applied_messages).toBe(1)
+    expect(summary.calls_avoided_breakdown.household_confirmations).toBe(1)
+    expect(summary.calls_avoided).toBe(2)
+    expect(summary.calls_avoided_definition).toMatch(/household confirmations/i)
   })
 })
 

@@ -223,6 +223,7 @@ export interface ReportSummary {
     auto_applied_messages: number
     vendor_self_service_updates: number
     auto_triggered_pickups: number
+    household_confirmations: number
   }
   open_escalations: number
   orders_by_state: Record<OrderState, number>
