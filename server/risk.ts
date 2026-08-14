@@ -1,6 +1,7 @@
 import type { Order, RiskResult, VendorStat } from '../shared/types'
 
 export const RISK_THRESHOLD = 70
+const ACK_SLA_HOURS = Number(process.env.ACK_SLA_HOURS ?? 4)
 
 export function computeRisk(order: Order, stats: VendorStat[], now: Date): RiskResult {
   if (!order.target_at) return { score: 0, reasons: [] }
@@ -35,6 +36,11 @@ export function computeRisk(order: Order, stats: VendorStat[], now: Date): RiskR
     if (order.state === 'ordered' && hoursLeft < 24) {
       score += 25
       reasons.push(`vendor has not accepted and deadline is in ${hoursLeft.toFixed(1)}h`)
+    }
+    const hoursSincePlaced = (now.getTime() - new Date(order.created_at).getTime()) / 3_600_000
+    if (order.state === 'ordered' && hoursSincePlaced > ACK_SLA_HOURS) {
+      score += 20
+      reasons.push(`vendor has not acknowledged the order ${hoursSincePlaced.toFixed(1)}h after placement`)
     }
     if (order.eta_at && new Date(order.eta_at) > target) {
       score += 40

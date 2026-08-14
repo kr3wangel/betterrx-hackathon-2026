@@ -91,6 +91,35 @@ describe('computeRisk', () => {
     expect(score).toBe(100)
   })
 
+  it('penalizes an unacknowledged order past the ack SLA', () => {
+    const { score, reasons } = computeRisk(
+      order({ state: 'ordered', created_at: '2026-08-14T06:00:00Z' }),
+      [stat()],
+      NOW,
+    )
+    expect(score).toBeGreaterThanOrEqual(20)
+    expect(reasons).toContain('vendor has not acknowledged the order 6.0h after placement')
+  })
+
+  it('does not penalize an unacknowledged order within the ack SLA', () => {
+    const { score, reasons } = computeRisk(
+      order({ state: 'ordered', created_at: '2026-08-14T10:00:00Z' }),
+      [stat()],
+      NOW,
+    )
+    expect(score).toBe(0)
+    expect(reasons.some((r) => r.includes('has not acknowledged'))).toBe(false)
+  })
+
+  it('does not flag ack silence once the order is accepted', () => {
+    const { reasons } = computeRisk(
+      order({ state: 'dispatched', created_at: '2026-08-14T00:00:00Z' }),
+      [stat()],
+      NOW,
+    )
+    expect(reasons.some((r) => r.includes('has not acknowledged'))).toBe(false)
+  })
+
   it('falls back to any-weekday stats when the target weekday has none', () => {
     const wrongDow = stat({ day_of_week: (new Date('2026-08-15T12:00:00Z').getDay() + 1) % 7, on_time_rate: 0.5 })
     const { reasons } = computeRisk(order(), [wrongDow], NOW)
