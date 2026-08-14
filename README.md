@@ -7,7 +7,8 @@ BetterRX DME bounty — Builder Day 2026. Hospice ↔ DME vendor coordination: s
 1. **Read `docs/PROBLEM-THESIS.md` first** — the why behind every design choice, both north stars, and the judge Q&A. Don't change scope or pitch content without it.
 2. **`docs/BOUNTY-FAQ.md`** is the sponsor's written doctrine (every team received it) — judging weight, pickup-trigger preference, SLA assumptions, real eRx payloads.
 3. **Claim work in `docs/BUILD-DAY-TASKS.md`** — put your name in the box. Sizes and demo-scenario tags are on each task.
-4. Specs: `docs/BACKEND-SPEC.md` (architecture) · `docs/IVR-SIM-SPEC.md` (simulated call channel) · `docs/deliverables/` (submission drafts — keep in sync with reality).
+4. **`docs/FEATURES.md`** — what actually exists, read out of the code: working now, built but not surfaced, and designed-only. Check it before claiming anything in the pitch, and before building something a teammate already shipped.
+5. Specs: `docs/BACKEND-SPEC.md` (architecture) · `docs/IVR-SIM-SPEC.md` (simulated call channel) · `docs/deliverables/` (submission drafts — keep in sync with reality).
 
 ### Working agreements
 
