@@ -27,7 +27,7 @@ const CODES = [
 for (let dow = 0; dow < 7; dow++) {
   for (const [code] of CODES) {
     insertStat.run(1, code, dow, dow === 5 && code === 'E0260' ? 0.62 : 0.93, 8, 40)
-    insertStat.run(2, code, dow, 0.79, 16, 25)
+    insertStat.run(2, code, dow, 0.72, 16, 25)
     insertStat.run(3, code, dow, 0.9, 10, 30)
   }
 }
