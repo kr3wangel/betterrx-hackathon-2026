@@ -303,6 +303,8 @@ script before code freeze. **If it isn't in this inbox, it won't be on stage.**
 
 - Driver attests clean / functional / patient-ready at delivery; a failed check auto-escalates to the hospice — POD flow on `/driver` (`server/pods.ts`) — slide 2 (FAQ §9 named condition a strong differentiator)
 - Pickup-overdue clock anchors to the pickup trigger, not order age — no false reds on stage (`pickupAnchor()` in `server/watchdog.ts`) — demo-reliability, not a slide
+- A vendor with no account taps one link from a text and sees every live order with its SLA clock ("due in 4h" / "late by 2h"), then accepts, ETAs, or declines in one tap — the hospice board flips over SSE before their thumb leaves the screen — `/portal/<token>` — slides 2+3 (scenario 3 climax)
+- One thread, one digit, two meanings: reply "1" confirms the delivery arrived, and the very next "1" in the same thread flags the equipment unusable — disambiguated by the message template, never by AI guessing (`server/sms.ts` REPLY_ROUTES) — slide 4 (AI honesty)
 - 
 - 
 - 

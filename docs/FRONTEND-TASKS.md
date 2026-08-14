@@ -163,6 +163,10 @@ Owner: `[Angel]`  ·  Owns new `client/src/pages/VendorPortal.tsx`. Shares `useP
   unit shows a status + location.
 - [x] **FE-E.3 · S · SLA vs actual** — same-day STAT/urgent, 24h routine (FAQ default) vs actuals. **Done when:** each order shows on-time/late against its SLA.
 
+> **Route note for Lane C:** `/portal/:token` now renders `VendorPortal` (Lane E); the untouched Lane C
+> `VendorStatus` stub moved to `/status/:token`. If FE-C.4/C.5 get built, merge into the portal page
+> rather than duplicating a second vendor-facing status view.
+
 ---
 
 ## De-scoped for the demo
