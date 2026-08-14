@@ -1,11 +1,8 @@
 import type { OrderState } from '../../../shared/types'
 
-export const CATALOG = [
-  { hcpcs_code: 'E0260', equipment_name: 'Hospital bed, semi-electric' },
-  { hcpcs_code: 'E1390', equipment_name: 'Oxygen concentrator' },
-  { hcpcs_code: 'K0001', equipment_name: 'Standard wheelchair' },
-  { hcpcs_code: 'E0601', equipment_name: 'CPAP device' },
-]
+// Single source of truth, grounded in the CMS DMEPOS public use file.
+export { CATALOG, byCode, BED_CODE } from '../../../shared/catalog'
+export type { CatalogItem } from '../../../shared/catalog'
 
 export const STATE_LABEL: Record<OrderState, string> = {
   ordered: 'Ordered',
