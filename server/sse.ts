@@ -1,4 +1,5 @@
 import type { Request, Response } from 'express'
+import type { ServerEvent } from '../shared/types'
 
 const clients = new Set<Response>()
 
@@ -14,7 +15,9 @@ export function sseHandler(req: Request, res: Response) {
   req.on('close', () => clients.delete(res))
 }
 
-export function broadcast(event: unknown) {
-  const payload = `data: ${JSON.stringify(event)}\n\n`
+type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never
+
+export function broadcast(event: DistributiveOmit<ServerEvent, 'at'> & { at?: string }) {
+  const payload = `data: ${JSON.stringify({ ...event, at: event.at ?? new Date().toISOString() })}\n\n`
   for (const res of clients) res.write(payload)
 }
