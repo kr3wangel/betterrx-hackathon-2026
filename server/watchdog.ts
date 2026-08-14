@@ -23,6 +23,22 @@ function requestAnchor(order: Order): string {
   return row?.created_at ?? order.created_at
 }
 
+function pickupAnchor(order: Order): string {
+  const triggered = db
+    .prepare(
+      "SELECT id, created_at FROM order_events WHERE order_id = ? AND type = 'pickup_triggered' ORDER BY id DESC LIMIT 1",
+    )
+    .get(order.id) as { id: number; created_at: string } | undefined
+  if (!triggered) return order.created_at
+  if (order.eta_at) {
+    const etaSet = db
+      .prepare("SELECT id FROM order_events WHERE order_id = ? AND type = 'eta_set' AND id > ? LIMIT 1")
+      .get(order.id, triggered.id) as { id: number } | undefined
+    if (etaSet) return order.eta_at
+  }
+  return triggered.created_at
+}
+
 function ackNagSentAt(order: Order, anchor: string): string | null {
   const row = db
     .prepare(
@@ -60,8 +76,7 @@ export function tick(now = new Date()): void {
     }
 
     if (order.state === 'pickup_pending') {
-      const triggeredAt = order.eta_at ?? order.created_at
-      const hours = hoursSince(triggeredAt, now)
+      const hours = hoursSince(pickupAnchor(order), now)
       if (hours > PICKUP_WINDOW_HOURS) {
         applyEvent(order.id, 'pickup_overdue', { hours_waiting: Math.round(hours) }, 'system')
         escalate(order.id, `Pickup not completed after ${Math.round(hours)}h — family is still waiting`)
