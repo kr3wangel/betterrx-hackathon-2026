@@ -1,1 +1,124 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * BetterRX DME design tokens — the visual source of truth is docs/DESIGN-SYSTEM.md.
+ * Light, warm, roomy: coral + navy on warm off-white, rounded-bold display type.
+ * shadcn primitives read these CSS variables; our atoms layer plain-English on top.
+ */
+:root {
+  --radius: 0.875rem; /* 14px */
+
+  --background: #f7f5f3; /* warm off-white page */
+  --foreground: #263240; /* ink */
+
+  --card: #ffffff;
+  --card-foreground: #263240;
+  --popover: #ffffff;
+  --popover-foreground: #263240;
+
+  --primary: #e27b5e; /* coral — CTAs, brand accents */
+  --primary-foreground: #ffffff;
+
+  --secondary: #2c3a49; /* navy — dark buttons, in-motion */
+  --secondary-foreground: #ffffff;
+
+  --muted: #f1eeea;
+  --muted-foreground: #5c6b75;
+
+  --accent: #fbefea; /* coral tint — needs-attention wash */
+  --accent-foreground: #263240;
+
+  --destructive: #cb3e3a; /* at-risk red — distinct from coral */
+  --destructive-foreground: #ffffff;
+
+  /* Custom semantics (not part of shadcn's default set) */
+  --success: #3e9c6b; /* delivered / picked up / verified */
+  --success-foreground: #ffffff;
+  --coral-tint: #fbefea;
+  --faint: #93a0aa; /* order IDs, timestamps */
+
+  --border: #ebe7e3;
+  --input: #ebe7e3;
+  --ring: #e27b5e;
+
+  /* Semantic status colors for the card status spine + legend */
+  --status-ordered: #e7ebee;
+  --status-motion: #2c3a49;
+  --status-done: #3e9c6b;
+  --status-risk: #cb3e3a;
+
+  /* Chart ramp (navy → coral → green) for reports */
+  --chart-1: #e27b5e;
+  --chart-2: #2c3a49;
+  --chart-3: #3e9c6b;
+  --chart-4: #d2694c;
+  --chart-5: #93a0aa;
+}
+
+@theme inline {
+  /* Friendly rounded-bold display personality from BetterRX headlines */
+  --font-display: ui-rounded, "SF Pro Rounded", system-ui, sans-serif;
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-coral-tint: var(--coral-tint);
+  --color-faint: var(--faint);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-status-ordered: var(--status-ordered);
+  --color-status-motion: var(--status-motion);
+  --color-status-done: var(--status-done);
+  --color-status-risk: var(--status-risk);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  /* Rounded-bold headings: heavy weight, tight tracking */
+  h1, h2, h3, .font-display {
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
+  }
+  /* Tabular numbers for order IDs, ETAs, counts */
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+}
