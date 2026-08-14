@@ -2,7 +2,8 @@ import { Router } from 'express'
 import { writeFileSync } from 'node:fs'
 import { db } from './db'
 import { applyEvent, escalate } from './statemachine'
-import { getOrder, getVendor, listOrders, listOrderEvents, rowToMessage } from './store'
+import { getOrder, getVendor, listOrders, listOrderEvents, rowToMessage, rowToPod } from './store'
+import { recordPodCondition } from './pods'
 import { handleInbound, applyParsed, sendToVendor, orderRequestText } from './messaging'
 import { setPatientStatus } from './pickups'
 import { resolveTargetAt } from './sla'
@@ -68,7 +69,7 @@ routes.get('/orders/:id', (req, res) => {
     events: listOrderEvents(order.id),
     messages: (db.prepare('SELECT * FROM messages WHERE order_id = ? ORDER BY id').all(order.id) as never[]).map(rowToMessage),
     escalations: db.prepare('SELECT * FROM escalations WHERE order_id = ?').all(order.id),
-    pods: db.prepare('SELECT * FROM pods WHERE order_id = ?').all(order.id),
+    pods: (db.prepare('SELECT * FROM pods WHERE order_id = ?').all(order.id) as never[]).map(rowToPod),
   })
 })
 
@@ -94,7 +95,7 @@ routes.post('/orders/:id/cancel', (req, res) => {
 
 routes.post('/orders/:id/pod', (req, res) => {
   const orderId = Number(req.params.id)
-  const { kind, photo_data_url, signature_data_url } = req.body
+  const { kind, photo_data_url, signature_data_url, condition } = req.body
   const saved: Record<string, string | null> = { photo_path: null, signature_path: null }
   for (const [field, dataUrl] of [
     ['photo_path', photo_data_url],
@@ -105,11 +106,12 @@ routes.post('/orders/:id/pod', (req, res) => {
     writeFileSync(path, Buffer.from(dataUrl.split(',')[1], 'base64'))
     saved[field] = path
   }
-  db.prepare('INSERT INTO pods (order_id, kind, photo_path, signature_path) VALUES (?, ?, ?, ?)').run(
+  db.prepare('INSERT INTO pods (order_id, kind, photo_path, signature_path, condition) VALUES (?, ?, ?, ?, ?)').run(
     orderId,
     kind,
     saved.photo_path,
     saved.signature_path,
+    recordPodCondition(orderId, kind, condition),
   )
   const order = applyEvent(orderId, kind === 'pickup' ? 'picked_up' : 'delivered', { pod: true }, 'driver')
   applyEvent(

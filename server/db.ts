@@ -78,6 +78,7 @@ CREATE TABLE IF NOT EXISTS pods (
   kind TEXT NOT NULL,
   photo_path TEXT,
   signature_path TEXT,
+  condition TEXT,
   captured_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 CREATE TABLE IF NOT EXISTS condition_reports (

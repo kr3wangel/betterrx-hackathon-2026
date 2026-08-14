@@ -1,5 +1,15 @@
 import { db } from './db'
-import type { Escalation, Message, Order, OrderEvent, ParsedMessage, Vendor, VendorStat } from '../shared/types'
+import type {
+  Escalation,
+  Message,
+  Order,
+  OrderEvent,
+  ParsedMessage,
+  Pod,
+  PodCondition,
+  Vendor,
+  VendorStat,
+} from '../shared/types'
 
 type OrderRow = Omit<Order, 'risk_reasons' | 'delivery_verified' | 'pickup_verified'> & {
   risk_reasons: string | null
@@ -8,6 +18,7 @@ type OrderRow = Omit<Order, 'risk_reasons' | 'delivery_verified' | 'pickup_verif
 }
 type EventRow = Omit<OrderEvent, 'payload'> & { payload: string | null }
 type MessageRow = Omit<Message, 'parsed'> & { parsed: string | null }
+type PodRow = Omit<Pod, 'condition'> & { condition: string | null }
 
 const ORDER_SELECT = `SELECT o.*,
   EXISTS (SELECT 1 FROM pods p WHERE p.order_id = o.id AND p.kind = 'delivery') AS delivery_verified,
@@ -29,6 +40,10 @@ export function rowToEvent(row: EventRow): OrderEvent {
 
 export function rowToMessage(row: MessageRow): Message {
   return { ...row, parsed: row.parsed ? (JSON.parse(row.parsed) as ParsedMessage) : null }
+}
+
+export function rowToPod(row: PodRow): Pod {
+  return { ...row, condition: row.condition ? (JSON.parse(row.condition) as PodCondition) : null }
 }
 
 export function getOrder(id: number): Order | null {

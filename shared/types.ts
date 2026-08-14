@@ -70,6 +70,24 @@ export interface Order {
   created_at: string
 }
 
+export type PodKind = 'delivery' | 'pickup'
+
+export interface PodCondition {
+  clean: boolean
+  functional: boolean
+  patient_ready: boolean
+}
+
+export interface Pod {
+  id: number
+  order_id: number
+  kind: PodKind
+  photo_path: string | null
+  signature_path: string | null
+  condition: PodCondition | null
+  captured_at: string
+}
+
 export interface OrderEvent {
   id: number
   order_id: number
