@@ -14,6 +14,9 @@ export default defineConfig({
     },
   },
   server: {
+    // Bind to 0.0.0.0 so /driver and /caregiver open on a real phone over the venue LAN —
+    // the driver view needs a real camera, and the caregiver view reads as a phone
+    // because it is one.
     host: true,
     port: 5173,
     proxy: {

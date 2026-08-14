@@ -1,5 +1,6 @@
 import { db } from '../server/db'
 import { computeRisk, RISK_THRESHOLD } from '../server/risk'
+import { conditionCheckText } from '../server/condition'
 import { CATALOG, byCode } from '../shared/catalog'
 import type { Order, VendorStat } from '../shared/types'
 
@@ -371,7 +372,21 @@ for (const h of history.filter((x) => x.day_offset <= MATERIALIZE_DAYS)) {
   if (h.condition_score !== null) {
     // Caregiver got the text a couple of hours after delivery and replied.
     const at = new Date(h.delivered_at.getTime() + between(0.5, 6) * 3_600_000)
-    insertEvent.run(id, 'family_notified', JSON.stringify({ kind: 'condition_check', channel: 'sms' }), 'system', iso(h.delivered_at))
+    const patient = PATIENTS.find((p) => p.id === h.patient_id)!
+    // Store the outbound body, same as sendConditionCheck does — otherwise the caregiver
+    // phone renders a reply with no message above it.
+    insertEvent.run(
+      id,
+      'family_notified',
+      JSON.stringify({
+        kind: 'condition_check',
+        channel: 'sms',
+        to: patient.phone,
+        body: conditionCheckText({ equipment_name: item.equipment_name } as Order, patient.caregiver),
+      }),
+      'system',
+      iso(h.delivered_at),
+    )
     insertCondition.run(id, h.vendor_id, h.patient_id, h.condition_score, 'caregiver', null, iso(at))
     if (h.condition_score <= 2) {
       insertEscalation.run(

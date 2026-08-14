@@ -33,6 +33,11 @@ export interface Patient {
   status: PatientStatus
   address: string
   market: string
+  /** Family contact for the equipment-condition channel — not the patient. See server/condition.ts. */
+  caregiver_name: string
+  caregiver_phone: string
+  /** 0 when the household has opted out of texts. */
+  contact_ok: number
 }
 
 export interface Vendor {

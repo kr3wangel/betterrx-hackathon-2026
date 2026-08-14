@@ -11,6 +11,8 @@ import Reports from './pages/Reports'
 import VendorPortal from './pages/VendorPortal'
 import VendorStatus from './pages/VendorStatus'
 import Nurse from './pages/Nurse'
+import Caregiver from './pages/Caregiver'
+import VendorPhone from './pages/VendorPhone'
 
 // The persona surfaces of the DME module — the working tool.
 const surfaceLinks = [
@@ -38,6 +40,18 @@ function surfaceLinkClass({ isActive }: { isActive: boolean }) {
 }
 
 export default function App() {
+  return (
+    <Routes>
+      {/* Unlisted, and deliberately outside the app shell — it stands in for a real phone,
+          so it gets no nav, no header, no site chrome. Reachable only by typing the URL. */}
+      <Route path="/caregiver" element={<Caregiver />} />
+      <Route path="/vendor-phone" element={<VendorPhone />} />
+      <Route path="*" element={<Shell />} />
+    </Routes>
+  )
+}
+
+function Shell() {
   const { connected } = useEventStream()
 
   return (

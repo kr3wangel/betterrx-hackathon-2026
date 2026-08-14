@@ -75,4 +75,8 @@ Three working surfaces in one React app, all live over SSE:
 - `/vendor` — dispatcher board + vendor phone simulator (type a free-text reply, watch it parse)
 - `/driver` — phone-sized: today's deliveries + pickups, POD capture (photo + signature)
 
+Plus one **unlisted** route, deliberately not in the nav:
+
+- `/caregiver` — a demo prop, not a product surface. Fake phone for the family caregiver: shows the condition text that went out, five tap buttons (1-5) or free text, and how the reply was read. Type the URL to reach it. Real families get an actual SMS; this is the stand-in, same idea as the vendor phone simulator.
+
 Shared pieces: `useLive()` (SSE-driven refetch), `api` client, UI atoms, `SignaturePad` + `PhotoInput`.
