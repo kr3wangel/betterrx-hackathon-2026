@@ -128,10 +128,26 @@ Each rung is lower effort than the vendor's status quo, so participation is pull
 | 0 | Nothing — hospice enters their phone number (its existing rolodex) | Reachability. No BetterRX vendor network needed: each hospice imports its own vendors |
 | 1 | Replies to a text — or presses 1 on an automated check-in call — from their customer | Structured status; participation from message one. Channel-agnostic: text parses via AI, a keypress is deterministic (no model). Voice matters structurally — rolodex landlines can't receive SMS |
 | 2 | Driver taps a link, snaps photo + signature | Verified proof at the two moments that matter (delivery, pickup) — protects the vendor in billing disputes too |
-| 3 | Asks for "one place to see my orders" → magic-link dispatch board | Voluntary adoption; deeper data |
+| 3 | Taps a magic link → their dispatch board, no account, no password | **The DME Portal (see decision note below)** — voluntary adoption; deeper data |
 | 4 | Full portal / API / ops-software integration | The clean feed — for the minority who can, once already in the loop |
 
 Silence is also a reporting source: a vendor not replying near a deadline becomes an at-risk flag and an escalation — non-response was ambiguous in the phone world, here it's signal.
+
+**Team decision (2026-08-14): the vendor channel is the FAQ §3 baseline, implemented as magic
+links — and the "DME Portal" is what those links open.** Every outbound touch (order request, nag,
+pickup request) is a confirmation text/email carrying a magic link. The vendor taps it and lands on
+a **no-login** page for that order — Confirm / Can't fill it / set ETA, one tap each — or their
+standing dispatch board (rung 3). Zero accounts, zero passwords, zero onboarding: this is exactly
+the FAQ's prescribed baseline ("design for a vendor who may never log into anything and only ever
+responds via a confirmation email or text (SMS/magic-link style)"), and the tap replaces free-text
+parsing as the demo's structured-input path — deterministic, confidence 1.0, no model — so there is
+no inbound-SMS interception to simulate. The Claude parse pipeline and the IVR spec
+(`docs/IVR-SIM-SPEC.md`) move to the production story: they're how the same ladder reaches vendors
+who reply free-text or only answer a landline (Q&A ammunition, not demo beats). What survives
+unchanged: the silence ladder (an untapped link is silence exactly like an unanswered text — nag,
+then escalate), the state machine, risk, escalations, nurse trigger, and the review queue. Pitch
+frame: *the portal is not something vendors adopt — it's what's already waiting behind the link we
+send them.*
 
 ## Reporting sources, ranked by vendor cost
 
