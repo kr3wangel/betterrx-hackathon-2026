@@ -63,6 +63,10 @@ CREATE TABLE IF NOT EXISTS messages (
   parsed TEXT,
   confidence REAL,
   review_status TEXT,
+  recipient_type TEXT NOT NULL DEFAULT 'vendor',
+  patient_id INTEGER,
+  template TEXT,
+  answered_at TEXT,
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 CREATE TABLE IF NOT EXISTS escalations (
@@ -95,12 +99,17 @@ CREATE INDEX IF NOT EXISTS idx_condition_vendor ON condition_reports (vendor_id)
 CREATE INDEX IF NOT EXISTS idx_condition_order ON condition_reports (order_id);
 `)
 
-// Additive columns for the caregiver condition channel. Wrapped because teammates have
-// existing dev databases that predate them and SQLite has no ADD COLUMN IF NOT EXISTS.
+// Additive columns for the caregiver condition channel and the simulated SMS threads.
+// Wrapped because teammates have existing dev databases that predate them and SQLite has
+// no ADD COLUMN IF NOT EXISTS.
 for (const stmt of [
   "ALTER TABLE patients ADD COLUMN caregiver_name TEXT NOT NULL DEFAULT ''",
   "ALTER TABLE patients ADD COLUMN caregiver_phone TEXT NOT NULL DEFAULT ''",
   'ALTER TABLE patients ADD COLUMN contact_ok INTEGER NOT NULL DEFAULT 1',
+  "ALTER TABLE messages ADD COLUMN recipient_type TEXT NOT NULL DEFAULT 'vendor'",
+  'ALTER TABLE messages ADD COLUMN patient_id INTEGER',
+  'ALTER TABLE messages ADD COLUMN template TEXT',
+  'ALTER TABLE messages ADD COLUMN answered_at TEXT',
 ]) {
   try {
     db.exec(stmt)

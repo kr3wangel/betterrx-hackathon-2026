@@ -21,8 +21,9 @@ export type OrderEventType =
   | 'cancelled'
   | 'risk_updated'
   | 'family_notified'
+  | 'family_confirmed'
 
-export type Actor = 'hospice' | 'vendor' | 'driver' | 'system' | 'ai'
+export type Actor = 'hospice' | 'vendor' | 'driver' | 'system' | 'ai' | 'family'
 export type Urgency = 'routine' | 'urgent' | 'stat'
 export type PatientStatus = 'active' | 'discharged' | 'deceased'
 
@@ -67,6 +68,8 @@ export interface Order {
   risk_reasons: string[] | null
   delivery_verified: boolean
   pickup_verified: boolean
+  /** A household said the equipment arrived. Weaker than a POD, stronger than a vendor claim. */
+  family_confirmed: boolean
   created_at: string
 }
 
@@ -118,6 +121,21 @@ export interface ParsedMessage {
 
 export type ReviewStatus = 'auto_applied' | 'needs_review' | 'confirmed' | 'rejected'
 
+/** Thread discriminator. On an inbound row it names the sender, not the recipient. */
+export type RecipientType = 'vendor' | 'family'
+
+export type VendorTemplate = 'v_order_request' | 'v_ack_nag' | 'v_eta_check' | 'v_pickup_request'
+
+export type FamilyTemplate =
+  | 'f_delivery_confirm'
+  | 'f_condition_check'
+  | 'f_eta_notice'
+  | 'f_pickup_notice'
+  | 'f_delivered_thanks'
+  | 'f_picked_up_thanks'
+
+export type MessageTemplate = VendorTemplate | FamilyTemplate
+
 export interface Message {
   id: number
   order_id: number | null
@@ -127,7 +145,23 @@ export interface Message {
   parsed: ParsedMessage | null
   confidence: number | null
   review_status: ReviewStatus | null
+  recipient_type: RecipientType
+  patient_id: number | null
+  /** The question an outbound row asked. Always null inbound and on conversational sends. */
+  template: MessageTemplate | null
+  /** Set on an outbound question row once a reply resolves it. */
+  answered_at: string | null
   created_at: string
+}
+
+export interface SmsReplyResult {
+  message_id: number
+  in_reply_to: number | null
+  template: MessageTemplate | null
+  digit: string | null
+  outcome: 'applied' | 'prompt' | 'review' | 'unmapped'
+  prompt: string | null
+  order: Order | null
 }
 
 export interface Escalation {

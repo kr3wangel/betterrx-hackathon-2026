@@ -4,7 +4,16 @@ import { db } from './db'
 import { applyEvent, escalate } from './statemachine'
 import { getOrder, getVendor, listOrders, listOrderEvents, rowToMessage, rowToPod } from './store'
 import { recordPodCondition } from './pods'
-import { handleInbound, applyParsed, sendToVendor, orderRequestText } from './messaging'
+import {
+  handleInbound,
+  applyParsed,
+  deliveredThanksText,
+  pickedUpThanksText,
+  sendToFamily,
+  sendToVendor,
+  orderRequestText,
+} from './messaging'
+import { handleReply, sendTemplate } from './sms'
 import { setPatientStatus } from './pickups'
 import { resolveTargetAt } from './sla'
 import { resolveToken, portalOrders, portalConfirm, portalSetEta, portalDecline } from './portal'
@@ -15,7 +24,15 @@ import {
   vendorConditionStats,
 } from './condition'
 import { reportSummary, vendorScorecards } from './reports'
-import type { ConditionSource, Escalation, ParsedMessage, Patient, PatientStatus, Vendor } from '../shared/types'
+import type {
+  ConditionSource,
+  Escalation,
+  MessageTemplate,
+  ParsedMessage,
+  Patient,
+  PatientStatus,
+  Vendor,
+} from '../shared/types'
 
 export const routes = Router()
 
@@ -54,7 +71,7 @@ routes.post('/orders', (req, res) => {
   const order = applyEvent(orderId, 'order_placed', null, 'hospice')
 
   const patient = db.prepare('SELECT * FROM patients WHERE id = ?').get(patient_id) as Patient | undefined
-  sendToVendor(vendor_id, orderId, orderRequestText(order, patient?.market ?? ''))
+  sendToVendor(vendor_id, orderId, orderRequestText(order, patient?.market ?? ''), 'v_order_request')
   res.status(201).json(order)
 })
 
@@ -85,7 +102,7 @@ routes.post('/orders/:id/swap-vendor', (req, res) => {
   if (!getVendor(newVendorId)) return res.status(400).json({ error: 'unknown vendor' })
   const order = applyEvent(orderId, 'vendor_swapped', { vendor_id: newVendorId }, 'hospice')
   const patient = db.prepare('SELECT * FROM patients WHERE id = ?').get(order.patient_id) as Patient | undefined
-  sendToVendor(newVendorId, orderId, orderRequestText(order, patient?.market ?? ''))
+  sendToVendor(newVendorId, orderId, orderRequestText(order, patient?.market ?? ''), 'v_order_request')
   db.prepare("UPDATE escalations SET status = 'resolved' WHERE order_id = ? AND status = 'open'").run(orderId)
   res.json(order)
 })
@@ -115,12 +132,9 @@ routes.post('/orders/:id/pod', (req, res) => {
     recordPodCondition(orderId, kind, condition),
   )
   const order = applyEvent(orderId, kind === 'pickup' ? 'picked_up' : 'delivered', { pod: true }, 'driver')
-  applyEvent(
-    orderId,
-    'family_notified',
-    { text: kind === 'pickup' ? 'Equipment has been picked up. Thank you.' : 'Your equipment has been delivered.' },
-    'system',
-  )
+  const thanks = kind === 'pickup' ? pickedUpThanksText() : deliveredThanksText(order)
+  applyEvent(orderId, 'family_notified', { text: thanks }, 'system')
+  sendToFamily(order.patient_id, orderId, thanks, kind === 'pickup' ? 'f_picked_up_thanks' : 'f_delivered_thanks')
 
   // Delivery is the one moment the household can see what actually arrived, so the
   // condition check rides along with proof of delivery. Never on a pickup — the guards
@@ -178,6 +192,18 @@ routes.post('/messages/inbound', async (req, res) => {
   res.json(await handleInbound(Number(vendor_id), String(body)))
 })
 
+/** Thread-aware inbound: the caller knows a message id, the server derives everything else. */
+routes.post('/messages/reply', async (req, res) => {
+  const { reply_to_message_id, digit, body } = req.body
+  res.json(await handleReply({ reply_to_message_id: Number(reply_to_message_id), digit, body }))
+})
+
+/** Fire any template on demand — the presenter's button for the morning-of ETA check. */
+routes.post('/messages/send', (req, res) => {
+  const { order_id, template } = req.body as { order_id: number; template: MessageTemplate }
+  res.status(201).json(sendTemplate(Number(order_id), template))
+})
+
 routes.get('/messages', (req, res) => {
   const status = req.query.review_status as string | undefined
   const vendorId = req.query.vendor_id ? Number(req.query.vendor_id) : undefined
@@ -189,7 +215,9 @@ routes.get('/messages', (req, res) => {
     params.push(status)
   }
   if (vendorId) {
-    where.push('vendor_id = ?')
+    // Family rows carry the order's vendor as a join key only. Without this guard the
+    // vendor's phone simulator would render household texts inside the vendor thread.
+    where.push('vendor_id = ?', "recipient_type = 'vendor'")
     params.push(vendorId)
   }
   if (where.length) sql += ` WHERE ${where.join(' AND ')}`

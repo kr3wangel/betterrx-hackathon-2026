@@ -1,4 +1,5 @@
 import { db } from './db'
+import { sendToFamily } from './messaging'
 import { applyEvent, escalate } from './statemachine'
 import { getOrder } from './store'
 import type { CaregiverReplyResult, ConditionSource, Order, VendorCondition } from '../shared/types'
@@ -118,8 +119,10 @@ export function shouldAskForCondition(order: Order): { ok: boolean; reason?: str
   return { ok: true }
 }
 
-/** Sends the check and logs it as a family_notified event — no new outbound table needed. */
-export function sendConditionCheck(orderId: number): { sent: boolean; reason?: string; body?: string } {
+/** Sends the check, logs it as a family_notified event, and stores it in the household thread. */
+export function sendConditionCheck(
+  orderId: number,
+): { sent: boolean; reason?: string; body?: string; message_id?: number } {
   const order = getOrder(orderId)
   if (!order) return { sent: false, reason: 'order not found' }
 
@@ -131,8 +134,11 @@ export function sendConditionCheck(orderId: number): { sent: boolean; reason?: s
     | undefined
 
   const body = conditionCheckText(order, patient?.caregiver_name ?? '')
+  const messageId = sendToFamily(order.patient_id, orderId, body, 'f_condition_check')
+  if (messageId === null) return { sent: false, reason: 'household thread already has an open question' }
+
   applyEvent(orderId, 'family_notified', { kind: 'condition_check', channel: 'sms', to: patient?.caregiver_phone }, 'system')
-  return { sent: true, body }
+  return { sent: true, body, message_id: messageId }
 }
 
 export function recordConditionReport(

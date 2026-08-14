@@ -11,10 +11,11 @@ import type {
   VendorStat,
 } from '../shared/types'
 
-type OrderRow = Omit<Order, 'risk_reasons' | 'delivery_verified' | 'pickup_verified'> & {
+type OrderRow = Omit<Order, 'risk_reasons' | 'delivery_verified' | 'pickup_verified' | 'family_confirmed'> & {
   risk_reasons: string | null
   delivery_verified: number
   pickup_verified: number
+  family_confirmed: number
 }
 type EventRow = Omit<OrderEvent, 'payload'> & { payload: string | null }
 type MessageRow = Omit<Message, 'parsed'> & { parsed: string | null }
@@ -22,7 +23,8 @@ type PodRow = Omit<Pod, 'condition'> & { condition: string | null }
 
 const ORDER_SELECT = `SELECT o.*,
   EXISTS (SELECT 1 FROM pods p WHERE p.order_id = o.id AND p.kind = 'delivery') AS delivery_verified,
-  EXISTS (SELECT 1 FROM pods p WHERE p.order_id = o.id AND p.kind = 'pickup') AS pickup_verified
+  EXISTS (SELECT 1 FROM pods p WHERE p.order_id = o.id AND p.kind = 'pickup') AS pickup_verified,
+  EXISTS (SELECT 1 FROM order_events e WHERE e.order_id = o.id AND e.type = 'family_confirmed') AS family_confirmed
 FROM orders o`
 
 export function rowToOrder(row: OrderRow): Order {
@@ -31,6 +33,7 @@ export function rowToOrder(row: OrderRow): Order {
     risk_reasons: row.risk_reasons ? JSON.parse(row.risk_reasons) : null,
     delivery_verified: !!row.delivery_verified,
     pickup_verified: !!row.pickup_verified,
+    family_confirmed: !!row.family_confirmed,
   }
 }
 

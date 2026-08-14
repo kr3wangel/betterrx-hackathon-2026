@@ -19,6 +19,7 @@ const TRANSITIONS: Record<OrderEventType, { from: OrderState[]; to: OrderState |
   cancelled: { from: PRE_DELIVERED, to: 'cancelled' },
   risk_updated: { from: ACTIVE_STATES, to: null },
   family_notified: { from: ['delivered', 'picked_up', 'pickup_pending'], to: null },
+  family_confirmed: { from: ['delivered', 'pickup_pending', 'pickup_overdue', 'picked_up'], to: null },
 }
 
 export class TransitionError extends Error {
