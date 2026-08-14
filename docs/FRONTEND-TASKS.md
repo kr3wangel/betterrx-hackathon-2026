@@ -152,7 +152,7 @@ Owner: `[ ]`  ·  Owns new `client/src/pages/Reports.tsx`.
 
 ## Lane E — DME vendor portal *(user-requested)*
 
-Owner: `[ ]`  ·  Owns new `client/src/pages/VendorPortal.tsx`. Shares `usePortal(token)` with Lane C.
+Owner: `[Angel]`  ·  Owns new `client/src/pages/VendorPortal.tsx`. Shares `usePortal(token)` with Lane C.
 **Build with shadcn/ui components** (Card, Button, Badge, Dialog, Table, Tabs, Select, Input, Checkbox, Sonner).
 
 - [ ] **FE-E.1 · S · Portal home** — `GET /api/portal/:token`: the vendor's live orders + delivery/pickup
