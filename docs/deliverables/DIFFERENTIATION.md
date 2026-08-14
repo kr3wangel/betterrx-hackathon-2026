@@ -2,6 +2,8 @@
 
 *Draft.*
 
+*Assumptions this document relies on: see [ASSUMPTIONS.md](ASSUMPTIONS.md).*
+
 ## How DME coordination works today
 
 Phone calls, faxes, and vendor-specific portals. The hospice logs into the vendor's system (one login per vendor), or more often calls and hopes. Status lives inside the vendor's four walls; the hospice finds out an order slipped when the family calls. Pickup after a death is triggered by a phone call and tracked by nobody. National platforms offer portals — built for the vendor's operations, not the hospice's discharge.

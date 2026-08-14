@@ -2,6 +2,8 @@
 
 *Draft — finalize token costs after live parse testing.*
 
+*Assumptions this document relies on: see [ASSUMPTIONS.md](ASSUMPTIONS.md).*
+
 ## Where we used AI, and why it beats the rules-based baseline
 
 **One place: parsing unstructured vendor replies into structured order events.**

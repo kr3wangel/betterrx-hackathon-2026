@@ -2,6 +2,8 @@
 
 *Draft. A diagram is enough per the brief — render the mermaid below for the submission.*
 
+*Assumptions this document relies on: see [ASSUMPTIONS.md](ASSUMPTIONS.md).*
+
 ## Where the system sits
 
 ```mermaid

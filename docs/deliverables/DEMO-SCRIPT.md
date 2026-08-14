@@ -2,6 +2,8 @@
 
 *Draft — rehearse against the clock twice; code freeze first.*
 
+*Assumptions this document relies on: see [ASSUMPTIONS.md](ASSUMPTIONS.md).*
+
 Setup before walking to the front: two browser windows side by side (left: `/hospice`; right: `/vendor` or `/driver` as the scenario needs), phone with `/driver` open, terminal ready with the seed commands. Roles: Angel narrates, FE drives screens, DATA runs seeds.
 
 ## Pitch skeleton (5:00)
