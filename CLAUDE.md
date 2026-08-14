@@ -40,12 +40,12 @@ npm run build        # typecheck + vite build
 - `broadcast()` takes the `ServerEvent` union minus `at` via a **distributive** omit (see `server/sse.ts`) — plain `Omit` over the union won't compile.
 - Express 5 catches async route errors natively; the JSON error middleware in `server/index.ts` reads `err.status` (used by `TransitionError` 409s and not-found 404s).
 - Seed timestamps are relative to `Date.now()` so demo deadlines are always in the near future — re-run `npm run seed scenarioN` right before each demo scenario.
-- Vendor stats carry the deliberately planted risk signal (vendor 2 is 79% on-time; vendor 1 drops to 62% for Friday beds) — the risk engine only looks interesting because the data makes it so.
+- Vendor stats carry the deliberately planted risk signal — each vendor has a `base_on_time` with weak-day/weak-code penalties in `scripts/seed.ts`, so exact percentages are derived, not fixed; the risk engine only looks interesting because the data makes it so. Check the actual seeded numbers before quoting them in the pitch.
 - POD photos/signatures are data URLs → files under `data/pods/` (gitignored), served at `/api/pods`.
 
 ## Team docs
 
-`docs/PROBLEM-THESIS.md` is the why behind the design (the reporting-cost framing, the vendor adoption ladder, the integration asymmetry) — read it before changing scope or pitch content. `docs/BUILD-DAY-TASKS.md` is the shared task list (claim items by name). `docs/BACKEND-SPEC.md` is the architecture spec. `docs/deliverables/` holds the four submission drafts (AI approach, differentiation, integration sketch, demo script) — keep them in sync with reality as the build evolves.
+`docs/PROBLEM-THESIS.md` is the why behind the design (the reporting-cost framing, the vendor adoption ladder, the integration asymmetry) — read it before changing scope or pitch content. `docs/BUILD-DAY-TASKS.md` is the shared task list (claim items by name). `docs/BACKEND-SPEC.md` is the architecture spec. `docs/deliverables/` holds the five submission drafts (AI approach, differentiation, integration sketch, demo script, assumptions register) — keep them in sync with reality as the build evolves.
 
 ## Demo scenarios (build everything toward these)
 
