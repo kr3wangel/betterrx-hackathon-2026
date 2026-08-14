@@ -45,7 +45,7 @@ npm run build        # typecheck + vite build
 
 ## Team docs
 
-`docs/PROBLEM-THESIS.md` is the why behind the design (the reporting-cost framing, the vendor adoption ladder, the integration asymmetry) — read it before changing scope or pitch content. `docs/BUILD-DAY-TASKS.md` is the shared task list (claim items by name). `docs/BACKEND-SPEC.md` is the architecture spec. `docs/deliverables/` holds the five submission drafts (AI approach, differentiation, integration sketch, demo script, assumptions register) — keep them in sync with reality as the build evolves.
+`docs/PROBLEM-THESIS.md` is the why behind the design (the reporting-cost framing, the vendor adoption ladder, the integration asymmetry) — read it before changing scope or pitch content. `docs/BUILD-DAY-TASKS.md` is the shared task list (claim items by name). `docs/BACKEND-SPEC.md` is the architecture spec. `docs/deliverables/` holds the submission drafts (AI approach, differentiation, integration sketch, demo script, assumptions register, slides) — keep them in sync with reality as the build evolves. **Built something worth showing off? Add a one-liner to the "Show-off inbox" in `docs/deliverables/SLIDES.md`** — it gets harvested into the pitch before code freeze; if it's not in the inbox, it won't be on stage.
 
 ## Demo scenarios (build everything toward these)
 
