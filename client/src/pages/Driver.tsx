@@ -5,6 +5,7 @@ import { Badge, Button, Card } from '../components/ui'
 import { STATE_LABEL, STATE_TONE } from '../lib/domain'
 import { SignaturePad } from '../components/SignaturePad'
 import { PhotoInput } from '../components/PhotoInput'
+import { PersonaHeader } from '@/components/PersonaHeader'
 import type { Order, Patient, Vendor } from '../../../shared/types'
 
 export default function Driver() {
@@ -17,6 +18,7 @@ export default function Driver() {
 
   return (
     <div className="mx-auto max-w-md space-y-3">
+      <PersonaHeader persona="Driver" title="Today's route" />
       <select
         className="w-full rounded-md border border-slate-300 px-2 py-2 text-sm"
         value={vendorId}
