@@ -306,6 +306,8 @@ script before code freeze. **If it isn't in this inbox, it won't be on stage.**
 - A vendor with no account taps one link from a text and sees every live order with its SLA clock ("due in 4h" / "late by 2h"), then accepts, ETAs, or declines in one tap — the hospice board flips over SSE before their thumb leaves the screen — `/portal/<token>` — slides 2+3 (scenario 3 climax)
 - One thread, one digit, two meanings: reply "1" confirms the delivery arrived, and the very next "1" in the same thread flags the equipment unusable — disambiguated by the message template, never by AI guessing (`server/sms.ts` REPLY_ROUTES) — slide 4 (AI honesty)
 - 
+- Sub-60s order placement with a live "why it matters" rail — the nurse sees the stakes (who, what, by when, which vendor) as she fills it, then it lands on the board instantly — `/order` (`client/src/pages/Order.tsx`) — slide 1 (discharge readiness)
+- One-tap nurse pickup: pick a patient → "went home" or "passed away" → equipment pickup auto-appears for the driver, with respectful copy the whole way — `/nurse` (`client/src/pages/Nurse.tsx`) — slide 2 (post-death pickup; the sponsor-preferred primary trigger, no EMR needed)
 - 
 - 
 - 
