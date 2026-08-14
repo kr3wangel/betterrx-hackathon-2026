@@ -55,7 +55,11 @@ ordered → dispatched → in_transit → delivered → pickup_pending → picke
 |---|---|
 | `POST /api/orders` · `GET /api/orders[?state=]` · `GET /api/orders/:id` | Orders (detail includes events, messages, escalations, PODs) |
 | `POST /api/orders/:id/swap-vendor` · `/cancel` · `/events` | Actions |
-| `POST /api/orders/:id/pod` | Proof of delivery/pickup (photo + signature data URLs) |
+| `POST /api/orders/:id/pod` | Proof of delivery/pickup (photo + signature data URLs). A **delivery** POD also fires the caregiver condition check; the response carries `condition_check` |
+| `POST /api/orders/:id/condition-check` | Send the 1-5 condition text to the caregiver. Returns the message body; 409 with a reason when the guards block it |
+| `POST /api/orders/:id/condition-reply` | Simulated inbound caregiver SMS `{ body }`. Deterministic parse, no model call — `needs_review: true` when ambiguous |
+| `POST /api/orders/:id/condition` · `GET /api/orders/:id/condition` | Direct entry (nurse or driver) and the report history for one order |
+| `GET /api/vendors/condition` | Per-vendor condition rollup — the scorecard input |
 | `POST /api/emr/patient-status` | Simulated EMR webhook — death/discharge auto-triggers pickups |
 | `POST /api/messages/inbound` | Simulated vendor SMS webhook (the vendor-phone page posts here) |
 | `GET /api/messages?review_status=needs_review` · `POST /api/messages/:id/confirm` · `/reject` | AI parse review queue |

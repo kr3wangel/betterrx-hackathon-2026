@@ -120,6 +120,38 @@ export interface Escalation {
   created_at: string
 }
 
+/** Who reported the condition. Caregiver is the default and the point of the channel. */
+export type ConditionSource = 'caregiver' | 'nurse' | 'driver'
+
+/** A 1-5 equipment condition rating for one delivery. See server/condition.ts. */
+export interface ConditionReport {
+  id: number
+  order_id: number
+  vendor_id: number
+  patient_id: number
+  /** 1 = unusable, 5 = like new. */
+  score: number
+  source: ConditionSource
+  comment: string | null
+  created_at: string
+}
+
+/** Per-vendor condition rollup — the vendor scorecard input. */
+export interface VendorCondition {
+  vendor_id: number
+  reports: number
+  avg_score: number
+  /** Share of reports at or below CONDITION_ALERT_AT. */
+  bad_rate: number
+}
+
+/** Result of an inbound caregiver SMS. needs_review means we would not guess at it. */
+export interface CaregiverReplyResult {
+  score: number | null
+  escalated: boolean
+  needs_review: boolean
+}
+
 export interface RiskResult {
   score: number
   reasons: string[]

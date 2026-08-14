@@ -1,7 +1,7 @@
 import { db } from './db'
 import { applyEvent, escalate } from './statemachine'
 import { getOrder } from './store'
-import type { Order } from '../shared/types'
+import type { CaregiverReplyResult, ConditionSource, Order, VendorCondition } from '../shared/types'
 
 /**
  * Caregiver equipment-condition channel.
@@ -138,7 +138,7 @@ export function sendConditionCheck(orderId: number): { sent: boolean; reason?: s
 export function recordConditionReport(
   orderId: number,
   score: number,
-  opts: { source?: string; comment?: string | null } = {},
+  opts: { source?: ConditionSource; comment?: string | null } = {},
 ): { id: number; escalated: boolean } {
   if (!Number.isInteger(score) || score < 1 || score > 5) {
     throw Object.assign(new Error(`condition score must be an integer 1-5, got ${score}`), { status: 400 })
@@ -166,10 +166,7 @@ export function recordConditionReport(
 }
 
 /** Handles an inbound caregiver SMS. Unparseable replies are surfaced, never guessed at. */
-export function handleCaregiverReply(
-  orderId: number,
-  body: string,
-): { score: number | null; escalated: boolean; needs_review: boolean } {
+export function handleCaregiverReply(orderId: number, body: string): CaregiverReplyResult {
   const score = parseConditionReply(body)
   if (score === null) return { score: null, escalated: false, needs_review: true }
 
@@ -179,13 +176,6 @@ export function handleCaregiverReply(
     comment: comment || null,
   })
   return { score, escalated, needs_review: false }
-}
-
-export interface VendorCondition {
-  vendor_id: number
-  reports: number
-  avg_score: number
-  bad_rate: number
 }
 
 /** Feeds the vendor scorecard — the point of collecting any of this. */

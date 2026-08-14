@@ -13,7 +13,7 @@ import {
   sendConditionCheck,
   vendorConditionStats,
 } from './condition'
-import type { Escalation, ParsedMessage, Patient, PatientStatus, Vendor } from '../shared/types'
+import type { ConditionSource, Escalation, ParsedMessage, Patient, PatientStatus, Vendor } from '../shared/types'
 
 export const routes = Router()
 
@@ -118,7 +118,21 @@ routes.post('/orders/:id/pod', (req, res) => {
     { text: kind === 'pickup' ? 'Equipment has been picked up. Thank you.' : 'Your equipment has been delivered.' },
     'system',
   )
-  res.json(order)
+
+  // Delivery is the one moment the household can see what actually arrived, so the
+  // condition check rides along with proof of delivery. Never on a pickup — the guards
+  // in server/condition.ts keep this channel silent once a patient has died. Wrapped so
+  // a failure here can never break POD capture in front of a judge.
+  let condition_check: { sent: boolean; reason?: string; body?: string } | null = null
+  if (kind !== 'pickup') {
+    try {
+      condition_check = sendConditionCheck(orderId)
+    } catch (err) {
+      console.error('[condition] check failed:', err)
+    }
+  }
+
+  res.json({ ...order, condition_check })
 })
 
 routes.post('/patients/:id/status', (req, res) => {
@@ -240,10 +254,20 @@ routes.post('/orders/:id/condition-reply', (req, res) => {
   res.json(handleCaregiverReply(Number(req.params.id), body))
 })
 
+const CONDITION_SOURCES: ConditionSource[] = ['caregiver', 'nurse', 'driver']
+
 /** Direct entry, for the nurse or driver rather than the household. */
 routes.post('/orders/:id/condition', (req, res) => {
   const { score, source, comment } = req.body as { score: number; source?: string; comment?: string }
-  res.json(recordConditionReport(Number(req.params.id), Number(score), { source, comment }))
+  if (source && !CONDITION_SOURCES.includes(source as ConditionSource)) {
+    return res.status(400).json({ error: `source must be one of ${CONDITION_SOURCES.join(', ')}` })
+  }
+  res.json(
+    recordConditionReport(Number(req.params.id), Number(score), {
+      source: source as ConditionSource | undefined,
+      comment,
+    }),
+  )
 })
 
 routes.get('/orders/:id/condition', (req, res) => {
