@@ -155,13 +155,13 @@ Owner: `[ ]`  ·  Owns new `client/src/pages/Reports.tsx`.
 Owner: `[Angel]`  ·  Owns new `client/src/pages/VendorPortal.tsx`. Shares `usePortal(token)` with Lane C.
 **Build with shadcn/ui components** (Card, Button, Badge, Dialog, Table, Tabs, Select, Input, Checkbox, Sonner).
 
-- [ ] **FE-E.1 · S · Portal home** — `GET /api/portal/:token`: the vendor's live orders + delivery/pickup
+- [x] **FE-E.1 · S · Portal home** — `GET /api/portal/:token`: the vendor's live orders + delivery/pickup
   queue in one no-login place. **Done when:** orders + queue render for a token.
-- [ ] **FE-E.2 · M · Equipment & location view** — "all my equipment and where each piece is": serialized
+- [x] **FE-E.2 · M · Equipment & location view** — "all my equipment and where each piece is": serialized
   inventory (in stock / out for delivery / at patient / overdue for pickup) + per-unit location tied to
   orders, enriching real order data with mocked serialized inventory (`lib/mocks.ts`). **Done when:** each
   unit shows a status + location.
-- [ ] **FE-E.3 · S · SLA vs actual** — same-day STAT/urgent, 24h routine (FAQ default) vs actuals. **Done when:** each order shows on-time/late against its SLA.
+- [x] **FE-E.3 · S · SLA vs actual** — same-day STAT/urgent, 24h routine (FAQ default) vs actuals. **Done when:** each order shows on-time/late against its SLA.
 
 ---
 
