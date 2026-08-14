@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { api } from '../lib/api'
 import { useLive } from '../lib/useLive'
 import { Bubble, PhoneScreen, ThreadEmpty } from '../components/PhoneScreen'
-import type { CaregiverReplyResult, ConditionReport, Order, OrderEvent, Patient } from '../../../shared/types'
+import type { CaregiverReplyResult, ConditionReport, Message, Order, OrderEvent, Patient } from '../../../shared/types'
 
 /**
  * The family caregiver's phone — a demo prop, not a product surface. Unlisted.
@@ -28,6 +28,7 @@ const time = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: 'nume
 interface OrderDetail {
   order: Order
   events: OrderEvent[]
+  messages: Message[]
 }
 
 type Msg =
@@ -97,17 +98,21 @@ function Thread({ orderId, patient, picker }: { orderId: number; patient: Patien
   const [sending, setSending] = useState(false)
   const [result, setResult] = useState<CaregiverReplyResult | null>(null)
 
-  const check = (detail?.events ?? []).find(
-    (e) => e.type === 'family_notified' && (e.payload as { kind?: string } | null)?.kind === 'condition_check',
+  // Outbound texts live in the messages table on the household thread (sendToFamily), not
+  // in the event payload — so eta notices and pickup notices show up here too, which is
+  // what this family's phone would actually look like.
+  const familyMessages = useMemo(
+    () => (detail?.messages ?? []).filter((m) => m.recipient_type === 'family'),
+    [detail],
   )
-  const checkBody = (check?.payload as { body?: string } | null)?.body
+  const hasCheck = familyMessages.some((m) => m.template === 'f_condition_check')
 
   const thread: Msg[] = useMemo(() => {
     const out: Msg[] = []
-    if (check && checkBody) out.push({ side: 'received', at: check.created_at, body: checkBody })
+    for (const m of familyMessages) out.push({ side: 'received', at: m.created_at, body: m.body })
     for (const r of reports ?? []) out.push({ side: 'sent', at: r.created_at, score: r.score, comment: r.comment })
     return out.sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime())
-  }, [check, checkBody, reports])
+  }, [familyMessages, reports])
 
   async function send() {
     if (!draft.trim() || sending) return
@@ -136,7 +141,7 @@ function Thread({ orderId, patient, picker }: { orderId: number; patient: Patien
       {thread.length === 0 && (
         <ThreadEmpty>
           No messages yet.
-          {!checkBody && (
+          {!hasCheck && (
             <button
               onClick={async () => {
                 await api.post(`/api/orders/${orderId}/condition-check`, {})
