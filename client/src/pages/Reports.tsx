@@ -352,12 +352,14 @@ function CostOfCare({ orders, patients }: { orders: Order[]; patients: Patient[]
           amount={cost.med_spend_usd}
           width={cost.med_spend_usd / max}
           color="bg-secondary"
+          source="synthetic"
         />
         <SpendBar
           label="DME equipment"
           amount={cost.dme_spend_usd}
           width={cost.dme_spend_usd / max}
           color="bg-primary"
+          source="CMS"
         />
         <div className="flex items-center justify-between border-t border-border pt-3">
           <span className="font-semibold">Total cost of care</span>
@@ -365,6 +367,21 @@ function CostOfCare({ orders, patients }: { orders: Order[]; patients: Patient[]
             {usd(cost.total_usd)}
           </span>
         </div>
+        {/*
+          These two bars are not the same kind of number and the screen should not pretend
+          otherwise. FAQ §6 penalises manufactured precision, and BetterRX is a pharmacy
+          company — the medication figure is the one a judge would recognise as invented.
+          Under the hospice benefit, medications for the terminal diagnosis sit inside the
+          per-diem exactly like DME, so no public per-claim figure exists to ground it in.
+          Saying so is a stronger answer than a better-looking fake.
+        */}
+        <p className="border-t border-border pt-3 text-[11px] leading-relaxed text-muted-foreground">
+          <span className="font-semibold text-foreground">Where these come from.</span> DME is
+          priced from the real CMS Medicare DMEPOS Public Use File — average allowed amount per
+          HCPCS code, plus a synthetic $35 setup fee. Medication spend is synthetic: hospice
+          drugs for the terminal diagnosis are paid inside the Medicare per-diem, so no public
+          per-patient figure exists to source it from.
+        </p>
       </CardContent>
     </Card>
   )
@@ -375,16 +392,37 @@ function SpendBar({
   amount,
   width,
   color,
+  source,
 }: {
   label: string
   amount: number
   width: number
   color: string
+  /** Provenance badge — a real figure and an invented one must not look alike. */
+  source?: 'CMS' | 'synthetic'
 }) {
   return (
     <div>
       <div className="mb-1.5 flex items-center justify-between text-sm">
-        <span className="text-muted-foreground">{label}</span>
+        <span className="flex items-center gap-1.5 text-muted-foreground">
+          {label}
+          {source && (
+            <span
+              className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide ${
+                source === 'CMS'
+                  ? 'bg-primary/10 text-primary'
+                  : 'bg-muted text-muted-foreground'
+              }`}
+              title={
+                source === 'CMS'
+                  ? 'Real: CMS Medicare DMEPOS Public Use File, average allowed amount per HCPCS code'
+                  : 'Synthetic: hospice drug spend sits inside the Medicare per-diem, so there is no public per-patient figure'
+              }
+            >
+              {source === 'CMS' ? 'CMS data' : 'synthetic'}
+            </span>
+          )}
+        </span>
         <span className="font-semibold tabular-nums">{usd(amount)}</span>
       </div>
       <div className="h-2.5 w-full overflow-hidden rounded-full bg-muted">

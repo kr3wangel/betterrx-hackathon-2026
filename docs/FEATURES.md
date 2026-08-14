@@ -113,7 +113,7 @@ verified-vs-vendor-reported badges · measured token costs.
 | Gap | Size | Why it matters |
 |---|---|---|
 | **Backtest stat** | M | Nothing anywhere in the repo. "Flagged N% of late deliveries X hours early, false-positive rate Y%" is one slide with a big payoff. **Must be labelled SYNTHETIC in large type** — FAQ §6 penalises manufactured precision, and the honesty is the point |
-| **Cost-of-care uses mock numbers** | S | `Reports.tsx` calls `mockPatientCostOfCare`, but `shared/catalog.ts` already carries **real CMS Medicare allowed amounts** per HCPCS. Wiring the real figures in is a small change that turns an invented chart into a sourced one |
+| **Medication spend on the cost card is invented** | — | *DME pricing is already real* — `mockHcpcsPricing` reads CMS allowed amounts from `shared/catalog.ts` despite the "mock" name. What is fabricated is `med_spend_usd` (`1800 + patientId % 7 * 240`), and BetterRX is a pharmacy company, so that is the number they would recognise. No public per-patient figure exists — hospice drugs sit inside the per-diem like DME — so both bars are now provenance-badged (`CMS data` / `synthetic`) rather than faked better |
 | **Live-test the AI parse** | S–M | Needs `ANTHROPIC_API_KEY` and a run of the six spec messages through the vendor simulator. Untested prompts are a bad thing to discover on stage |
 | **Risk engine credibility pass** | M | Tune weights and threshold in `server/risk.ts`, keep tests green |
 | **`sms.ts` has no UI path** | ? | 331 lines, 33 tests, two endpoints nothing calls — see section 2. Wire it or drop the claim |
