@@ -175,6 +175,29 @@ export interface RiskResult {
   reasons: string[]
 }
 
+export interface VendorScorecard {
+  vendor: Vendor
+  overall_on_time_rate: number | null
+  total_samples: number
+  stats: VendorStat[]
+}
+
+export interface ReportSummary {
+  calls_avoided: number
+  calls_avoided_definition: string
+  calls_avoided_breakdown: {
+    auto_applied_messages: number
+    vendor_self_service_updates: number
+    auto_triggered_pickups: number
+  }
+  open_escalations: number
+  orders_by_state: Record<OrderState, number>
+  pickup_latency: {
+    average_hours: number | null
+    sample_size: number
+  }
+}
+
 export type ServerEvent =
   | { type: 'heartbeat'; at: string }
   | { type: 'order_event'; at: string; order_id: number; event_type: OrderEventType; state: OrderState }

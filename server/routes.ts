@@ -14,6 +14,7 @@ import {
   sendConditionCheck,
   vendorConditionStats,
 } from './condition'
+import { reportSummary, vendorScorecards } from './reports'
 import type { ConditionSource, Escalation, ParsedMessage, Patient, PatientStatus, Vendor } from '../shared/types'
 
 export const routes = Router()
@@ -283,6 +284,12 @@ routes.get('/orders/:id/condition', (req, res) => {
 /** Vendor scorecard input — the reason for collecting any of this. */
 routes.get('/vendors/condition', (_req, res) => {
   res.json(vendorConditionStats())
+routes.get('/reports/vendor-scorecards', (_req, res) => {
+  res.json(vendorScorecards())
+})
+
+routes.get('/reports/summary', (_req, res) => {
+  res.json(reportSummary())
 })
 
 export { escalate }
