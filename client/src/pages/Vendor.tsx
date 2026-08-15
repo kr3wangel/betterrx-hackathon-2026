@@ -26,9 +26,9 @@ export default function VendorPage() {
 
   const patientName = useMemo(() => new Map((patients ?? []).map((p) => [p.id, p.name])), [patients])
   const vendor = vendors?.find((v) => v.id === vendorId) ?? vendors?.[0]
-  const mine = (orders ?? []).filter(
-    (o) => o.vendor_id === (vendor?.id ?? vendorId) && !['picked_up', 'cancelled'].includes(o.state),
-  )
+  const mine = orders
+    ? orders.filter((o) => o.vendor_id === (vendor?.id ?? vendorId) && !['picked_up', 'cancelled'].includes(o.state))
+    : null
 
   return (
     <div className="space-y-5">
@@ -60,10 +60,12 @@ export default function VendorPage() {
       <div className="grid gap-5 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle className="text-base text-muted-foreground">Open orders ({mine.length})</CardTitle>
+            <CardTitle className="text-base text-muted-foreground">
+              {mine ? `Open orders (${mine.length})` : 'Open orders'}
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2.5">
-            {!orders ? (
+            {!mine ? (
               <>
                 <Skeleton className="h-24 rounded-2xl" />
                 <Skeleton className="h-24 rounded-2xl" />

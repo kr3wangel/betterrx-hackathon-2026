@@ -7,6 +7,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { StatusPill } from '@/components/StatusPill'
 import { EmptyState } from '@/components/EmptyState'
+import { Skeleton } from '@/components/ui/skeleton'
 import { ConditionChecklist, ALL_ATTESTED, type ConditionState } from '@/components/ConditionChecklist'
 import { SignaturePad } from '../components/SignaturePad'
 import { PhotoInput } from '../components/PhotoInput'
@@ -30,9 +31,9 @@ const DRIVER_STATES: Order['state'][] = ['dispatched', 'in_transit', 'pickup_pen
 export default function Driver() {
   const [vendorId, setVendorId] = useState<number | null>(null)
   const [completed, setCompleted] = useState<CompletedJob | null>(null)
-  const { data: vendors } = useLive(() => api.get<Vendor[]>('/api/vendors'))
-  const { data: allOrders } = useLive(() => api.get<Order[]>('/api/orders'))
-  const { data: jobs } = useLive(
+  const { data: vendors, failed: vendorsFailed, reload: reloadVendors } = useLive(() => api.get<Vendor[]>('/api/vendors'))
+  const { data: allOrders, failed: ordersFailed, reload: reloadOrders } = useLive(() => api.get<Order[]>('/api/orders'))
+  const { data: jobs, failed: jobsFailed, reload: reloadJobs } = useLive(
     () =>
       vendorId === null
         ? Promise.resolve<Order[]>([])
@@ -61,6 +62,15 @@ export default function Driver() {
 
   const patientById = useMemo(() => new Map((patients ?? []).map((p) => [p.id, p])), [patients])
 
+  const failed = vendorsFailed || ordersFailed || jobsFailed
+  const routeJobs = vendorId === null ? null : jobs
+
+  const retry = () => {
+    reloadVendors()
+    reloadOrders()
+    reloadJobs()
+  }
+
   return (
     <div className="mx-auto max-w-md space-y-5">
       <PersonaHeader
@@ -69,45 +79,97 @@ export default function Driver() {
         description="Deliveries and pickups, in order. Snap a photo, grab a signature, done."
       />
 
-      <select
-        aria-label="Which vendor's route?"
-        className="h-11 w-full rounded-md border border-input bg-card px-3 text-sm text-foreground shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background"
-        value={vendorId ?? ''}
-        onChange={(e) => setVendorId(Number(e.target.value))}
-      >
-        {(vendors ?? []).map((v) => (
-          <option key={v.id} value={v.id}>
-            {v.name} — driver view
-          </option>
-        ))}
-      </select>
-
-      {/* A pickup can appear here on its own, over SSE, while nobody is looking at the screen. */}
-      <p className="sr-only" aria-live="polite">
-        {vendorId === null || !jobs
-          ? ''
-          : jobs.length === 0
-            ? 'No deliveries or pickups on your route.'
-            : `${jobs.length} ${jobs.length === 1 ? 'stop' : 'stops'} on your route.`}
-      </p>
-
-      {completed && <JobCompleteCard completed={completed} onDismiss={() => setCompleted(null)} />}
-
-      {(jobs ?? []).map((job) => (
-        <JobCard
-          key={job.id}
-          job={job}
-          patient={patientById.get(job.patient_id)}
-          onComplete={setCompleted}
-        />
-      ))}
-      {vendorId !== null && jobs && jobs.length === 0 && (
+      {failed && !vendors ? (
         <EmptyState
           icon={<Truck />}
-          title="Route's clear"
-          description="No deliveries or pickups assigned right now."
+          title="Couldn't load your route"
+          description="We can't reach the server right now. Nothing is lost — try again in a moment."
+          action={
+            <Button variant="outline" className="rounded-xl" onClick={retry}>
+              Try again
+            </Button>
+          }
         />
+      ) : !vendors ? (
+        <DriverSkeleton />
+      ) : (
+        <>
+          {failed && (
+            <div
+              role="alert"
+              className="rounded-[14px] bg-destructive/10 px-5 py-4 text-sm font-semibold text-destructive"
+            >
+              Can't reach the server — this route may be out of date. Still trying.
+            </div>
+          )}
+
+          <select
+            aria-label="Which vendor's route?"
+            className="h-11 w-full rounded-md border border-input bg-card px-3 text-sm text-foreground shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background"
+            value={vendorId ?? ''}
+            onChange={(e) => setVendorId(Number(e.target.value))}
+          >
+            {vendors.map((v) => (
+              <option key={v.id} value={v.id}>
+                {v.name} — driver view
+              </option>
+            ))}
+          </select>
+
+          {/* A pickup can appear here on its own, over SSE, while nobody is looking at the screen. */}
+          <p className="sr-only" aria-live="polite">
+            {!routeJobs
+              ? ''
+              : routeJobs.length === 0
+                ? 'No deliveries or pickups on your route.'
+                : `${routeJobs.length} ${routeJobs.length === 1 ? 'stop' : 'stops'} on your route.`}
+          </p>
+
+          {completed && <JobCompleteCard completed={completed} onDismiss={() => setCompleted(null)} />}
+
+          {!routeJobs ? (
+            failed ? (
+              <EmptyState
+                icon={<Truck />}
+                title="Couldn't load your stops"
+                description="We can't reach the server right now. Nothing is lost — try again in a moment."
+                action={
+                  <Button variant="outline" className="rounded-xl" onClick={retry}>
+                    Try again
+                  </Button>
+                }
+              />
+            ) : (
+              <DriverSkeleton />
+            )
+          ) : routeJobs.length === 0 ? (
+            <EmptyState
+              icon={<Truck />}
+              title="Route's clear"
+              description="No deliveries or pickups assigned right now."
+            />
+          ) : (
+            routeJobs.map((job) => (
+              <JobCard
+                key={job.id}
+                job={job}
+                patient={patientById.get(job.patient_id)}
+                onComplete={setCompleted}
+              />
+            ))
+          )}
+        </>
       )}
+    </div>
+  )
+}
+
+function DriverSkeleton() {
+  return (
+    <div className="space-y-5">
+      {Array.from({ length: 2 }, (_, i) => (
+        <Skeleton key={i} className="h-44 rounded-2xl" />
+      ))}
     </div>
   )
 }

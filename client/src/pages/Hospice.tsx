@@ -56,7 +56,7 @@ export default function Hospice() {
     reviewQueue.data !== null
   const failed =
     orders.failed || patients.failed || vendors.failed || escalations.failed || reviewQueue.failed
-  const waitingOnPhoto = board.done.completions - board.done.withPod
+  const waitingOnProof = board.done.completions - board.done.withPod
 
   return (
     <div className="mx-auto max-w-[860px] pb-9">
@@ -137,9 +137,9 @@ export default function Hospice() {
               <span>
                 {board.done.completions === 0
                   ? 'Nothing has been closed out this week yet.'
-                  : waitingOnPhoto === 0
-                    ? 'Every delivery had a photo and a signature.'
-                    : `${waitingOnPhoto} ${waitingOnPhoto === 1 ? 'is' : 'are'} still waiting on a photo.`}
+                  : waitingOnProof === 0
+                    ? 'Every one of them closed out with proof of delivery on file.'
+                    : `${waitingOnProof} ${waitingOnProof === 1 ? 'is' : 'are'} still waiting on proof of delivery.`}
               </span>
               <span className="w-full rounded-[10px] bg-[#E6F4EC] py-2.5 text-center text-[13px] font-bold text-success sm:w-40">
                 ✓ {board.done.withPod} of {board.done.completions}
