@@ -512,7 +512,7 @@ function ContractLeverage({ leverage }: { leverage: VendorLeverage[] }) {
       <CardHeader>
         <div className="flex items-center gap-2">
           <div className="text-xs font-extrabold uppercase tracking-[0.14em] text-primary">
-            Contract leverage
+            Verified vs. claimed
           </div>
           <span
             className="rounded-full bg-muted px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-muted-foreground"

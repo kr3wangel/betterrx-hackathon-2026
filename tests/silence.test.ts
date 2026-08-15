@@ -91,11 +91,25 @@ describe('silence ladder: escalation', () => {
     )
   })
 
-  it('does not escalate before the nag has aged past the window', () => {
+  it('does not escalate before total silence exceeds the nag + escalate window', () => {
     const id = seedOrder({ created_at: hoursAgo(3) })
     tick(new Date())
     tick(new Date())
     expect(openEscalations(id)).toHaveLength(0)
+  })
+
+  // The SLA is anchored to placement, not to the nag. A long-silent order whose nag only
+  // just went out (server boot, backdated seed) escalates on the very next tick — the
+  // vendor already had their window; a late nag must not restart their clock.
+  it('escalates a long-backdated order one tick after its nag, not ACK_ESCALATE_HOURS later', () => {
+    const id = seedOrder({ created_at: hoursAgo(5) })
+    tick(new Date())
+    expect(outbound(id)).toHaveLength(1)
+    expect(openEscalations(id)).toHaveLength(0)
+    tick(new Date())
+    const escalations = openEscalations(id)
+    expect(escalations).toHaveLength(1)
+    expect(escalations[0].reason).toContain('still unconfirmed 5h after placement')
   })
 
   it('does not escalate when a vendor reply moves the order out of ordered', () => {

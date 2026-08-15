@@ -26,7 +26,7 @@ Honest labeling, because "integration-ready" is a claim judges should be able to
 | Order lifecycle, risk engine, silence ladder, escalations | **Built** |
 | `newDmeOrder` / `dmeOrderStatus` event contracts below | **Sketched** — no eRx bus to connect to this weekend |
 | eRx/EMR transport, auth, retry, and the HCHB partner-layer subscription | **Sketched** |
-| Rung-4 vendor ops-software / API integration | **Sketched** |
+| Rung-4 vendor ops-software / API integration | **Sketched** — MatrixCare × Brightree is this exact pattern in production |
 | Voice/IVR channel | **Sketched + spec'd** (`docs/IVR-SIM-SPEC.md`), deliberately shelved for the demo |
 | Live inventory check at vendor selection | **Sketched as an optional port** — see §5; absent today by design |
 
@@ -228,7 +228,15 @@ That redundancy is the entire point. The failure in their interview was a single
 
 **Direction out:** order status writebacks to the patient chart (`dmeOrderStatus` above, or the EMR partner layer for EMRs we integrate directly) so the chart shows equipment delivered/picked up with a POD reference. Nice-to-have, not load-bearing.
 
-**A note on the EMRs themselves.** Hospices run real EMRs (HCHB, Axxess, WellSky) with real partner layers — HCHB in particular has an integration layer built to automate DME ordering and share patient status with outside vendors, and existing DME integrations already connect that way. We design against that precedent, but we do not depend on it: eRx already receives these events, so the DME workflow keys off a feed BetterRX controls rather than one it has to negotiate per hospice.
+**A note on the EMRs themselves — this is a precedent, not a hypothesis.** The pattern this design rests on already runs in production, and each of the bounty's reference EMRs corroborates a different piece:
+
+- **Axxess × BetterRX (documented today).** Axxess's own integration docs describe patient demographics, admission/discharge status, diagnoses, allergies *and* medications syncing into BetterRX — event-triggered, one-directional EMR → BetterRX. That is the exact envelope §2 builds on, already flowing. DME becomes one more event on a pipe that provably exists.
+- **HCHB Business Connect (the partner-layer precedent).** A purpose-built partner-connection layer that automates DME/supply ordering and shares real-time patient status with outside vendors (e.g. its Qualis DME partnership) — the model we design *against*.
+- **MatrixCare × Brightree (the rung-4 ceiling).** A bi-directional DME ordering interface built into the hospice EHR — no bolt-on portal — with the leading DME-vendor platform. Proof that native, deep integration is a real destination (§5), not the entry price.
+
+We design against these but do not depend on them: eRx already receives the patient/medication events, so the DME workflow keys off a feed BetterRX controls rather than one it has to negotiate per hospice.
+
+**The one honest gap — the identity join.** Everything operational already fits the schema; the field it can't hold *yet* is the external `patient.identifiers[].id` (and `account.identifiers[].id`) from the eRx envelope. Today `patients.id` is a local integer, so in the demo a DME order attaches to a patient we created, not to *the* eRx patient. Wiring to the real bus adds that external key as the join — the step that makes "DME and medications on one patient ledger" literally true rather than architecturally intended. A seam to connect, not a schema to rebuild: the `Order` / `Patient` shapes in `shared/types.ts` are unchanged, gaining an external-id column.
 
 ## 5 · Vendor side: integration is the ceiling, never the floor
 
@@ -256,7 +264,7 @@ For the minority of vendors with real systems — and per the brief, bigger vend
 - **Inbound:** the vendor's system POSTs the same `dmeOrderStatus` body to a per-vendor endpoint (HMAC-signed, `externalId` as the idempotency key). It lands in the same `applyEvent()` path as a magic-link tap, with `capturedVia: "vendorApi"`.
 - **Outbound:** we POST `newDmeOrder` to their order-intake webhook instead of texting a link. Same payload the eRx bus carries.
 
-Rung 4 is strictly better data at strictly higher onboarding cost. It is an upgrade path for vendors already in the loop, never the price of admission.
+Rung 4 is strictly better data at strictly higher onboarding cost. It is an upgrade path for vendors already in the loop, never the price of admission. This isn't hypothetical: MatrixCare's hospice EHR ships a bi-directional ordering interface with Brightree built into the chart — rung 4 already exists in the market, which is why we design toward it without requiring it.
 
 ### The shelved rung — voice/IVR for landline-only vendors (sketched, spec'd, cut from the demo)
 

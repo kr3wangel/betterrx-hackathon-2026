@@ -1,6 +1,6 @@
 import { db } from '../server/db'
 import { ackNagText, orderRequestText, vendorAckText } from '../server/messaging'
-import { allocateSlot, slotDigits, SLOT_BASES } from '../server/slots'
+import { slotDigits, SLOT_BASES } from '../server/slots'
 import { computeRisk, RISK_THRESHOLD } from '../server/risk'
 import { conditionCheckText } from '../server/condition'
 import { getOrder } from '../server/store'
@@ -415,22 +415,29 @@ const DEMO_PATIENTS = new Set([1, 3, 4, 5])
  * replayed over the simulated timeline, so overlapping questions land on different pairs
  * and the seeded thread demonstrates the rotation for real: a slow vendor's history shows
  * (1,2), (3,4), (5,6) stacked and answered out of order with "3"s and "5"s, not a wall of
- * "1"s. An ignored question squats its pair for 48h before rotation retires it; if all
- * five are somehow in play, the oldest is retired first, the way live rotation would.
+ * "1"s. An ignored question holds its pair until the +4h escalation resolves it — that row
+ * is already seeded as 'resolved', and the coordinator closing it is what frees the pair.
+ * Two open questions must NEVER share a pair: live, the sixth question is refused and
+ * re-asked later, so when all five are held the seeded question defers to the moment the
+ * earliest pair frees (returned as sentAt) instead of stealing a live pair.
  */
-const IGNORED_HOLD_MS = 48 * 3_600_000
+const IGNORED_HOLD_MS = 4 * 3_600_000
 type SeedSlotBase = (typeof SLOT_BASES)[number]
 const slotHolds = new Map<number, { base: SeedSlotBase; until: number }[]>()
-function seedSlot(vendorId: number, at: number, until: number): SeedSlotBase {
-  const holds = (slotHolds.get(vendorId) ?? []).filter((hold) => hold.until > at)
+function seedSlot(vendorId: number, at: number, holdMs: number): { base: SeedSlotBase; sentAt: number } {
+  let holds = (slotHolds.get(vendorId) ?? []).filter((hold) => hold.until > at)
+  let sentAt = at
   let base: SeedSlotBase | undefined = SLOT_BASES.find((b) => !holds.some((hold) => hold.base === b))
   if (base === undefined) {
     holds.sort((a, b) => a.until - b.until)
-    base = holds.shift()!.base
+    const freed = holds.shift()!
+    sentAt = freed.until
+    base = freed.base
+    holds = holds.filter((hold) => hold.until > sentAt)
   }
-  holds.push({ base, until })
+  holds.push({ base, until: sentAt + holdMs })
   slotHolds.set(vendorId, holds)
-  return base
+  return { base, sentAt }
 }
 
 // Chronological, not generation order: slot occupancy replays a timeline, and message ids
@@ -486,11 +493,13 @@ for (const h of toMaterialize) {
   // newer asks long ago, so it carries none — weeks-dead questions must not squat the five
   // live pairs and jam the demo phones.
   const ignoredQuestion = orderRand() < profile.ignore_rate
-  const answeredAt = ignoredQuestion
-    ? null
-    : new Date(h.ordered_at.getTime() + profile.answer_hours * orderBetween(0.3, 2.5) * 3_600_000)
-  const heldUntil = answeredAt ?? new Date(h.ordered_at.getTime() + IGNORED_HOLD_MS)
-  const questionSlot = seedSlot(h.vendor_id, h.ordered_at.getTime(), heldUntil.getTime())
+  const answerDelayMs = profile.answer_hours * orderBetween(0.3, 2.5) * 3_600_000
+  const { base: questionSlot, sentAt } = seedSlot(
+    h.vendor_id,
+    h.ordered_at.getTime(),
+    ignoredQuestion ? IGNORED_HOLD_MS : answerDelayMs,
+  )
+  const answeredAt = ignoredQuestion ? null : new Date(sentAt + answerDelayMs)
   const yesDigit = String(slotDigits(questionSlot)[0])
   const order = getOrder(id)!
   const area = PATIENTS.find((p) => p.id === h.patient_id)!.market
@@ -501,9 +510,9 @@ for (const h of toMaterialize) {
     'v_order_request',
     ignoredQuestion ? null : questionSlot,
     answeredAt ? iso(answeredAt) : null,
-    iso(h.ordered_at),
+    iso(new Date(sentAt)),
   )
-  const nagAt = new Date(h.ordered_at.getTime() + 2 * 3_600_000)
+  const nagAt = new Date(sentAt + 2 * 3_600_000)
   if (ignoredQuestion || answeredAt!.getTime() > nagAt.getTime()) {
     insertVendorMessage.run(
       id,
@@ -520,7 +529,7 @@ for (const h of toMaterialize) {
       id,
       `No response to the automated check-in — order #${id} is still unconfirmed 4h after placement`,
       'resolved',
-      iso(new Date(h.ordered_at.getTime() + 4 * 3_600_000)),
+      iso(new Date(sentAt + IGNORED_HOLD_MS)),
     )
   } else {
     insertVendorReply.run(id, h.vendor_id, yesDigit, iso(answeredAt!))
@@ -620,8 +629,12 @@ function seedOrder(
   // releases its pair, so a seeded world doesn't open with four of five codes spoken for.
   // The answer is on camera too — reply bubble and receipt — or the phone would show an
   // open-looking question whose pair is secretly retired.
+  //
+  // Allocated through the seedSlot replay, NOT live allocateSlot: a backdated question
+  // must dodge the pairs that were held at placedAt in thread time, not the ones held now.
   const answeredAt = state === 'ordered' ? null : placedAt
-  const slot = allocateSlot(vendorId, id) ?? SLOT_BASES[0]
+  const placedMs = new Date(placedAt).getTime()
+  const { base: slot } = seedSlot(vendorId, placedMs, answeredAt ? 0 : 365 * 24 * 3_600_000)
   insertVendorMessage.run(
     id,
     vendorId,
@@ -633,7 +646,7 @@ function seedOrder(
   )
   if (answeredAt) {
     insertVendorReply.run(id, vendorId, String(slotDigits(slot)[0]), answeredAt)
-    insertVendorAck.run(id, vendorId, vendorAckText(getOrder(id)!, 'accept'), answeredAt)
+    insertVendorAck.run(id, vendorId, vendorAckText(getOrder(id)!, 'accept', String(slotDigits(slot)[0])), answeredAt)
   }
   if (['dispatched', 'in_transit', 'delivered', 'pickup_pending'].includes(state)) {
     insertEvent.run(id, 'vendor_accepted', null, 'vendor', new Date().toISOString())
