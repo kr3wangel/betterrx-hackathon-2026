@@ -51,9 +51,9 @@ plus `/` which redirects to `/hospice`.
 |---|---|
 | `/o/:token` | **The link in every text.** Per-order, 10-char token. Opens that one order with its actions, plus "you have N other open orders" |
 | `/portal/:token` | Per-vendor magic link, no login. All their open orders, grouped, with an equipment tab |
-| `/vendor-portal` | Same component, no token — the demo entry |
+| `/vendor-portal` | Same component, no token. **Off the nav** — tokenless it can only render its "open the link we texted you" empty state, so it's a typed-URL fallback, not a surface |
 | `/status/:token` | Read-only vendor status view |
-| `/vendor` | Dispatcher board + in-page phone simulator |
+| `/vendor` | Dispatcher board + in-page phone simulator. **Off the nav** — typed URL only |
 | `/vendor-phone` | Full-screen SMS simulator. No buttons — a typed digit routes deterministically, prose gets the model. Account menu → Simulated phones, new tab |
 
 ### Presenter tools — 1 page
@@ -93,7 +93,7 @@ element on every Shell page, and the demo needs the board and a handset open sid
 
 ```mermaid
 graph TD
-  NAV["GLOBAL NAV BAR<br/>7 links, filtered by role - see section 5<br/>on every page inside the Shell"]
+  NAV["GLOBAL NAV BAR<br/>5 links, filtered by role - see section 5<br/>on every page inside the Shell"]
   ACCT["ACCOUNT MENU<br/>role switcher plus Simulated phones<br/>also on every Shell page"]
 
   subgraph Full Shell - hospice nav bar
@@ -101,8 +101,8 @@ graph TD
     ORDER["/order<br/>place an order"]
     NURSE["/nurse<br/>patient status"]
     REPORTS["/reports<br/>scorecards + approvals"]
-    VBOARD["/vendor<br/>dispatcher board"]
-    VPORTAL["/vendor-portal<br/>demo entry"]
+    VBOARD["/vendor<br/>dispatcher board<br/>typed URL only"]
+    VPORTAL["/vendor-portal<br/>tokenless fallback<br/>typed URL only"]
     DRIVER["/driver<br/>POD capture"]
     DEMO["/demo<br/>EMR + send a text<br/>typed URL only"]
   end
@@ -122,8 +122,6 @@ graph TD
   NAV --> ORDER
   NAV --> NURSE
   NAV --> REPORTS
-  NAV --> VBOARD
-  NAV --> VPORTAL
   NAV --> DRIVER
 
   BOARD ==>|"+ New order<br/>Hospice.tsx:38"| ORDER
@@ -139,6 +137,8 @@ graph TD
   SMS -.-> VSTATUS
   OPORTAL ==>|"see all N others<br/>PortalOrder.tsx:109"| PORTAL
   TYPED["typed URL, presenter only"] -.-> DEMO
+  TYPED -.-> VBOARD
+  TYPED -.-> VPORTAL
 ```
 
 Thick arrows are real in-app jumps. Thin arrows are the nav bar. Dashed arrows are external
@@ -147,7 +147,7 @@ entry — a link texted to a vendor, or a URL the presenter types.
 Two of those thick arrows are new since the last pass. **The role switch navigates**: choosing a
 role in the account menu now lands you on that role's first nav surface, because filtering the nav
 while leaving you on a page the new role can't see was worse than not filtering. It goes to
-`/hospice` for four of the six roles, `/vendor` for Dispatcher and `/driver` for Driver. **And the
+`/hospice` for four of the six roles and `/driver` for Dispatcher and Driver. **And the
 texted link is per-order**: `/o/:token` opens the one order the text was about, with a link onward
 to the vendor's full portal if they have other work open.
 
@@ -162,8 +162,14 @@ to the vendor's full portal if they have other work open.
 3. ~~`/portal/:token` renders inside the Shell, showing an external vendor the hospice's nav.~~
    **Fixed.** Both token routes moved out to `PortalShell`. Role filtering could never have fixed
    this — a vendor arrives with no session, and signed out deliberately shows every link. The route
-   had to move. `/vendor-portal` (no token) stays in the full Shell: it's the internal demo entry
-   reached from the nav, not something a vendor is ever texted.
+   had to move. `/vendor-portal` (no token) stays in the full Shell, but it is **no longer in the
+   nav**: with no token the component can only render "open the link we texted you", so as a nav
+   destination it was a dead end by construction. It survives as a typed-URL fallback.
+4. ~~The Dispatcher's two nav links both led somewhere a judge shouldn't be sent.~~ **Retired.**
+   `/vendor-portal` (the dead end above) and `/vendor` (the one surface still on the pre-token
+   slate/blue palette) are both off the nav. Dispatcher now navigates to **Driver** — the other
+   vendor-side surface in the Shell — and reaches its own SMS thread through the account menu's
+   Simulated phones. Both retired routes stay reachable by URL for a presenter.
 
 ---
 
@@ -296,7 +302,7 @@ grep -rn "useAuth" client/src --include="*.tsx" --include="*.ts" | grep -v "lib/
 | Admissions Nurse | Board · New order | `/hospice` |
 | Field Nurse | Board · Nurse | `/hospice` |
 | Director of Nursing | Board · Reports | `/hospice` |
-| Dispatcher | Dispatcher board · Portal | `/vendor` |
+| Dispatcher | Driver | `/driver` |
 | Driver | Driver | `/driver` |
 | *signed out* | *everything* | *stays put* |
 
@@ -308,6 +314,12 @@ during a demo — switch to Driver and you're on `/driver`, no second click.
 Field Nurse gets Board for a specific reason: `/nurse` now has a "View board" button, and **a nav
 that hides a page the page itself sends you to is worse than no filtering at all.** Any future link
 added to a page has to be checked against this table.
+
+Dispatcher gets **Driver** for a different reason: its own two links were retired (§2.3 item 4), and
+a role with an empty nav bar is worse than a role pointed somewhere honest. Driver is the other
+vendor-side surface inside the Shell — same organisation as the dispatcher, and the one that shows
+what happened to the load. The Board was the wrong answer: it would put a hospice's entire patient
+list in a vendor employee's nav, which is the boundary the rest of this design is built on.
 
 **Routes are deliberately not guarded.** Filtering hides links; it does not block URLs. Every screen
 stays reachable by typing the path, so a mis-click during the demo can't strand the presenter — and
@@ -392,7 +404,8 @@ the whole record of what changed:
 | EMR simulator and send-a-text moved off the board to `/demo` | `pages/Demo.tsx` |
 | Account menu opens both phone simulators in a new tab | `App.tsx` `phoneLinks` |
 | Switching role lands on that role's first surface | `App.tsx:74` |
-| `/vendor` renamed "Dispatcher board" in nav and page header | `App.tsx`, `pages/Vendor.tsx` |
+| `/vendor` renamed "Dispatcher board" in its page header — and later retired from the nav | `App.tsx`, `pages/Vendor.tsx` |
+| `/vendor` and `/vendor-portal` off the nav; Dispatcher's nav anchor is Driver | `App.tsx` `surfaceLinks` |
 | Reply buttons removed; a typed digit routes like a structured one | `pages/*Phone.tsx`, `server/sms.ts` |
 | Per-order magic links, shorter, with human dates in the copy | `server/portal.ts`, `server/messaging.ts`, `pages/PortalOrder.tsx` |
 
@@ -411,6 +424,6 @@ the whole record of what changed:
    that whoever drives the demo has to remember the path.
 7. **The order form still shows no cost** (build plan item 6), so the DON's $150 threshold has no
    counterpart at the moment of ordering. `avg_allowed_usd` is right there in `shared/catalog.ts`.
-5. ~~**`/vendor` vs `/vendor-phone`**~~ — **resolved.** `/vendor` is now "Dispatcher board" in the
-   nav and in its own page header; "Vendor phone" now unambiguously means `/vendor-phone`, which
-   the account menu opens as "DME vendor's phone". FEATURES.md §8.2.
+5. ~~**`/vendor` vs `/vendor-phone`**~~ — **resolved twice over.** `/vendor` is "Dispatcher board"
+   in its own page header, and it has since left the nav entirely; "Vendor phone" now unambiguously
+   means `/vendor-phone`, which the account menu opens as "DME vendor's phone". FEATURES.md §8.2.

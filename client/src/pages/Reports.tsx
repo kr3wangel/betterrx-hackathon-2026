@@ -153,10 +153,12 @@ function KpiRow({ data }: { data: ReportsData }) {
           <div className="mt-1.5 text-sm font-semibold leading-snug">
             phone calls that never happened
           </div>
+          {/* All four counters, because the server sums all four into the hero above. */}
           <div className="mt-1 text-xs text-primary-foreground/80">
             {summary.calls_avoided_breakdown.auto_applied_messages} vendor texts auto-applied ·{' '}
             {summary.calls_avoided_breakdown.vendor_self_service_updates} vendor self-updates ·{' '}
-            {summary.calls_avoided_breakdown.auto_triggered_pickups} auto-triggered pickups
+            {summary.calls_avoided_breakdown.auto_triggered_pickups} auto-triggered pickups ·{' '}
+            {summary.calls_avoided_breakdown.household_confirmations} household confirmations
           </div>
         </div>
 
@@ -476,12 +478,24 @@ function CostApprovals({ orders }: { orders: Order[] }) {
   return (
     <Card>
       <CardHeader>
-        <div className="text-xs font-extrabold uppercase tracking-[0.14em] text-primary">
-          Cost-threshold approvals
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs font-extrabold uppercase tracking-[0.14em] text-primary">
+            Cost-threshold approvals
+          </span>
+          <span
+            className="rounded-full bg-muted px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-muted-foreground"
+            title="Synthetic: the queue is derived from seeded orders priced off the CMS file, and the approve/deny decision is not stored anywhere"
+          >
+            synthetic
+          </span>
         </div>
         <CardTitle className="text-base text-muted-foreground">
           Orders over {usd(COST_APPROVAL_THRESHOLD_USD)}/mo need the DON&apos;s sign-off before dispatch
         </CardTitle>
+        <p className="text-[11px] leading-relaxed text-muted-foreground">
+          Design preview — decisions aren&apos;t saved yet. Approving or denying here changes this
+          screen only, and resets when you navigate away.
+        </p>
       </CardHeader>
       <CardContent>
         {rows.length === 0 ? (
