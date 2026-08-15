@@ -294,9 +294,42 @@ export function SeedCommand({ command }: { command: string }) {
   )
 }
 
-export function StopLink({ stop, links }: { stop: Stop; links: DemoLink[] }) {
-  const className = 'text-foreground underline-offset-4 hover:text-primary hover:underline'
+const STOP_CHIP_LABEL: Record<string, string> = {
+  '/hospice': 'Board',
+  '/order': 'New order',
+  '/nurse': 'Nurse',
+  '/driver': 'Driver',
+  '/reports': 'Reports',
+  '/vendor-phone': 'Vendor phone',
+  '/caregiver': 'Caregiver phone',
+}
 
+function StopChip({ to, external, href }: { to?: string; external?: boolean; href?: string }) {
+  const chipClass =
+    'inline-flex shrink-0 items-center gap-1 rounded-full bg-primary px-2.5 py-0.5 text-[11px] font-bold text-primary-foreground hover:opacity-90'
+  if (href) {
+    return (
+      <a href={href} target="_blank" rel="noopener noreferrer" className={chipClass}>
+        Portal <ExternalLink className="size-3" />
+      </a>
+    )
+  }
+  const label = STOP_CHIP_LABEL[to ?? ''] ?? 'Open'
+  if (external) {
+    return (
+      <a href={to} target="_blank" rel="noopener noreferrer" className={chipClass}>
+        {label} <ExternalLink className="size-3" />
+      </a>
+    )
+  }
+  return (
+    <Link to={to!} className={chipClass}>
+      {label} →
+    </Link>
+  )
+}
+
+export function StopLink({ stop, links }: { stop: Stop; links: DemoLink[] }) {
   if (stop.to === undefined && stop.portalVendorId === undefined) {
     return <span className="text-foreground">{stop.label}</span>
   }
@@ -305,26 +338,16 @@ export function StopLink({ stop, links }: { stop: Stop; links: DemoLink[] }) {
     const href = links.find((l) => l.vendor_id === stop.portalVendorId)?.portal_link
     if (!href) return <span className="text-muted-foreground">{stop.label}</span>
     return (
-      <a href={href} target="_blank" rel="noopener noreferrer" className={className}>
-        {stop.label}
-        <ExternalLink className="ml-1 inline size-3 align-[-1px] text-muted-foreground" />
-      </a>
-    )
-  }
-
-  if (stop.external) {
-    return (
-      <a href={stop.to} target="_blank" rel="noopener noreferrer" className={className}>
-        {stop.label}
-        <ExternalLink className="ml-1 inline size-3 align-[-1px] text-muted-foreground" />
-      </a>
+      <span className="text-foreground">
+        <StopChip href={href} /> {stop.label}
+      </span>
     )
   }
 
   return (
-    <Link to={stop.to!} className={className}>
-      {stop.label}
-    </Link>
+    <span className="text-foreground">
+      <StopChip to={stop.to} external={stop.external} /> {stop.label}
+    </span>
   )
 }
 
