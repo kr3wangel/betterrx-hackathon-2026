@@ -1,19 +1,28 @@
 import { useMemo, useState } from 'react'
-import { Camera, PackageCheck, Truck } from 'lucide-react'
+import { Camera, CheckCircle2, PackageCheck, Truck, X } from 'lucide-react'
 import { api } from '../lib/api'
 import { useLive, fmt } from '../lib/useLive'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { StatusPill } from '@/components/StatusPill'
 import { EmptyState } from '@/components/EmptyState'
-import { ConditionChecklist, EMPTY_CONDITION, type ConditionState } from '@/components/ConditionChecklist'
+import { ConditionChecklist, ALL_ATTESTED, type ConditionState } from '@/components/ConditionChecklist'
 import { SignaturePad } from '../components/SignaturePad'
 import { PhotoInput } from '../components/PhotoInput'
 import { PersonaHeader } from '@/components/PersonaHeader'
-import type { Order, Patient, Vendor } from '../../../shared/types'
+import type { Order, OrderEvent, Patient, Pod, PodKind, Vendor } from '../../../shared/types'
+
+interface CompletedJob {
+  order: Order
+  kind: PodKind
+  patientName: string
+  pod?: Pod
+  familyText: string | null
+}
 
 export default function Driver() {
   const [vendorId, setVendorId] = useState(1)
+  const [completed, setCompleted] = useState<CompletedJob | null>(null)
   const { data: vendors } = useLive(() => api.get<Vendor[]>('/api/vendors'))
   const { data: jobs } = useLive(() => api.get<Order[]>(`/api/driver/jobs?vendor_id=${vendorId}`), [vendorId])
   const { data: patients } = useLive(() => api.get<Patient[]>('/api/patients'))
@@ -40,8 +49,15 @@ export default function Driver() {
         ))}
       </select>
 
+      {completed && <JobCompleteCard completed={completed} onDismiss={() => setCompleted(null)} />}
+
       {(jobs ?? []).map((job) => (
-        <JobCard key={job.id} job={job} patient={patientById.get(job.patient_id)} />
+        <JobCard
+          key={job.id}
+          job={job}
+          patient={patientById.get(job.patient_id)}
+          onComplete={setCompleted}
+        />
       ))}
       {jobs && jobs.length === 0 && (
         <EmptyState
@@ -54,26 +70,52 @@ export default function Driver() {
   )
 }
 
-function JobCard({ job, patient }: { job: Order; patient?: Patient }) {
+function familyNotifiedText(events: OrderEvent[]): string | null {
+  for (let i = events.length - 1; i >= 0; i--) {
+    const event = events[i]
+    if (event.type !== 'family_notified') continue
+    const text = event.payload?.text
+    if (typeof text === 'string') return text
+  }
+  return null
+}
+
+function JobCard({
+  job,
+  patient,
+  onComplete,
+}: {
+  job: Order
+  patient?: Patient
+  onComplete: (completed: CompletedJob) => void
+}) {
   const [capturing, setCapturing] = useState(false)
   const [photo, setPhoto] = useState<string | null>(null)
   const [signature, setSignature] = useState<string | null>(null)
-  const [condition, setCondition] = useState<ConditionState>(EMPTY_CONDITION)
+  const [condition, setCondition] = useState<ConditionState>(ALL_ATTESTED)
   const [submitting, setSubmitting] = useState(false)
   const isPickup = job.state === 'pickup_pending' || job.state === 'pickup_overdue'
 
   async function submitPod() {
     setSubmitting(true)
+    const kind: PodKind = isPickup ? 'pickup' : 'delivery'
     try {
       await api.post(`/api/orders/${job.id}/pod`, {
-        kind: isPickup ? 'pickup' : 'delivery',
+        kind,
         photo_data_url: photo,
         signature_data_url: signature,
-        // The three delivery attestations (PodCondition). On a pickup the equipment is
-        // leaving the home, so the checklist is a delivery-only capture.
+        // On a pickup the equipment is leaving the home, so the checklist is delivery-only.
         condition: isPickup ? null : condition,
       })
+      const { events, pods } = await api.get<{ events: OrderEvent[]; pods: Pod[] }>(`/api/orders/${job.id}`)
       setCapturing(false)
+      onComplete({
+        order: job,
+        kind,
+        patientName: patient?.name ?? '',
+        pod: pods.at(-1),
+        familyText: familyNotifiedText(events),
+      })
     } finally {
       setSubmitting(false)
     }
@@ -132,7 +174,9 @@ function JobCard({ job, patient }: { job: Order; patient?: Patient }) {
 
               {!isPickup && (
                 <div className="space-y-2">
-                  <label className="text-xs font-semibold text-muted-foreground">Condition attestation</label>
+                  <label className="text-xs font-semibold text-muted-foreground">
+                    Condition attestation — uncheck anything that isn't true
+                  </label>
                   <ConditionChecklist value={condition} onChange={setCondition} />
                 </div>
               )}
@@ -148,6 +192,38 @@ function JobCard({ job, patient }: { job: Order; patient?: Patient }) {
             </div>
           )}
         </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+function JobCompleteCard({ completed, onDismiss }: { completed: CompletedJob; onDismiss: () => void }) {
+  const { order, kind, patientName, pod, familyText } = completed
+  const proof = [pod?.photo_path && 'photo', pod?.signature_path && 'signature'].filter(Boolean).join(' + ')
+  return (
+    <Card className="border-success/40">
+      <CardContent className="space-y-3 pt-6">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-[0.14em] text-success">
+              <CheckCircle2 className="size-3.5" /> {kind === 'pickup' ? 'Picked up' : 'Delivered'}
+            </div>
+            <div className="mt-1 font-display text-lg font-bold text-foreground">{order.equipment_name}</div>
+            <div className="mt-0.5 text-sm text-muted-foreground">
+              {[patientName, proof && `${proof} on file`].filter(Boolean).join(' · ')}
+            </div>
+          </div>
+          <Button variant="ghost" size="icon" aria-label="Dismiss" onClick={onDismiss}>
+            <X />
+          </Button>
+        </div>
+
+        {familyText && (
+          <div className="rounded-xl border border-border bg-coral-tint px-4 py-3 text-[#8a4a2e]">
+            <div className="text-xs font-semibold">Family notified</div>
+            <p className="mt-1 text-sm leading-relaxed">“{familyText}”</p>
+          </div>
+        )}
       </CardContent>
     </Card>
   )
