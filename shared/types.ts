@@ -24,6 +24,22 @@ export type OrderEventType =
   | 'family_confirmed'
 
 export type Actor = 'hospice' | 'vendor' | 'driver' | 'system' | 'ai' | 'family'
+
+/**
+ * The six internal personas from the client's mock login. `Actor` names the channel a
+ * ledger event came through; `actor_role` names which hat was worn — so the append-only
+ * history can say "cancelled by the Case Manager", not just "cancelled by the hospice".
+ * Sent per request as an X-Role header; the server treats anything unrecognised as null.
+ */
+export const ROLE_IDS = [
+  'case_manager',
+  'admissions_nurse',
+  'field_nurse',
+  'dispatcher',
+  'driver',
+  'director_of_nursing',
+] as const
+export type RoleId = (typeof ROLE_IDS)[number]
 export type Urgency = 'routine' | 'urgent' | 'stat'
 export type PatientStatus = 'active' | 'discharged' | 'deceased'
 
@@ -102,6 +118,8 @@ export interface OrderEvent {
   type: OrderEventType
   payload: Record<string, unknown> | null
   actor: Actor
+  /** Which internal persona acted, when the channel was ours. Null on system/vendor/family events. */
+  actor_role: RoleId | null
   created_at: string
 }
 
@@ -234,6 +252,41 @@ export interface VendorScorecard {
   overall_on_time_rate: number | null
   total_samples: number
   stats: VendorStat[]
+}
+
+/**
+ * Contract-negotiation rollup, computed live from the event ledger — never from
+ * vendor_stats, which is seeded history. See vendorLeverage() in server/reports.ts.
+ */
+export interface VendorLeverage {
+  vendor: Vendor
+  /** Every order ever placed with this vendor, any state. */
+  orders_total: number
+  /** Delivered orders that had a target to grade against. */
+  deliveries_measured: number
+  /** Subset backed by a driver POD — the ground truth cohort. */
+  verified_deliveries: number
+  verified_on_time_rate: number | null
+  /** Subset with no POD — we have only the vendor's word for when it landed. */
+  claimed_deliveries: number
+  claimed_on_time_rate: number | null
+  /** claimed − verified. Positive = the vendor's story outruns the evidence. Null until both cohorts have samples. */
+  trust_gap: number | null
+  /** Automated ack chases sent because this vendor sat on an order. */
+  nags_sent: number
+  /** Escalations raised on this vendor's orders — each one pulled a human in. */
+  escalations: number
+  /** (nags + escalations) / orders_total. The staff-time tax of working with this vendor. */
+  interventions_per_order: number | null
+  /** Every templated question we texted them — requests, nags, ETA checks, pickup asks. */
+  questions_asked: number
+  questions_answered: number
+  /** Median hours from question sent to reply received, over answered questions. */
+  median_answer_hours: number | null
+  /** Questions sent more than NEVER_ANSWERED_AFTER_HOURS ago and still unanswered. */
+  never_answered: number
+  /** never_answered over questions old enough to judge. Null until one is that old. */
+  never_answered_rate: number | null
 }
 
 export interface ReportSummary {

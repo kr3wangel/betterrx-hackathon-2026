@@ -6,6 +6,7 @@ import type {
   Patient,
   ReportSummary,
   VendorCondition,
+  VendorLeverage,
   VendorScorecard,
 } from '../../../shared/types'
 import { PersonaHeader } from '@/components/PersonaHeader'
@@ -49,6 +50,7 @@ interface ReportsData {
   summary: ReportSummary
   scorecards: VendorScorecard[]
   conditions: VendorCondition[]
+  leverage: VendorLeverage[]
   orders: Order[]
   patients: Patient[]
 }
@@ -58,12 +60,14 @@ function loadReports(): Promise<ReportsData> {
     api.get<ReportSummary>('/api/reports/summary'),
     api.get<VendorScorecard[]>('/api/reports/vendor-scorecards'),
     api.get<VendorCondition[]>('/api/vendors/condition'),
+    api.get<VendorLeverage[]>('/api/reports/vendor-leverage'),
     api.get<Order[]>('/api/orders'),
     api.get<Patient[]>('/api/patients'),
-  ]).then(([summary, scorecards, conditions, orders, patients]) => ({
+  ]).then(([summary, scorecards, conditions, leverage, orders, patients]) => ({
     summary,
     scorecards,
     conditions,
+    leverage,
     orders,
     patients,
   }))
@@ -98,6 +102,7 @@ export default function Reports() {
             <VendorScorecards scorecards={data.scorecards} conditions={data.conditions} />
             <CostOfCare orders={data.orders} patients={data.patients} />
           </div>
+          <ContractLeverage leverage={data.leverage} />
           <CostApprovals orders={data.orders} />
         </>
       )}
@@ -452,6 +457,121 @@ function SpendBar({
         <div className={`h-full rounded-full ${color}`} style={{ width: `${Math.round(width * 100)}%` }} />
       </div>
     </div>
+  )
+}
+
+// --- Contract leverage ----------------------------------------------------------
+
+// The negotiation table: what the ledger can prove about each vendor, split from what
+// the vendor merely said. Reads /api/reports/vendor-leverage — live event-ledger math,
+// never the seeded scorecard history the table above runs on.
+function ContractLeverage({ leverage }: { leverage: VendorLeverage[] }) {
+  // Biggest trust gap first — that's the vendor whose contract is up for a conversation.
+  const rows = useMemo(
+    () =>
+      [...leverage]
+        .filter((l) => l.orders_total > 0)
+        .sort((a, b) => (b.trust_gap ?? -Infinity) - (a.trust_gap ?? -Infinity)),
+    [leverage],
+  )
+
+  const gapPoints = (gap: number) => `${gap > 0 ? '+' : ''}${Math.round(gap * 100)} pts`
+  const answerTime = (h: number) => (h < 1 ? `${Math.round(h * 60)}m` : `${h.toFixed(1)}h`)
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center gap-2">
+          <div className="text-xs font-extrabold uppercase tracking-[0.14em] text-primary">
+            Contract leverage
+          </div>
+          <span
+            className="rounded-full bg-muted px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-muted-foreground"
+            title="Synthetic demo data — but computed live from the event ledger, not from the seeded scorecard history"
+          >
+            synthetic
+          </span>
+        </div>
+        <CardTitle className="text-base text-muted-foreground">
+          What the ledger proves vs. what the vendor said — the renewal-negotiation numbers
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Vendor</TableHead>
+              <TableHead className="text-right">Verified on-time</TableHead>
+              <TableHead className="text-right">Claimed on-time</TableHead>
+              <TableHead className="text-right">Trust gap</TableHead>
+              <TableHead className="text-right">Answers in</TableHead>
+              <TableHead className="text-right">Interventions / order</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map((l) => (
+              <TableRow key={l.vendor.id}>
+                <TableCell className="font-medium text-foreground">
+                  {l.vendor.name}
+                  <div className="text-xs font-normal text-faint">
+                    {l.deliveries_measured} deliveries measured · {l.orders_total} orders
+                  </div>
+                </TableCell>
+                <TableCell className="text-right tabular-nums">
+                  {l.verified_on_time_rate == null ? '—' : pct(l.verified_on_time_rate)}
+                  <div className="text-xs font-normal text-faint">POD-backed, n={l.verified_deliveries}</div>
+                </TableCell>
+                <TableCell className="text-right tabular-nums">
+                  {l.claimed_on_time_rate == null ? '—' : pct(l.claimed_on_time_rate)}
+                  <div className="text-xs font-normal text-faint">their word, n={l.claimed_deliveries}</div>
+                </TableCell>
+                <TableCell className="text-right">
+                  {l.trust_gap == null ? (
+                    <span
+                      className="text-faint"
+                      title="Withheld: fewer than 15 deliveries in one of the cohorts — a gap on that small a sample would be noise, not a finding"
+                    >
+                      —
+                    </span>
+                  ) : (
+                    <Badge variant={l.trust_gap > 0.05 ? 'destructive' : 'success'}>
+                      {gapPoints(l.trust_gap)}
+                    </Badge>
+                  )}
+                </TableCell>
+                <TableCell className="text-right tabular-nums">
+                  {l.median_answer_hours == null ? '—' : answerTime(l.median_answer_hours)}
+                  <div className="text-xs font-normal text-faint">
+                    {l.never_answered_rate == null
+                      ? `${l.questions_asked} asked`
+                      : `never answers ${pct(l.never_answered_rate)} · ${l.questions_asked} asked`}
+                  </div>
+                </TableCell>
+                <TableCell className="text-right tabular-nums">
+                  {l.interventions_per_order == null ? '—' : l.interventions_per_order.toFixed(2)}
+                  <div className="text-xs font-normal text-faint">
+                    {l.nags_sent} chases · {l.escalations} escalations
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+        <p className="mt-4 border-t border-border pt-3 text-[11px] leading-relaxed text-muted-foreground">
+          <span className="font-semibold text-foreground">How to read this.</span> A delivery is{' '}
+          <span className="font-semibold">verified</span> when a driver POD exists, and{' '}
+          <span className="font-semibold">claimed</span> when the only evidence is the vendor saying
+          so. The trust gap is claimed minus verified on-time — a vendor whose word consistently
+          outruns their PODs earns a bigger gap — and is withheld until both cohorts have 15
+          deliveries. <span className="font-semibold">Answers in</span> is the median time from a
+          texted question to its reply; every question carries a sent and an answered timestamp,
+          and one unanswered after 24 hours counts as never answered (younger ones are still in
+          play). Interventions count automated chases plus escalations: staff time the vendor cost
+          us. Every number is computed from the append-only event ledger on request, which is what
+          makes it a renewal argument rather than an impression.
+        </p>
+      </CardContent>
+    </Card>
   )
 }
 

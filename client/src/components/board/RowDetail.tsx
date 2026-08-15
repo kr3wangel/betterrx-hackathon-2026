@@ -1,6 +1,7 @@
 import { api } from '../../lib/api'
 import { fmt, useLive } from '../../lib/useLive'
 import { eventLabel, eventSourceNote } from '../../lib/domain'
+import { ROLES } from '../../lib/auth'
 import { isPickup, plainItem } from '../../lib/board'
 import { mockEvidenceSource, isVerifiedEvidence } from '../../lib/mocks'
 import { EvidenceBadge } from '@/components/EvidenceBadge'
@@ -109,6 +110,12 @@ export function RowDetail({ order, vendor }: { order: Order; vendor?: Vendor }) 
               <span className="min-w-0">
                 <span className="tabular-nums text-faint">{fmt(e.created_at)}</span>{' '}
                 <span className="text-foreground">{eventLabel(e.type)}</span>
+                {e.actor_role && (
+                  <span className="text-faint">
+                    {' '}
+                    · by {ROLES.find((r) => r.id === e.actor_role)?.label ?? e.actor_role}
+                  </span>
+                )}
                 {note && <span className="text-faint"> · {note}</span>}
               </span>
               {evidenceRelevant(e.type) && <EvidenceBadge verified={verified} className="shrink-0" />}

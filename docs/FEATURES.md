@@ -12,15 +12,17 @@ truthful.
 **How to re-verify** (do this before the rubric audit, things move fast):
 
 ```bash
-grep -oE "routes\.(get|post)\('[^']+'" server/routes.ts | sort -u   # every endpoint (31)
+grep -oE "routes\.(get|post)\('[^']+'" server/routes.ts | sort -u   # every endpoint (33)
 grep -oE 'path="[^"]*"' client/src/App.tsx | sort -u                # every screen (13)
 grep -n "roles:" client/src/App.tsx                                  # who sees which nav link
 npm run typecheck && npm test                                        # it all still holds
 ```
 
-**Last verified against `main` on 2026-08-14**, after the role-filtered nav and `PortalShell`
-merge (`6696d8c`, `d331fb1`). Every count in this file was re-derived on that pass, not carried
-over.
+**Last verified against `main` on 2026-08-15**, after the contract-leverage panel. Endpoint
+count re-derived at 33 (the 08-14 pass recorded 31 against the same command — one endpoint
+landed undocumented in between; the count here is from running the grep, not arithmetic).
+Screens still 13 — the path grep returns 15 rows, but two are the `/` redirect and the `*`
+catchall.
 
 ---
 
@@ -87,6 +89,7 @@ suppresses itself on real handsets.
 | Proof of delivery | `pods.ts` | Photo, signature, timestamp, plus condition attestation |
 | EMR webhook | `pickups.ts` | Simulated patient-status events drive automatic pickup |
 | Reports | `reports.ts` | Vendor scorecards, calls avoided, pickup latency |
+| Contract leverage | `reports.ts` `vendorLeverage()` | **The renewal-negotiation table**, computed live from the event ledger — never from seeded `vendor_stats`. Splits each vendor's on-time rate into POD-**verified** vs **claimed** (vendor's word only); the difference is the **trust gap**, withheld until both cohorts have 15 deliveries so a small sample can't masquerade as a finding. **Responsiveness** reads the question ledger: every templated text carries a sent and (once replied) an answered timestamp, giving median time-to-answer and a never-answered rate (a question only counts as ignored after 24h). Plus interventions per order (ack nags + escalations = staff time the vendor cost us). `GET /api/reports/vendor-leverage`, rendered on `/reports`. The seed gives each vendor `pod_rate`/`fudge_rate` (a late, unverified delivery sometimes gets reported as on-time) and `answer_hours`/`ignore_rate` (question threads answered slow, or never), so Beehive's word measurably outruns its PODs (+20 pts), it sits on a question for a median 8.6h, and never answers ~32% of texts — while Wasatch answers in ~40m and ignores ~6% |
 | Live updates | `sse.ts` + `useEventStream` | One shared SSE stream app-wide |
 | Synthetic world | `scripts/seed.ts` + `shared/catalog.ts` | CMS-grounded 12-code catalog, a simulated year, vendor stats **derived** from it |
 
@@ -101,7 +104,7 @@ these up or don't claim them.
 |---|---|---|
 | `POST /api/messages/send` — send any templated message | `sms.ts` `sendTemplate` | **Now called** by `/demo`'s send-a-text form (`Demo.tsx`) and RowDetail's "Send another nudge" |
 | Cost-threshold approvals on `/reports` | `Reports.tsx:450` `decide()` | **UI only.** Local `useState` — no API call, no persistence, no ledger event, and **nothing gates dispatch** |
-| Roles / sign-in | `App.tsx:47` is the only `useAuth` consumer | **Nav filtering only.** No page branches on role, no route guards, and `Actor` on the server has no matching split |
+| Roles / sign-in | `App.tsx:47` is the only `useAuth` consumer | **Nav filtering plus ledger attribution** (08-15): every request carries an `X-Role` header and internally-acted events record `actor_role`, so the timeline reads "Cancelled · by Case Manager". Still no route guards and no page branches on role — that part is deliberate (see §1) |
 
 **`/api/messages/reply` is now wired** (08-14). `VendorPhone` renders tappable quick replies under
 the most recent unanswered question and POSTs the digit; the reply resolves through `sms.ts`'s
@@ -119,10 +122,11 @@ integration.
 ships to the vendor whether or not the DON ever looks at it. Demo the queue as a *design*, not as a
 gate.
 
-**The roles row is the honest framing of a real win.** Identity shipped and the nav filters on it —
-but `shared/types.ts:26` still has `Actor = 'hospice' | ...` as one undivided value, so the
-append-only ledger cannot record *which* of the six roles acted. We tell judges the ledger captures
-who acted and through which channel; that's true of vendors and not yet of us.
+**The roles claim is now fully true** (08-15). `Actor` still names the channel, and a new
+`actor_role` column records which of the six personas acted on internally-driven events —
+order placed, swap, cancel, nurse pickup trigger, driver POD. Mock auth, so the header is
+trusted rather than verified; the ledger records it, it doesn't authenticate it. Say it that
+way on stage.
 
 ---
 
@@ -159,9 +163,9 @@ verified-vs-vendor-reported badges · measured token costs · **role-filtered na
 
 | Gap | Size | Why it matters |
 |---|---|---|
-| **Backtest stat** | M | Re-checked 08-14: **nothing anywhere in the repo.** "Flagged N% of late deliveries X hours early, false-positive rate Y%" is one slide with a big payoff. **Must be labelled SYNTHETIC in large type** — FAQ §6 penalises manufactured precision, and the honesty is the point |
-| **Approvals don't persist or gate** | M | See §2. Server state + `pending_approval` + dispatch gate, then approval latency on `/reports` |
-| **`Actor` has no role split** | S | Six roles in the client, one `'hospice'` in the ledger. The client already has the enum to copy |
+| ~~Backtest stat~~ | — | **Done 08-15** — `npm run backtest` (`scripts/backtest.ts`) replays the seeded year through `computeRisk` tick by tick, honestly (state from events, flags only before the deadline): 78% of late deliveries caught a median 8.7h early, 27% false alarms, plus a 50/70/90 threshold sweep. Wired into AI-APPROACH.md. Labelled SYNTHETIC everywhere. **Re-run after reseeding — numbers move with the seed date** |
+| **Approvals don't persist or gate** | M | See §2. **Team decision 08-15 (Angel): keep mocked.** Do not click Approve on stage as if it gates dispatch |
+| ~~`Actor` has no role split~~ | — | **Done 08-15** — `actor_role` on `order_events`, `X-Role` header attached by the api helper, timeline shows "by Case Manager". See §2 |
 | **Medication spend on the cost card is invented** | — | *DME pricing is already real* — `mockHcpcsPricing` reads CMS allowed amounts from `shared/catalog.ts` despite the "mock" name. What is fabricated is `med_spend_usd`, and BetterRX is a pharmacy company, so that is the number they would recognise. No public per-patient figure exists — hospice drugs sit inside the per-diem like DME — so both bars are provenance-badged (`CMS data` / `synthetic`) rather than faked better |
 | **Live-test the AI parse** | S–M | Needs `ANTHROPIC_API_KEY` and a run of the six spec messages through the vendor simulator. Untested prompts are a bad thing to discover on stage |
 | **Risk engine credibility pass** | M | Tune weights and threshold in `server/risk.ts`, keep tests green |
@@ -201,7 +205,9 @@ rental vs purchase, average Medicare allowed amounts.
 
 Synthetic: 12 patients and caregivers, 3 vendor personalities, a simulated year of orders,
 all delivery times and outcomes, all condition ratings, all vendor performance stats, the
-$150/mo approval threshold, and every medication spend figure.
+$150/mo approval threshold, every medication spend figure, and — feeding the contract-leverage
+panel — which deliveries got a driver POD and whether an unverified late delivery was reported
+as on-time anyway (per-vendor `pod_rate` / `fudge_rate` in the seed).
 
 ---
 
@@ -209,7 +215,7 @@ $150/mo approval threshold, and every medication spend figure.
 
 | Judging row | Weight | Features that earn it |
 |---|---:|---|
-| Differentiation from current DME approaches | 30% | Caregiver condition channel · vendor scorecards · verified vs vendor-reported · silence ladder · nurse-first pickup trigger |
+| Differentiation from current DME approaches | 30% | Caregiver condition channel · vendor scorecards · verified vs vendor-reported · **the trust gap as a contract-renewal number** · silence ladder · nurse-first pickup trigger |
 | Addresses core user problems | 25% | Discharge-readiness risk · automatic pickup on death/discharge · condition attestation · calls-avoided counter · cost approvals for the DON |
 | Architecture / integration-readiness | 15% | State machine with guarded transitions · SSE · integration sketch modelled on the real eRx payloads · forward-compatible inventory hook |
 | AI ROI | 15% | **The split**: model for vendor prose with a confidence gate and review queue; regex for caregiver digits; **a tapped quick reply on the vendor phone runs no model at all**, so the same thread shows both trust levels. Rules-based risk scoring on purpose |
@@ -219,19 +225,19 @@ $150/mo approval threshold, and every medication spend figure.
 
 ## 7 · Test coverage
 
-**14 files, 172 tests** (re-derived 08-14, after rotating reply codes). Core logic is covered; UI
-and routes deliberately are not.
+**14 files, 191 tests** (re-derived 08-15, after contract leverage, vendor responsiveness, and
+the actor-role split). Core logic is covered; UI and routes deliberately are not.
 
 | File | Tests | Covers |
 |---|---:|---|
 | `sms.test.ts` | 53 | SMS templates, reply handling, route-table integrity, rotating reply codes, gateway-shaped inbound |
-| `reports.test.ts` | 15 | Scorecards, calls avoided, latency |
+| `reports.test.ts` | 28 | Scorecards, calls avoided, latency, contract leverage (trust gap, cohort minimum, interventions, median answer time, never-answered rate) |
 | `portal.test.ts` | 13 | Magic-link flows |
 | `condition.test.ts` | 12 | Caregiver rating parser, including the ambiguity cases |
 | `risk.test.ts` | 12 | Risk scoring and thresholds |
 | `messaging.test.ts` | 11 | Parse pipeline, confidence gate, decline handling |
 | `at-risk.test.ts` | 9 | Board selectors |
-| `statemachine.test.ts` | 9 | Transition guards |
+| `statemachine.test.ts` | 10 | Transition guards, actor-role attribution |
 | `silence.test.ts` | 8 | Silence ladder |
 | `evidence.test.ts` | 7 | Verified vs reported |
 | `pickup-clock.test.ts` | 6 | Pickup clocks |
