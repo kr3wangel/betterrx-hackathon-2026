@@ -3,7 +3,7 @@ import { broadcast } from './sse'
 import { extractJson } from './llm'
 import { applyEvent, escalate } from './statemachine'
 import { listOrders, getOrder } from './store'
-import { orderLink, portalLink } from './portal'
+import { orderLink, portalLink, portalOrders } from './portal'
 import { allocateSlot, liveQuestions, slotDigits, type SlotDigits } from './slots'
 import type {
   Actor,
@@ -92,23 +92,19 @@ export function sendVendorQuestion(
 
 const DIGEST_QUIET_HOURS = Number(process.env.DIGEST_QUIET_HOURS ?? 4)
 
-/** States where the ball is in the vendor's court: unaccepted, or equipment not yet collected. */
-const AWAITING_VENDOR = ['ordered', 'pickup_pending', 'pickup_overdue']
-
-export function awaitingVendor(vendorId: number): Order[] {
-  return listOrders().filter((o) => o.vendor_id === vendorId && AWAITING_VENDOR.includes(o.state))
-}
-
 /**
  * Counts orders awaiting the vendor, not live reply codes.
  *
  * Those differ by exactly the thing that triggered the digest: the question we could not
  * send has no code, so counting codes reports one fewer than the number of orders actually
  * waiting — and undercounts precisely the order the vendor has heard nothing about.
+ *
+ * Deliberately the same call the link lands on, so the number in the text can never
+ * disagree with the number of rows on the page.
  */
 export function backlogDigestText(vendorId: number): string {
-  const waiting = awaitingVendor(vendorId).length
-  return `${waiting} orders are waiting on you and the reply codes above are all in use. Open them all here: ${portalLink(vendorId)}`
+  const open = portalOrders(vendorId).length
+  return `You have ${open} open orders and the reply codes above are all in use. Open them all here: ${portalLink(vendorId)}`
 }
 
 /**

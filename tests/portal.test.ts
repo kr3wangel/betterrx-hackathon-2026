@@ -83,6 +83,24 @@ describe('portalOrders', () => {
     expect(ids).not.toContain(done)
     expect(ids).toHaveLength(1)
   })
+
+  // A vendor's history is almost all delivered orders — 39 of Beehive's 45 in the seeded
+  // world. Listing them turns the magic link into the haystack the text was avoiding.
+  it('drops delivered orders, which ask nothing of the vendor', () => {
+    const waiting = seedOrder({ vendor_id: 1 })
+    const delivered = seedOrder({ vendor_id: 1, state: 'delivered' })
+    const ids = portalOrders(1).map((o) => o.id)
+    expect(ids).toContain(waiting)
+    expect(ids).not.toContain(delivered)
+  })
+
+  // Delivered is the only non-terminal state that drops out: a pickup puts the equipment
+  // back in the vendor's court, and in-flight orders still need an ETA they can update.
+  it('keeps every state where the vendor still owes something', () => {
+    const states = ['ordered', 'dispatched', 'in_transit', 'pickup_pending', 'pickup_overdue']
+    const ids = states.map((state) => seedOrder({ vendor_id: 1, state }))
+    expect(portalOrders(1).map((o) => o.id).sort()).toEqual([...ids].sort())
+  })
 })
 
 describe('portal actions', () => {

@@ -22,6 +22,7 @@ import {
   sendTemplate,
   type ReplyAction,
 } from '../server/sms'
+import { portalOrders } from '../server/portal'
 import { SLOT_BASES, slotDigits, type SlotDigits } from '../server/slots'
 import { applyEvent } from '../server/statemachine'
 import { getOrder, rowToMessage } from '../server/store'
@@ -642,7 +643,21 @@ describe('rotating reply codes', () => {
     sendVendorQuestion(1, seedOrder(), 'v_order_request', () => 'overflow')
 
     const digest = messages().find((m) => m.template === 'v_backlog_digest')!
-    expect(digest.body).toMatch(/^7 orders are waiting on you/)
+    expect(digest.body).toMatch(/^You have 7 open orders/)
+  })
+
+  // The count and the page behind the link come from one call, so a vendor is never told
+  // a number the page then contradicts.
+  it('counts exactly what the link will show', () => {
+    const held = Array.from({ length: SLOT_BASES.length }, () => seedOrder())
+    held.forEach((id) => ask(id, 'v_order_request'))
+    seedOrder({ state: 'delivered' }) // done — must not be counted or listed
+
+    sendVendorQuestion(1, seedOrder(), 'v_order_request', () => 'overflow')
+
+    const digest = messages().find((m) => m.template === 'v_backlog_digest')!
+    expect(digest.body).toContain(`You have ${portalOrders(1).length} open orders`)
+    expect(digest.body).toMatch(/^You have 6 open orders/)
   })
 
   // watchdog.ts fires v_ack_nag at an order whose v_order_request is still unanswered.

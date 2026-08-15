@@ -6,7 +6,18 @@ import { getOrder, listOrders } from './store'
 import type { Order, Vendor } from '../shared/types'
 
 const SECRET = process.env.MAGIC_LINK_SECRET ?? 'demo-secret'
-const OPEN_STATES_EXCLUDED = ['picked_up', 'cancelled']
+
+/**
+ * States where the vendor still owes us something: not yet accepted, in flight, or
+ * equipment not yet collected.
+ *
+ * `delivered` is deliberately absent. The vendor has done their part and nothing is asked
+ * of them again until a pickup is triggered, which moves the order to `pickup_pending`.
+ * This list used to be "everything except picked_up and cancelled", which meant a vendor
+ * opening their link landed on 45 rows of which 39 were delivered and needed nothing —
+ * the exact haystack the text was meant to spare them.
+ */
+const AWAITING_VENDOR = ['ordered', 'dispatched', 'in_transit', 'pickup_pending', 'pickup_overdue']
 
 export function vendorToken(vendorId: number): string {
   return createHash('sha256').update(`vendor:${vendorId}:${SECRET}`).digest('hex').slice(0, 20)
@@ -56,7 +67,7 @@ export function resolveToken(token: string): Vendor | null {
 }
 
 export function portalOrders(vendorId: number): Order[] {
-  return listOrders().filter((o) => o.vendor_id === vendorId && !OPEN_STATES_EXCLUDED.includes(o.state))
+  return listOrders().filter((o) => o.vendor_id === vendorId && AWAITING_VENDOR.includes(o.state))
 }
 
 function ownOrder(vendorId: number, orderId: number): Order {
