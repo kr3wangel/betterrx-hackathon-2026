@@ -52,6 +52,7 @@ CREATE TABLE IF NOT EXISTS order_events (
   type TEXT NOT NULL,
   payload TEXT,
   actor TEXT NOT NULL,
+  actor_role TEXT,
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 CREATE TABLE IF NOT EXISTS messages (
@@ -112,6 +113,7 @@ for (const stmt of [
   'ALTER TABLE messages ADD COLUMN template TEXT',
   'ALTER TABLE messages ADD COLUMN answered_at TEXT',
   'ALTER TABLE messages ADD COLUMN reply_slot INTEGER',
+  'ALTER TABLE order_events ADD COLUMN actor_role TEXT',
 ]) {
   try {
     db.exec(stmt)

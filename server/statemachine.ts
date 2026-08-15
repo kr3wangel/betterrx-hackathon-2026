@@ -1,7 +1,7 @@
 import { db } from './db'
 import { broadcast } from './sse'
 import { getOrder } from './store'
-import type { Actor, Order, OrderEventType, OrderState } from '../shared/types'
+import type { Actor, Order, OrderEventType, OrderState, RoleId } from '../shared/types'
 
 const ACTIVE_STATES: OrderState[] = ['ordered', 'dispatched', 'in_transit', 'pickup_pending', 'pickup_overdue']
 const PRE_DELIVERED: OrderState[] = ['ordered', 'dispatched', 'in_transit']
@@ -31,6 +31,7 @@ export function applyEvent(
   type: OrderEventType,
   payload: Record<string, unknown> | null,
   actor: Actor,
+  actorRole: RoleId | null = null,
 ): Order {
   const order = getOrder(orderId)
   if (!order) throw Object.assign(new Error(`order ${orderId} not found`), { status: 404 })
@@ -65,11 +66,12 @@ export function applyEvent(
     db.prepare(`UPDATE orders SET ${updates.join(', ')} WHERE id = @id`).run(params)
   }
 
-  db.prepare('INSERT INTO order_events (order_id, type, payload, actor) VALUES (?, ?, ?, ?)').run(
+  db.prepare('INSERT INTO order_events (order_id, type, payload, actor, actor_role) VALUES (?, ?, ?, ?, ?)').run(
     orderId,
     type,
     payload ? JSON.stringify(payload) : null,
     actor,
+    actorRole,
   )
 
   const updated = getOrder(orderId)!

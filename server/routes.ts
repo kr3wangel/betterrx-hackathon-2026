@@ -30,18 +30,31 @@ import {
   sendConditionCheck,
   vendorConditionStats,
 } from './condition'
-import { reportSummary, vendorScorecards } from './reports'
-import type {
-  ConditionSource,
-  Escalation,
-  MessageTemplate,
-  ParsedMessage,
-  Patient,
-  PatientStatus,
-  Vendor,
+import { reportSummary, vendorLeverage, vendorScorecards } from './reports'
+import {
+  ROLE_IDS,
+  type ConditionSource,
+  type Escalation,
+  type MessageTemplate,
+  type ParsedMessage,
+  type Patient,
+  type PatientStatus,
+  type RoleId,
+  type Vendor,
 } from '../shared/types'
 
 export const routes = Router()
+
+/**
+ * Which internal persona is acting, from the X-Role header the client attaches on every
+ * request. Mock auth — the header is trusted, not verified — but the ledger records it,
+ * so "who cancelled this" has an answer. Anything unrecognised (vendors, curl, old
+ * clients) is null, never a guess.
+ */
+function roleFrom(req: { get(name: string): string | undefined }): RoleId | null {
+  const role = req.get('x-role')
+  return ROLE_IDS.includes(role as RoleId) ? (role as RoleId) : null
+}
 
 routes.get('/patients', (_req, res) => {
   res.json(db.prepare('SELECT * FROM patients ORDER BY name').all())
@@ -75,7 +88,7 @@ routes.post('/orders', (req, res) => {
       resolveTargetAt(target_at, resolvedUrgency),
     )
   const orderId = Number(result.lastInsertRowid)
-  const order = applyEvent(orderId, 'order_placed', null, 'hospice')
+  const order = applyEvent(orderId, 'order_placed', null, 'hospice', roleFrom(req))
 
   const patient = db.prepare('SELECT * FROM patients WHERE id = ?').get(patient_id) as Patient | undefined
   sendVendorQuestion(vendor_id, orderId, 'v_order_request', (digits) =>
@@ -102,14 +115,14 @@ routes.get('/orders/:id', (req, res) => {
 
 routes.post('/orders/:id/events', (req, res) => {
   const { type, payload, actor } = req.body
-  res.json(applyEvent(Number(req.params.id), type, payload ?? null, actor ?? 'hospice'))
+  res.json(applyEvent(Number(req.params.id), type, payload ?? null, actor ?? 'hospice', roleFrom(req)))
 })
 
 routes.post('/orders/:id/swap-vendor', (req, res) => {
   const orderId = Number(req.params.id)
   const newVendorId = Number(req.body.vendor_id)
   if (!getVendor(newVendorId)) return res.status(400).json({ error: 'unknown vendor' })
-  const order = applyEvent(orderId, 'vendor_swapped', { vendor_id: newVendorId }, 'hospice')
+  const order = applyEvent(orderId, 'vendor_swapped', { vendor_id: newVendorId }, 'hospice', roleFrom(req))
   const patient = db.prepare('SELECT * FROM patients WHERE id = ?').get(order.patient_id) as Patient | undefined
   sendVendorQuestion(newVendorId, orderId, 'v_order_request', (digits) =>
     orderRequestText(order, patient?.market ?? '', digits),
@@ -119,7 +132,7 @@ routes.post('/orders/:id/swap-vendor', (req, res) => {
 })
 
 routes.post('/orders/:id/cancel', (req, res) => {
-  res.json(applyEvent(Number(req.params.id), 'cancelled', null, 'hospice'))
+  res.json(applyEvent(Number(req.params.id), 'cancelled', null, 'hospice', roleFrom(req)))
 })
 
 routes.post('/orders/:id/pod', (req, res) => {
@@ -142,7 +155,7 @@ routes.post('/orders/:id/pod', (req, res) => {
     saved.signature_path,
     recordPodCondition(orderId, kind, condition),
   )
-  const order = applyEvent(orderId, kind === 'pickup' ? 'picked_up' : 'delivered', { pod: true }, 'driver')
+  const order = applyEvent(orderId, kind === 'pickup' ? 'picked_up' : 'delivered', { pod: true }, 'driver', roleFrom(req))
   const thanks = kind === 'pickup' ? pickedUpThanksText() : deliveredThanksText(order)
   applyEvent(orderId, 'family_notified', { text: thanks }, 'system')
   sendToFamily(order.patient_id, orderId, thanks, kind === 'pickup' ? 'f_picked_up_thanks' : 'f_delivered_thanks')
@@ -165,7 +178,7 @@ routes.post('/orders/:id/pod', (req, res) => {
 
 routes.post('/patients/:id/status', (req, res) => {
   const { status } = req.body as { status: PatientStatus }
-  res.json(setPatientStatus(Number(req.params.id), status, 'nurse'))
+  res.json(setPatientStatus(Number(req.params.id), status, 'nurse', roleFrom(req)))
 })
 
 routes.post('/emr/patient-status', (req, res) => {
@@ -345,6 +358,10 @@ routes.get('/reports/vendor-scorecards', (_req, res) => {
 
 routes.get('/reports/summary', (_req, res) => {
   res.json(reportSummary())
+})
+
+routes.get('/reports/vendor-leverage', (_req, res) => {
+  res.json(vendorLeverage())
 })
 
 export { escalate }

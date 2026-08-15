@@ -2,7 +2,7 @@ import { db } from './db'
 import { applyEvent } from './statemachine'
 import { listOrders } from './store'
 import { pickupRequestText, sendVendorQuestion } from './messaging'
-import type { PatientStatus } from '../shared/types'
+import type { PatientStatus, RoleId } from '../shared/types'
 
 export type PatientStatusSource = 'nurse' | 'emr'
 
@@ -16,6 +16,7 @@ export function setPatientStatus(
   patientId: number,
   status: PatientStatus,
   source: PatientStatusSource,
+  actorRole: RoleId | null = null,
 ): PatientStatusResult {
   db.prepare('UPDATE patients SET status = ? WHERE id = ?').run(status, patientId)
 
@@ -26,7 +27,13 @@ export function setPatientStatus(
       | undefined
     const delivered = listOrders('delivered').filter((o) => o.patient_id === patientId)
     for (const order of delivered) {
-      applyEvent(order.id, 'pickup_triggered', { patient_status: status, source }, source === 'nurse' ? 'hospice' : 'system')
+      applyEvent(
+        order.id,
+        'pickup_triggered',
+        { patient_status: status, source },
+        source === 'nurse' ? 'hospice' : 'system',
+        actorRole,
+      )
       sendVendorQuestion(order.vendor_id, order.id, 'v_pickup_request', (digits) =>
         pickupRequestText(order, patient?.market, digits),
       )

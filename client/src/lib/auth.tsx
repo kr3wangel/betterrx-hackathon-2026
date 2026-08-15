@@ -1,14 +1,10 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
+import type { RoleId } from '../../../shared/types'
 
 // Mock auth for the demo: no backend, no passwords — you pick a role and the shell
 // remembers it. The current role is the hook the per-role UI branches on next.
-export type RoleId =
-  | 'case_manager'
-  | 'admissions_nurse'
-  | 'field_nurse'
-  | 'dispatcher'
-  | 'driver'
-  | 'director_of_nursing'
+// RoleId lives in shared/types.ts because the ledger records it (actor_role).
+export type { RoleId }
 
 export type Role = { id: RoleId; label: string; initials: string }
 
