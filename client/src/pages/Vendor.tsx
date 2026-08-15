@@ -40,7 +40,7 @@ export default function VendorPage() {
           value={String(vendor?.id ?? vendorId)}
           onValueChange={(v) => setVendorId(Number(v))}
         >
-          <SelectTrigger id="vendor-picker" className="w-auto min-w-[12rem]">
+          <SelectTrigger id="vendor-picker" className="w-auto sm:min-w-[12rem]">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

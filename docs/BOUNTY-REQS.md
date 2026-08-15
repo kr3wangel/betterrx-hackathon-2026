@@ -25,7 +25,7 @@ The sponsor's own framing, verbatim, because it is our strategy said back to us:
 | H3 | Post-death pickup trigger, ideally tied to an EMR status change rather than a manual call | **BUILT — both paths** | EMR webhook `POST /api/emr/patient-status` (actor system, source `emr`) AND the nurse's one-tap on `/nurse` (source `nurse`). FAQ §8 later re-ordered nurse-primary/EMR-fallback; we have the ordering they asked for, and the ledger records which path fired first. Pickups auto-appear for the driver; the family is notified with care. |
 | H4 | Vendor choice within a market (most hospices work multiple vendors, not one) | **BUILT** | Four seeded vendors with service areas; the swap dialog shows each alternative's on-time history **for this equipment on this deadline's weekday** at the moment of choice; cold-start vendors join by phone number. Reputation as a decision input, not a report. |
 | H5 | Total cost-of-care visibility. DME spend alongside medication spend, not in a separate silo | **BUILT (synthetic-labeled)** | `/reports` Cost of care: DME and medication bars side by side per patient. The medication figure is deliberately labeled synthetic with an on-screen note — BetterRX is the pharmacy company; under the hospice benefit no public per-claim med figure exists to ground it, and the card says so rather than faking precision. |
-| H6 | Mobile and tablet-friendly ordering at the bedside | **PARTIAL — verify at rehearsal** | Order form is single-column below `lg` and the wave-3 pass fixed 16px inputs/44px targets app-wide; the board stacks below 640px; `/nurse` and `/driver` are phone-shaped by design. Not yet walked on a physical tablet — one rehearsal item, not a build item. |
+| H6 | Mobile and tablet-friendly ordering at the bedside | **BUILT — physical-device walk still pending** | A responsive audit of every non-simulator page (2026-08-15) confirmed most surfaces were already mobile-first — the board is a flex card below `sm:` that dissolves into a 5-col grid above, `Shell`/`PortalShell` supply 20px mobile padding, every `<Table>` rides shadcn's built-in `overflow-x-auto`, and the cost-of-care grids already stack — and closed the real gaps it found: the bedside order form's field pair now stacks single-column on phones, the vendor picker drops its min-width below `sm:`, the vendor-portal stat tiles stack, and the vendor-status date input is 16px (no iOS zoom). `/nurse` and `/driver` are phone-shaped by design. Only open item: a walk on a physical tablet — a rehearsal check, not code. |
 
 ## 2 · Vendor-Side Profile (the differentiator, per the sponsor)
 
@@ -61,12 +61,16 @@ The sponsor's own framing, verbatim, because it is our strategy said back to us:
    order scheduler on the same state machine; nothing about the architecture fights it."
 
 **Rehearsal checklist, not builds:**
-5. **H6** — walk `/order` on a tablet/phone once before freeze; fix only what actually bites.
+5. ~~**H6**~~ **DONE (build side)** — responsive audit run, real gaps fixed (order form, vendor
+   picker, portal stat tiles, date input); false positives (board grid, table overflow, container
+   padding) left alone with a note. Only thing left is to walk `/order` and the board on a physical
+   tablet once before freeze.
 
 ## 4 · Scorecard summary
 
-Hospice side: **5 BUILT · 1 PARTIAL · 0 MISSING** — table stakes held (H2's discharge-readiness
-rollup shipped 08-15; the one PARTIAL left is H6's walk-it-on-a-tablet rehearsal item).
+Hospice side: **6 BUILT · 0 PARTIAL · 0 MISSING** — table stakes held (H2's discharge-readiness
+rollup and H6's responsive pass both landed 2026-08-15; H2's discharge-date field stays derived and
+H6's physical-tablet walk is a rehearsal item, both said out loud in their rows).
 Vendor side: **2 BUILT (V3, V7 — the two the sponsor weights hardest) · 2 PARTIAL · 2 DESIGNED ·
 1 MISSING** — and the sponsor's own sentence says the vendor side is where originality is judged:
 V7 (cold-start onboarding) is our centerpiece and V3 (proof-of-capture) is where we went furthest
