@@ -1,8 +1,8 @@
-import { Fragment, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { api } from '../lib/api'
 import { useLive } from '../lib/useLive'
 import { Bubble, Linkify, PhoneScreen, ThreadEmpty } from '../components/PhoneScreen'
-import { ReplyReceipt, answeredQuestion, digitLabel, isOpenQuestion } from '../components/QuickReplies'
+import { answeredQuestion, digitLabel, isOpenQuestion } from '../components/QuickReplies'
 import type {
   CaregiverReplyResult,
   ConditionReport,
@@ -117,7 +117,6 @@ function Thread({ household, picker }: { household: Household; picker: React.Rea
   )
   const [draft, setDraft] = useState('')
   const [sending, setSending] = useState(false)
-  const [reply, setReply] = useState<SmsReplyResult | null>(null)
   const [legacy, setLegacy] = useState<CaregiverReplyResult | null>(null)
 
   // The one question a typed digit answers: the newest still open. Nothing is tappable —
@@ -144,11 +143,11 @@ function Thread({ household, picker }: { household: Household; picker: React.Rea
     try {
       if (openQuestion) {
         // Thread-aware: the server derives order and template from the question, and the
-        // condition rating still goes through parseConditionReply() unchanged.
+        // condition rating still goes through parseConditionReply() unchanged. The outcome
+        // shows on the bubble's own receipt line — a real phone adds nothing underneath.
         setLegacy(null)
-        setReply(await api.post<SmsReplyResult>('/api/messages/reply', { reply_to_message_id: openQuestion.id, body }))
+        await api.post<SmsReplyResult>('/api/messages/reply', { reply_to_message_id: openQuestion.id, body })
       } else if (activeOrderId) {
-        setReply(null)
         setLegacy(await api.post<CaregiverReplyResult>(`/api/orders/${activeOrderId}/condition-reply`, { body }))
         reloadReports()
       }
@@ -163,7 +162,7 @@ function Thread({ household, picker }: { household: Household; picker: React.Rea
       title={patient.caregiver_name || 'Caregiver'}
       subtitle={`${patient.caregiver_phone || '—'} · caring for ${patient.name}`}
       picker={picker}
-      scrollKey={`${thread.length}:${reply?.message_id ?? ''}:${legacy?.score ?? ''}`}
+      scrollKey={`${thread.length}:${sending}:${legacy?.score ?? ''}`}
       draft={draft}
       onDraft={setDraft}
       onSend={send}
@@ -197,28 +196,23 @@ function Thread({ household, picker }: { household: Household; picker: React.Rea
         const mine = m.direction === 'in'
         const label = mine ? digitLabel(answeredQuestion(rows, item.index), m.body.trim()) : null
         return (
-          <Fragment key={m.id}>
-            <Bubble
-              side={mine ? 'sent' : 'received'}
-              meta={
-                <>
-                  {time(m.created_at)}
-                  {label && ` · ${label}`}
-                  {mine && m.review_status === 'needs_review' && (
-                    <span className="text-amber-600"> · sent to a person</span>
-                  )}
-                </>
-              }
-            >
-              <Linkify text={m.body} />
-            </Bubble>
-            {mine && reply?.message_id === m.id && <ReplyReceipt result={reply} />}
-          </Fragment>
+          <Bubble
+            key={m.id}
+            side={mine ? 'sent' : 'received'}
+            meta={
+              <>
+                {time(m.created_at)}
+                {label && ` · ${label}`}
+                {mine && m.review_status === 'needs_review' && (
+                  <span className="text-amber-600"> · sent to a person</span>
+                )}
+              </>
+            }
+          >
+            <Linkify text={m.body} />
+          </Bubble>
         )
       })}
-
-      {/* Until the SSE refetch brings the new row in, the receipt is the only feedback. */}
-      {reply && !rows.some((m) => m.id === reply.message_id) && <ReplyReceipt result={reply} />}
 
       {/* Delivery-receipt style status, so the consequence reads as part of the conversation. */}
       {legacy && (
