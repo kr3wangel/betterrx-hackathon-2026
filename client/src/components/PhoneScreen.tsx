@@ -8,9 +8,9 @@ import { PHONE_KEYFRAMES, PhoneKeyboard, isTouch } from './PhoneKeyboard'
  * header, and the full viewport. Everything visually identical between the two lives here,
  * so restyling one can't quietly diverge from the other the morning of a demo.
  *
- * What deliberately does NOT live here is the metadata under each bubble. A caregiver
- * rating shows "4 · Good"; a vendor reply shows "read as accept · 92% · applied". That
- * difference is the AI argument, so each page renders its own.
+ * Bubble metadata is the timestamp and nothing else, on both phones — a real handset
+ * annotates no outcomes, and the parse result (applied vs review queue) is the hospice
+ * board's story, not the sender's phone's.
  */
 
 export function PhoneScreen({

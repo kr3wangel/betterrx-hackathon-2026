@@ -10,12 +10,14 @@ import type { FamilyTemplate, Message, VendorTemplate } from '../../../shared/ty
  * imports mid-build; what it holds is the read side.
  *
  * A digit under a known question is deterministic — server/sms.ts maps template x position
- * to an action, at confidence 1.0 with no model call. That table is authoritative; the
- * labels below are cosmetic, used to annotate a bubble after the fact ("7 · Today"), and
- * the client never decides the action.
+ * to an action, at confidence 1.0 with no model call. That table is authoritative and the
+ * client never decides the action. Bubbles carry no outcome annotations anymore — a real
+ * handset shows only the time, and the parse result is the hospice board's story — so the
+ * labels below have exactly one client job left: deciding whether a typed body is a digit
+ * some open question owns, which picks "sending…" over "reading…" while a send is in flight.
  *
  * Vendor labels are positional because vendor digits rotate: which pair a question owns is
- * what addresses it in a flat SMS thread, so the label can only be resolved against the
+ * what addresses it in a flat SMS thread, so a digit can only be resolved against the
  * question's own slot. Family labels stay literal — one question at a time in a household
  * thread, and f_condition_check's 1-5 is a rating whose digits are the meaning.
  */
@@ -57,27 +59,3 @@ export function isOpenQuestion(m: Message): boolean {
     : !!FAMILY_LABELS[m.template as FamilyTemplate]
 }
 
-/**
- * The question an inbound bubble answers.
- *
- * Vendor side this is decided by the digit, not by position: the whole point of rotating
- * pairs is that a reply can land on a question several messages back, so scanning upward
- * for the nearest outbound would label it with whatever was asked most recently. Only when
- * no open question owns the digit — prose, or a household thread — does proximity apply.
- */
-export function answeredQuestion(thread: Message[], index: number): Message | undefined {
-  const digit = thread[index].body.trim()
-  // Nearest question above that owned this digit — not the first in the thread, since a
-  // pair is recycled once its question closes and an old bubble must keep its own meaning.
-  if (/^[0-9]$/.test(digit)) {
-    for (let i = index - 1; i >= 0; i--) {
-      const m = thread[i]
-      if (m.direction === 'out' && m.reply_slot !== null && digitLabel(m, digit)) return m
-    }
-  }
-  for (let i = index - 1; i >= 0; i--) {
-    const m = thread[i]
-    if (m.direction === 'out' && m.template) return m
-  }
-  return undefined
-}

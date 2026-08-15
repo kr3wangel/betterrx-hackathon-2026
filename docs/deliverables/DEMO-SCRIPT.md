@@ -156,12 +156,14 @@ and you are back on the handset with the numbering intact.
 
 **`/vendor` is not in the list, on purpose.** It is the **dispatcher's own board** — open orders
 plus an in-page free-text simulator (`Vendor.tsx:24,48`). It has no digit quick-reply buttons.
-Every vendor-facing beat in this script happens on the handset at tab 7, where the taps live.
+Every vendor-facing beat in this script happens on the handset at tab 7, where replies are typed.
 
-**What each phone is.** Tab 7 is the DME dispatcher's phone: a vendor picker in the header, the
-real thread, and — under the **newest unanswered question only** — tappable `1 · Accept` /
-`2 · Can't fill` buttons with an *"applied · no model needed"* receipt (`QuickReplies.tsx:15-31`,
-`VendorPhone.tsx:115,162`). Tab 6 is the family's phone, one thread per household: submitting a
+**What each phone is.** Tab 7 is the DME dispatcher's phone: a vendor picker in the header and the
+real thread. **Bubbles show only the time — no outcome annotations** (removed 08-15: a real
+handset shows nothing under a sent text, and the vendor's phone has never heard of our review
+queue). What happened to a reply is narrated from **tab 1**: the state pill flips when a parse
+auto-applies, and low-confidence prose lands in the board's review queue. Tab 6 is the family's
+phone, one thread per household: submitting a
 **delivery** POD fires the condition check automatically (`routes.ts:144-146`), so it lights up on its
 own during S1 step 5, and a 1–5 reply rolls into the condition stats behind `/reports`. That's the
 beat the CEO asked for by name at the briefing.
@@ -430,10 +432,12 @@ one, so this is a stage direction, not a problem.
 - The portal page has **shipped** — step 3 is a real click, and the confirm was verified end to end
   (`POST /api/portal/1c2282…/orders/1060/confirm` → `state: "dispatched"`).
 - **The digit beat, if you have 10 spare seconds at beat 5:** type `1` into the box on the vendor
-  phone (there is nothing to tap — SMS has no buttons). The receipt reads *"applied · no model
-  needed"*, #1061 goes to **Accepted ✓** on tab 1, and the event notes *"Vendor accepted by text
-  (replied 1)"* at confidence 1.0 — a template × position lookup (`server/sms.ts` `VENDOR_ROUTES`),
-  no model call at all. **This ends the silence beat**, so only do it after beats 6 and 7 have
+  phone (there is nothing to tap — SMS has no buttons, and the phone shows nothing under the sent
+  text either, exactly like a real handset). The proof is on **tab 1**: #1061 flips to
+  **Accepted ✓** live over SSE, and the event notes *"Vendor accepted by text (replied 1)"* at
+  confidence 1.0 — a template × position lookup (`server/sms.ts` `VENDOR_ROUTES`), no model call
+  at all. Narrate it that way: "the vendor's phone stays a plain text thread; our side is where
+  the intelligence shows." **This ends the silence beat**, so only do it after beats 6 and 7 have
   landed.
   - **Verified 08-14: the digit here is `1`.** Vendor reply codes rotate — each open question owns a
     pair, allocated per vendor (`server/slots.ts`) — but Beehive has only #1061 open in this

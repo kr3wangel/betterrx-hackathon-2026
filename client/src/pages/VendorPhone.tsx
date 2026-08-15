@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { api } from '../lib/api'
 import { useLive } from '../lib/useLive'
 import { Bubble, Linkify, PhoneScreen, ThreadEmpty } from '../components/PhoneScreen'
-import { answeredQuestion, digitLabel, isOpenQuestion } from '../components/QuickReplies'
+import { digitLabel, isOpenQuestion } from '../components/QuickReplies'
 import type { Message, SmsReplyResult, Vendor } from '../../../shared/types'
 
 /**
@@ -24,52 +24,7 @@ import type { Message, SmsReplyResult, Vendor } from '../../../shared/types'
  * the split is decided by the server (handleReply), never by this screen.
  */
 
-const INTENT_TONE: Record<string, string> = {
-  accept: 'text-green-600',
-  delivered: 'text-green-600',
-  picked_up: 'text-green-600',
-  out_for_delivery: 'text-blue-600',
-  eta_update: 'text-blue-600',
-  pickup_scheduled: 'text-blue-600',
-  delay: 'text-amber-600',
-  decline: 'text-red-600',
-  unknown: 'text-slate-400',
-}
-
 const time = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
-
-/** What happened to a reply the vendor sent: a tapped digit, parsed prose, or neither. */
-function replyMeta(m: Message, label: string | null) {
-  if (label) {
-    return (
-      <>
-        {' · '}
-        <span className="text-slate-500">{label}</span>
-        {m.review_status === 'auto_applied' && <span className="text-green-600"> · applied · no model needed</span>}
-        {m.review_status === 'needs_review' && <span className="text-amber-600"> · sent to a person</span>}
-      </>
-    )
-  }
-  if (m.parsed) {
-    return (
-      <>
-        {' · '}
-        <span className={INTENT_TONE[m.parsed.intent] ?? 'text-slate-400'}>
-          read as {m.parsed.intent.replace(/_/g, ' ')}
-        </span>
-        {' · '}
-        {Math.round((m.parsed.confidence ?? 0) * 100)}%
-        {m.review_status === 'needs_review' && <span className="text-amber-600"> · sent to a person</span>}
-        {m.review_status === 'auto_applied' && <span className="text-green-600"> · applied</span>}
-      </>
-    )
-  }
-  return m.review_status === 'auto_applied' ? (
-    <span className="text-green-600"> · applied</span>
-  ) : (
-    <span className="text-amber-600"> · awaiting review</span>
-  )
-}
 
 export default function VendorPhone() {
   const { data: vendors } = useLive(() => api.get<Vendor[]>('/api/vendors'))
@@ -148,22 +103,15 @@ function Thread({ vendor, picker }: { vendor: Vendor; picker: React.ReactNode })
         <ThreadEmpty>No messages yet. Place an order on the hospice board and the request lands here.</ThreadEmpty>
       )}
 
-      {thread.map((m, i) => {
+      {/* Meta is the timestamp and nothing else. A real handset shows no parse outcome
+          under a sent text — the vendor's phone has never heard of our review queue.
+          What happened to a reply is the hospice board's story: the state pill flips
+          when a parse auto-applies, and the review queue holds what didn't. */}
+      {thread.map((m) => {
         // 'out' is hospice → vendor, so on the vendor's own phone it reads as received.
         const mine = m.direction === 'in'
-        const digit = mine && /^[0-9]$/.test(m.body.trim()) ? m.body.trim() : null
-        const label = digit ? digitLabel(answeredQuestion(thread, i), digit) : null
         return (
-          <Bubble
-            key={m.id}
-            side={mine ? 'sent' : 'received'}
-            meta={
-              <>
-                {time(m.created_at)}
-                {mine && replyMeta(m, label)}
-              </>
-            }
-          >
+          <Bubble key={m.id} side={mine ? 'sent' : 'received'} meta={time(m.created_at)}>
             <Linkify text={m.body} />
           </Bubble>
         )

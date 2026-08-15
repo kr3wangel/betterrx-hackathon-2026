@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { api } from '../lib/api'
 import { useLive } from '../lib/useLive'
 import { Bubble, Linkify, PhoneScreen, ThreadEmpty } from '../components/PhoneScreen'
-import { answeredQuestion, digitLabel, isOpenQuestion } from '../components/QuickReplies'
+import { isOpenQuestion } from '../components/QuickReplies'
 import type {
   CaregiverReplyResult,
   ConditionReport,
@@ -25,13 +25,6 @@ import type {
  * question is what gives a "1" its meaning, so no model reads this thread at all.
  */
 
-const SCALE: Record<number, string> = {
-  1: 'Unusable',
-  2: 'Poor',
-  3: 'Acceptable',
-  4: 'Good',
-  5: 'Like new',
-}
 
 const time = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
 
@@ -183,9 +176,10 @@ function Thread({ household, picker }: { household: Household; picker: React.Rea
       )}
 
       {thread.map((item) => {
+        // Meta is the timestamp and nothing else — a real handset annotates no outcomes.
         if (item.kind === 'report') {
           return (
-            <Bubble key={`r${item.report.id}`} side="sent" meta={`${time(item.at)} · ${SCALE[item.report.score]}`}>
+            <Bubble key={`r${item.report.id}`} side="sent" meta={time(item.at)}>
               <span className="text-lg font-semibold">{item.report.score}</span>
               {item.report.comment ? ` — ${item.report.comment}` : ''}
             </Bubble>
@@ -194,21 +188,8 @@ function Thread({ household, picker }: { household: Household; picker: React.Rea
 
         const m = item.message
         const mine = m.direction === 'in'
-        const label = mine ? digitLabel(answeredQuestion(rows, item.index), m.body.trim()) : null
         return (
-          <Bubble
-            key={m.id}
-            side={mine ? 'sent' : 'received'}
-            meta={
-              <>
-                {time(m.created_at)}
-                {label && ` · ${label}`}
-                {mine && m.review_status === 'needs_review' && (
-                  <span className="text-amber-600"> · sent to a person</span>
-                )}
-              </>
-            }
-          >
+          <Bubble key={m.id} side={mine ? 'sent' : 'received'} meta={time(m.created_at)}>
             <Linkify text={m.body} />
           </Bubble>
         )
