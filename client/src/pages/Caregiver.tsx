@@ -3,6 +3,7 @@ import { api } from '../lib/api'
 import { useLive } from '../lib/useLive'
 import { Bubble, DayDivider, Linkify, newDay, PhoneScreen, ThreadEmpty } from '../components/PhoneScreen'
 import { isOpenQuestion } from '../components/QuickReplies'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import type {
   CaregiverReplyResult,
   ConditionReport,
@@ -90,19 +91,25 @@ export default function Caregiver() {
       key={selected.patient.id}
       household={selected}
       picker={
-        <select
-          aria-label="Switch household"
-          className="max-w-[13rem] truncate rounded-md border-0 bg-transparent text-[11px] text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
-          value={patientId ?? ''}
-          onChange={(e) => setPatientId(Number(e.target.value))}
+        <Select
+          value={patientId != null ? String(patientId) : undefined}
+          onValueChange={(v) => setPatientId(Number(v))}
         >
-          {households.map(({ patient, rows }) => (
-            <option key={patient.id} value={patient.id}>
-              {patient.caregiver_name || 'Caregiver'} · caring for {patient.name}
-              {rows.length ? '' : ' · no messages'}
-            </option>
-          ))}
-        </select>
+          <SelectTrigger
+            aria-label="Switch household"
+            className="h-auto max-w-[13rem] gap-1 border-0 bg-transparent px-0 py-0 text-[11px] text-slate-400 shadow-none focus:ring-0 focus:ring-offset-0 [&_svg]:size-3"
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {households.map(({ patient, rows }) => (
+              <SelectItem key={patient.id} value={String(patient.id)}>
+                {patient.caregiver_name || 'Caregiver'} · caring for {patient.name}
+                {rows.length ? '' : ' · no messages'}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       }
     />
   )

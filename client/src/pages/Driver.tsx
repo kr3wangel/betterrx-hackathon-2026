@@ -5,6 +5,7 @@ import { api } from '../lib/api'
 import { useLive, fmt } from '../lib/useLive'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { StatusPill } from '@/components/StatusPill'
 import { EmptyState } from '@/components/EmptyState'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -103,18 +104,21 @@ export default function Driver() {
             </div>
           )}
 
-          <select
-            aria-label="Which vendor's route?"
-            className="h-11 w-full rounded-md border border-input bg-card px-3 text-sm text-foreground shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background"
-            value={vendorId ?? ''}
-            onChange={(e) => setVendorId(Number(e.target.value))}
+          <Select
+            value={vendorId != null ? String(vendorId) : undefined}
+            onValueChange={(v) => setVendorId(Number(v))}
           >
-            {vendors.map((v) => (
-              <option key={v.id} value={v.id}>
-                {v.name} — driver view
-              </option>
-            ))}
-          </select>
+            <SelectTrigger aria-label="Which vendor's route?" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {vendors.map((v) => (
+                <SelectItem key={v.id} value={String(v.id)}>
+                  {v.name} — driver view
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
           {/* A pickup can appear here on its own, over SSE, while nobody is looking at the screen. */}
           <p className="sr-only" aria-live="polite">

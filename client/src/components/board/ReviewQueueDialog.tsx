@@ -7,6 +7,7 @@ import { intentLabel, REVIEW_STATUS_LABEL } from '../../lib/domain'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import type { Message, Order } from '../../../../shared/types'
 
 export function ReviewQueueDialog({
@@ -85,19 +86,21 @@ function ReviewItem({ message, orders }: { message: Message; orders: Order[] }) 
         <div className="mt-1.5 text-xs text-muted-foreground">Couldn’t be read — needs a person.</div>
       )}
       <div className="mt-2.5 flex flex-wrap items-center gap-2">
-        <select
-          aria-label="Which order does this reply belong to?"
-          className="h-11 rounded-md border border-border bg-card px-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          value={orderId}
-          onChange={(e) => setOrderId(e.target.value)}
-        >
-          <option value="">Which order?</option>
-          {active.map((o) => (
-            <option key={o.id} value={o.id}>
-              #{o.id} {o.equipment_name}
-            </option>
-          ))}
-        </select>
+        <Select value={orderId} onValueChange={setOrderId}>
+          <SelectTrigger
+            aria-label="Which order does this reply belong to?"
+            className="w-auto min-w-[10rem]"
+          >
+            <SelectValue placeholder="Which order?" />
+          </SelectTrigger>
+          <SelectContent>
+            {active.map((o) => (
+              <SelectItem key={o.id} value={String(o.id)}>
+                #{o.id} {o.equipment_name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <Button disabled={!message.parsed || !orderId || busy} onClick={apply}>
           Apply
         </Button>
