@@ -493,8 +493,9 @@ test-free per `CLAUDE.md`.
 `client/src/hooks/useEventNarration.ts` — mounted **exactly once**, in `Shell()` (`App.tsx:196`),
 inside `HighlightProvider`. Not in `PortalShell`, not in the phone simulators (§0.7).
 
-1. `const { lastEvent } = useEventStream()`.
-2. On change: if `!isNarratableType(lastEvent)` → **return, doing nothing at all** (no fetch, no
+1. `subscribeToEvents(fn)` from `useEventStream.ts`, in a mount-once effect that returns the
+   unsubscribe. **Not `lastEvent`** — see the delivery note below.
+2. Per frame: if `!isNarratableType(event)` → **return, doing nothing at all** (no fetch, no
    state). Else push onto a ref-held queue and arm a 250ms debounce.
 3. On debounce fire: `Promise.all([orders, patients, vendors, escalations])`, then drain the queue
    through `decideNarration(…, activeExpectations(Date.now()), Date.now())`.
@@ -504,10 +505,22 @@ inside `HighlightProvider`. Not in `PortalShell`, not in the phone simulators (�
    `sessionStorage['betterrx.quiet']`. When quiet, **step 2 returns immediately** — no fetch, no
    toast. Pulses are silent and stay live (§5).
 
-Dedupe note: `useEventStream` keeps `lastEvent` as a parsed object and notifies every listener on each
-frame, so identity change is a reliable "new event" signal. Guard with a `seenRef` on the object
-identity anyway — React 18 StrictMode double-invokes effects in dev and would otherwise narrate
-everything twice on a dev machine, which is exactly where it would be rehearsed.
+Delivery note (why not `lastEvent`): the server's watchdog tick loops over every order synchronously,
+so a busy tick writes several SSE frames into one chunk and the browser dispatches them all in one
+macrotask. `useEventStream` holds a single `last` slot and React batches the resulting `setState`s
+into one render, so only the final frame of the burst is ever observable through `lastEvent` — a
+narratable `escalation` followed by a `risk_updated` or `message` in the same tick was silently
+dropped. Verified: seed scenario3 with the browser already attached and the post-seed tick emits
+`risk_updated#1060 → risk_updated#1061 → escalation#1061 → message` as one group, and the escalation
+toast never appeared. `subscribeToEvents` invokes its listeners synchronously inside `onmessage`,
+outside React state, so every frame reaches the queue; the debounce then collapses the burst back
+into one fetch exactly as before. `useLive` still reads `lastEvent` and is unaffected — the board was
+never wrong, only the narration missed beats.
+
+Dedupe note: keep the `seenRef` guard on event object identity — React 18 StrictMode double-invokes
+effects in dev, and while the subscription's cleanup means only one listener is ever live, the guard
+is what makes a double-delivery impossible rather than merely unlikely on the machine where the demo
+is rehearsed.
 
 ---
 
