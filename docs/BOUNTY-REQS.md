@@ -65,7 +65,8 @@ The sponsor's own framing, verbatim, because it is our strategy said back to us:
 
 ## 4 · Scorecard summary
 
-Hospice side: **4 BUILT · 2 PARTIAL · 0 MISSING** — table stakes held.
+Hospice side: **5 BUILT · 1 PARTIAL · 0 MISSING** — table stakes held (H2's discharge-readiness
+rollup shipped 08-15; the one PARTIAL left is H6's walk-it-on-a-tablet rehearsal item).
 Vendor side: **2 BUILT (V3, V7 — the two the sponsor weights hardest) · 2 PARTIAL · 2 DESIGNED ·
 1 MISSING** — and the sponsor's own sentence says the vendor side is where originality is judged:
 V7 (cold-start onboarding) is our centerpiece and V3 (proof-of-capture) is where we went furthest
