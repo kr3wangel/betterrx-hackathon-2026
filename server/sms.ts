@@ -14,9 +14,11 @@ import {
   pickedUpThanksText,
   pickupNoticeText,
   pickupRequestText,
+  RECEIVED_ACK,
   sendToFamily,
   sendToVendor,
   sendVendorQuestion,
+  vendorAckText,
 } from './messaging'
 import { closeSlot, digitOffset, resolveDigit, type SlotDigits } from './slots'
 import { handleCaregiverReply, sendConditionCheck } from './condition'
@@ -258,11 +260,18 @@ function routeDigit(question: Message, digit: string): SmsReplyResult {
   const template = question.direction === 'out' ? question.template : null
   const action = actionFor(question, digit)
 
+  // Even the dead ends get a receipt — the sender's phone shows nothing else, so silence
+  // here reads as "the system ate my text". Vendor threads only: family dead-ends are
+  // handled by the condition channel's own copy.
   if (!action || !order) {
-    return result(question, recordInbound(question, digit, null, 'needs_review', false), digit, 'unmapped')
+    const messageId = recordInbound(question, digit, null, 'needs_review', false)
+    if (question.recipient_type === 'vendor') sendToVendor(question.vendor_id, question.order_id, RECEIVED_ACK)
+    return result(question, messageId, digit, 'unmapped')
   }
   if (question.answered_at) {
-    return result(question, recordInbound(question, digit, null, 'needs_review', false), digit, 'review')
+    const messageId = recordInbound(question, digit, null, 'needs_review', false)
+    if (question.recipient_type === 'vendor') sendToVendor(question.vendor_id, question.order_id, RECEIVED_ACK)
+    return result(question, messageId, digit, 'review')
   }
 
   switch (action.kind) {
@@ -281,6 +290,9 @@ function routeDigit(question: Message, digit: string): SmsReplyResult {
         reopen(question.id, messageId)
         throw err
       }
+      // The receipt, sent only after applyParsed committed — an ack for a reply that
+      // bounced off the state machine would confirm something that never happened.
+      sendToVendor(question.vendor_id, order.id, vendorAckText(order, action.intent))
       if (template === 'v_pickup_request') {
         sendToFamily(order.patient_id, order.id, pickupNoticeText('today'), 'f_pickup_notice')
       }
@@ -290,6 +302,7 @@ function routeDigit(question: Message, digit: string): SmsReplyResult {
     case 'escalate': {
       const messageId = recordInbound(question, digit, null, 'auto_applied', true)
       escalate(order.id, action.reason(order))
+      sendToVendor(question.vendor_id, order.id, vendorAckText(order, 'decline'))
       return result(question, messageId, digit, 'applied')
     }
 
@@ -425,8 +438,10 @@ export async function handleVendorInbound(vendorId: number, body: string): Promi
     if (owned) return routeDigit(owned.question, text)
 
     const messageId = orphanInbound(vendorId, text)
+    // The clarify text is itself the receipt; with nothing open to clarify against, the
+    // generic one goes out instead — a text into the void must never get silence back.
     const clarify = clarifyText(vendorId)
-    if (clarify) sendToVendor(vendorId, null, clarify)
+    sendToVendor(vendorId, null, clarify ?? RECEIVED_ACK)
     return {
       message_id: messageId,
       in_reply_to: null,

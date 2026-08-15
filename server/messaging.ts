@@ -9,10 +9,12 @@ import type {
   Actor,
   FamilyTemplate,
   Message,
+  MessageIntent,
   MessageTemplate,
   Order,
   OrderEventType,
   ParsedMessage,
+  RoleId,
   VendorTemplate,
 } from '../shared/types'
 
@@ -254,6 +256,38 @@ export function etaCheckText(order: Order, [yes, no]: SlotDigits): string {
   return `Order #${order.id} (${order.equipment_name}) is due ${due}. Reply ${yes} if you're on schedule, ${no} if it'll be late: ${orderLink(order.id)}`
 }
 
+/**
+ * Acknowledgement texted back when a vendor's update lands. The phones show nothing but
+ * time under a bubble (a real handset annotates no outcomes), so this reply IS the
+ * vendor's receipt — exactly as a production SMS system would confirm. Conversational
+ * send: no template, no reply pair, asks for nothing back.
+ */
+export function vendorAckText(order: Order, intent: MessageIntent): string {
+  switch (intent) {
+    case 'accept':
+      return `Got it — order #${order.id} (${order.equipment_name}) is confirmed with you. Thanks.`
+    case 'eta_update':
+      return `Thanks — delivery time for order #${order.id} is noted.`
+    case 'out_for_delivery':
+      return `Thanks — order #${order.id} noted as out for delivery.`
+    case 'delivered':
+      return `Thanks — order #${order.id} is marked delivered on our end.`
+    case 'pickup_scheduled':
+      return `Thanks — pickup for order #${order.id} is on the books.`
+    case 'picked_up':
+      return `Thanks — pickup of order #${order.id} (${order.equipment_name}) is recorded.`
+    case 'delay':
+      return `Thanks for the heads up — order #${order.id} is noted as delayed and the care team has been told.`
+    case 'decline':
+      return `Understood — we'll reassign order #${order.id}. Nothing else needed from you.`
+    default:
+      return `Got your message about order #${order.id} — a coordinator will take a look.`
+  }
+}
+
+/** The receipt when we couldn't act on it automatically — honest, and still a receipt. */
+export const RECEIVED_ACK = 'Got your message — a coordinator will take a look and follow up shortly.'
+
 // Household copy. Stricter than the vendor templates: equipment named generically, and
 // no order number, patient name, HCPCS code, quantity or address anywhere.
 
@@ -409,12 +443,21 @@ export async function handleInbound(vendorId: number, body: string): Promise<Mes
     messageId,
   )
 
+  // The vendor's receipt. Applied -> say what happened; parked for review -> say a person
+  // has it. Either way the sender hears back, because their phone shows nothing else.
+  if (reviewStatus === 'auto_applied' && orderId) {
+    const order = getOrder(orderId)
+    if (order) sendToVendor(vendorId, orderId, vendorAckText(order, parsed!.intent))
+  } else {
+    sendToVendor(vendorId, orderId, RECEIVED_ACK)
+  }
+
   broadcast({ type: 'message', message_id: messageId, vendor_id: vendorId, direction: 'in' })
   const row = db.prepare('SELECT * FROM messages WHERE id = ?').get(messageId) as Record<string, unknown>
   return { ...row, parsed } as unknown as Message
 }
 
-export function applyParsed(orderId: number, parsed: ParsedMessage, actor: Actor): void {
+export function applyParsed(orderId: number, parsed: ParsedMessage, actor: Actor, actorRole: RoleId | null = null): void {
   if (parsed.intent === 'decline') {
     escalate(orderId, `Vendor declined order #${orderId}: ${parsed.notes ?? 'no reason given'}`)
     return
@@ -424,7 +467,7 @@ export function applyParsed(orderId: number, parsed: ParsedMessage, actor: Actor
   }
   const eventType = INTENT_EVENT[parsed.intent]
   if (!eventType) throw new Error(`intent ${parsed.intent} has no event mapping`)
-  applyEvent(orderId, eventType, { eta_iso: parsed.eta_iso, notes: parsed.notes, source: 'vendor_message' }, actor)
+  applyEvent(orderId, eventType, { eta_iso: parsed.eta_iso, notes: parsed.notes, source: 'vendor_message' }, actor, actorRole)
   if (parsed.eta_iso && (eventType === 'eta_set' || eventType === 'vendor_accepted')) {
     notifyFamilyOfEta(getOrder(orderId)!)
   }

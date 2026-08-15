@@ -9,8 +9,10 @@ import {
   deliveredThanksText,
   pickedUpThanksText,
   sendToFamily,
+  sendToVendor,
   sendVendorQuestion,
   orderRequestText,
+  vendorAckText,
 } from './messaging'
 import { handleReply, handleVendorInbound, sendTemplate } from './sms'
 import { setPatientStatus } from './pickups'
@@ -271,12 +273,16 @@ routes.post('/messages/:id/confirm', (req, res) => {
   const parsed = (req.body.parsed as ParsedMessage | undefined) ?? message.parsed
   const orderId = (req.body.order_id as number | undefined) ?? message.order_id
   if (!parsed || !orderId) return res.status(400).json({ error: 'parsed payload and order_id required' })
-  applyParsed(orderId, parsed, 'hospice')
+  applyParsed(orderId, parsed, 'hospice', roleFrom(req))
   db.prepare("UPDATE messages SET review_status = 'confirmed', parsed = ?, order_id = ? WHERE id = ?").run(
     JSON.stringify(parsed),
     orderId,
     id,
   )
+  // The delayed receipt: the vendor already heard "a coordinator will take a look" when
+  // their text was parked — this closes that loop once a person confirms it.
+  const confirmedOrder = getOrder(orderId)
+  if (confirmedOrder) sendToVendor(message.vendor_id, orderId, vendorAckText(confirmedOrder, parsed.intent))
   res.json({ ok: true })
 })
 
