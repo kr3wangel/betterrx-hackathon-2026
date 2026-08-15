@@ -58,7 +58,9 @@ proof · neutral `#E7EBEE` = ordered.
   18–20px gaps. Never crowd.
 - **Touch targets ≥ 44×44px** (`py-2.5 px-4.5`), mobile-first.
 - **Shadow**: soft — `0 1px 2px rgba(38,50,64,.04), 0 14px 34px -20px rgba(38,50,64,.20)`.
-- **Motion**: restrained. One live signal (the at-risk pulse dot). Respect `prefers-reduced-motion`.
+- **Motion**: restrained. One *persistent* live signal (the at-risk pulse dot) and one *transient*
+  one: a 1.6s row acknowledgment when something changes under you. Nothing else animates. Respect
+  `prefers-reduced-motion`.
 
 ## Signature components (the anatomy to reuse)
 

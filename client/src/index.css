@@ -122,3 +122,15 @@
     font-variant-numeric: tabular-nums;
   }
 }
+
+/* The one transient motion signal: a row acknowledging that something changed under you. */
+@keyframes row-ack {
+  0%   { box-shadow: 0 0 0 0 rgba(226,123,94,.55); }
+  70%  { box-shadow: 0 0 0 7px rgba(226,123,94,0); }
+  100% { box-shadow: 0 0 0 0 rgba(226,123,94,0); }
+}
+.row-ack { animation: row-ack 1.6s ease-out 1; }
+
+@media (prefers-reduced-motion: reduce) {
+  .row-ack { animation: none; background-color: var(--coral-tint); }
+}
