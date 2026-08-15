@@ -41,7 +41,16 @@ The sponsor's own framing, verbatim, because it is our strategy said back to us:
 
 ---
 
-## 3 · Gap list, ranked (what to do about the non-green rows)
+## 3 · Shared visibility & risk (the sponsor's own "Differentiator" rows)
+
+| # | Requirement (verbatim) | Status | What exists |
+|---|---|---|---|
+| R1 | Real-time status visible to both sides, not just the vendor's internal system — *Differentiator* | **BUILT — it's the architecture** | One SSE stream over one append-only ledger; the hospice board and the vendor's no-login `/o/`/portal surfaces read the same truth, live. Scenario 3's climax is this requirement performed: the vendor taps Confirm and the board flips before their thumb leaves the screen — and the board narrates it out loud. |
+| R2 | Service-failure risk scoring, surfacing an at-risk order before it's late, not after — *Differentiator* | **BUILT — and backtested** | `server/risk.ts`, deliberately rules-based, recomputed every 30s. Not just built but graded: `npm run backtest` replays the seeded year tick-by-tick as the watchdog would have lived it — **78% of late deliveries caught a median 8.7h early** (27% false alarms, n=203, threshold sweep showing why 70; SYNTHETIC, labeled). The silence ladder extends it: an unanswered ask is itself a pre-lateness signal. |
+| R3 | Escalation path to a case manager or vendor rep when a risk threshold is crossed | **BUILT** | The watchdog escalates threshold crossings and check-in silence automatically into the board's "Needs you" section — red count, coral one-click **Swap vendor** as the resolution path, escalation reason rendered in the row detail. One open escalation per order, resolved by the action that fixes it. |
+| R4 | Explainability. "Why was this order flagged as at-risk?" should have a legible answer, not a black box | **BUILT — it's why the risk engine is rules, not ML** | Every score decomposes into `risk_reasons`: full plain-English sentences ("Beehive runs 34% late on Friday heavy-item runs…") rendered as bullets in the row detail. The demo script's stage direction is to read one aloud verbatim. The one place a model *does* act (free-text parse) carries a confidence score and a human review queue — no state change is ever unexplained. |
+
+## 4 · Gap list, ranked (what to do about the non-green rows)
 
 **Worth building before freeze (small, high req-coverage):**
 1. ~~**H2 — discharge-readiness rollup.**~~ **DONE** — `dischargeReadiness()` in `client/src/lib/board.ts`,
@@ -66,7 +75,7 @@ The sponsor's own framing, verbatim, because it is our strategy said back to us:
    padding) left alone with a note. Only thing left is to walk `/order` and the board on a physical
    tablet once before freeze.
 
-## 4 · Scorecard summary
+## 5 · Scorecard summary
 
 Hospice side: **6 BUILT · 0 PARTIAL · 0 MISSING** — table stakes held (H2's discharge-readiness
 rollup and H6's responsive pass both landed 2026-08-15; H2's discharge-date field stays derived and
@@ -76,3 +85,7 @@ Vendor side: **2 BUILT (V3, V7 — the two the sponsor weights hardest) · 2 PAR
 V7 (cold-start onboarding) is our centerpiece and V3 (proof-of-capture) is where we went furthest
 past the requirement. The misses cluster exactly where the FAQ itself said real-world data won't
 exist (inventory, capacity) — cite that, don't apologize for it.
+Shared visibility & risk (§3): **4 of 4 BUILT** — the two rows the sponsor tagged *Differentiator*
+(both-sides real-time status, at-risk-before-late scoring) are the product's core architecture and
+its backtested risk engine; escalation and explainability are the demo's two loudest beats. This
+section is where the strategy bet is proven: we differentiated exactly where they said to.
