@@ -824,6 +824,20 @@ describe('trip batching replies', () => {
     expect(events(oxygen).some((e) => e.type === 'eta_set')).toBe(false)
   })
 
+  // sendTemplate() can fire this template by hand for one order, which writes no manifest.
+  // The anchor is the whole trip in that case, and the reply must still apply.
+  it('falls back to the anchor when the question carries no manifest', async () => {
+    const id = seedOrder({ state: 'delivered' })
+    applyEvent(id, 'pickup_triggered', { patient_status: 'deceased', source: 'nurse' }, 'hospice')
+    sendTemplate(id, 'v_pickup_group')
+
+    const result = await handleVendorInbound(1, '1')
+
+    expect(result.outcome).toBe('applied')
+    expect(result.group_order_ids).toEqual([id])
+    expect(events(id).filter((e) => e.type === 'eta_set')).toHaveLength(1)
+  })
+
   // §10.4: batching makes the five pairs count stops rather than orders, and the shipped
   // exhaustion digest is still the only overflow message — no burst trigger, no new digest.
   it('spends one pair per stop and falls back to the existing digest past five', () => {
