@@ -129,7 +129,13 @@ export type ReviewStatus = 'auto_applied' | 'needs_review' | 'confirmed' | 'reje
 /** Thread discriminator. On an inbound row it names the sender, not the recipient. */
 export type RecipientType = 'vendor' | 'family'
 
-export type VendorTemplate = 'v_order_request' | 'v_ack_nag' | 'v_eta_check' | 'v_pickup_request'
+export type VendorTemplate =
+  | 'v_order_request'
+  | 'v_ack_nag'
+  | 'v_eta_check'
+  | 'v_pickup_request'
+  /** Overflow: sent instead of a question once all five reply pairs are in use. Carries no digits. */
+  | 'v_backlog_digest'
 
 export type FamilyTemplate =
   | 'f_delivery_confirm'
@@ -156,6 +162,12 @@ export interface Message {
   template: MessageTemplate | null
   /** Set on an outbound question row once a reply resolves it. */
   answered_at: string | null
+  /**
+   * Base digit of the reply pair this question owns — 1, 3, 5, 7 or 9, paired with the
+   * next digit up (9 pairs with 0). Null on inbound rows, conversational sends and the
+   * digest. See server/slots.ts.
+   */
+  reply_slot: number | null
   created_at: string
 }
 
@@ -164,7 +176,10 @@ export interface SmsReplyResult {
   in_reply_to: number | null
   template: MessageTemplate | null
   digit: string | null
-  outcome: 'applied' | 'prompt' | 'review' | 'unmapped'
+  /** The reply pair the answered question owned, so the client can label the digit. */
+  slot: number | null
+  /** `clarify` = the digit belonged to no open question, so we asked which order instead. */
+  outcome: 'applied' | 'prompt' | 'review' | 'unmapped' | 'clarify'
   prompt: string | null
   order: Order | null
 }

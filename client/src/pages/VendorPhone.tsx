@@ -115,39 +115,19 @@ function Thread({ vendor, picker }: { vendor: Vendor; picker: React.ReactNode })
   const thread = useMemo(() => messages ?? [], [messages])
 
   // There are no reply buttons, because SMS has none — a vendor on a real handset types
-  // "1" into the box like any other text. This is the question that "1" answers: the
-  // newest one still open, which is how the digit is disambiguated (SMS-SIM-SPEC §10).
-  const openQuestion = useMemo(() => [...thread].reverse().find(isOpenQuestion) ?? null, [thread])
+  // "7" into the box like any other text. Whether that reaches a model is decided by
+  // whether some open question owns the digit, which is the same question the server asks.
+  const ownsDigit = (body: string) => thread.some((m) => isOpenQuestion(m) && digitLabel(m, body))
 
   async function send() {
     const body = draft.trim()
     if (!body || sending) return
-    setPending(openQuestion && /^[1-9]$/.test(body) ? 'digit' : 'prose')
+    setPending(ownsDigit(body) ? 'digit' : 'prose')
     try {
-      // Thread-aware when there's a question outstanding: the server sees which one, so a
-      // typed "1" resolves through REPLY_ROUTES with no model. The server decides digit vs
-      // prose — the phone only reports what was typed and which thread it landed in.
-      if (openQuestion) {
-        setReply(
-          await api.post<SmsReplyResult>('/api/messages/reply', {
-            reply_to_message_id: openQuestion.id,
-            body,
-          }),
-        )
-      } else {
-        // No question outstanding, so there's no reply shape to return — the parse outcome is
-        // on the stored row. Read it into the same receipt P2 gets, rather than waiting for SSE.
-        const stored = await api.post<Message>('/api/messages/inbound', { vendor_id: vendor.id, body })
-        setReply({
-          message_id: stored.id,
-          in_reply_to: null,
-          template: null,
-          digit: null,
-          outcome: stored.review_status === 'auto_applied' ? 'applied' : 'review',
-          prompt: null,
-          order: null,
-        })
-      }
+      // Exactly what a gateway webhook posts: a sender and a body, no reply-to. The server
+      // resolves an owned digit through the routing table with no model, and everything
+      // else through the parse gate — this screen carries no routing knowledge at all.
+      setReply(await api.post<SmsReplyResult>('/api/messages/inbound', { vendor_id: vendor.id, body }))
       setDraft('')
       setSendFailed(false)
     } catch {
@@ -175,8 +155,8 @@ function Thread({ vendor, picker }: { vendor: Vendor; picker: React.ReactNode })
       {thread.map((m, i) => {
         // 'out' is hospice → vendor, so on the vendor's own phone it reads as received.
         const mine = m.direction === 'in'
-        const digit = mine && /^[1-9]$/.test(m.body.trim()) ? m.body.trim() : null
-        const label = digit ? digitLabel(answeredQuestion(thread, i)?.template ?? null, digit) : null
+        const digit = mine && /^[0-9]$/.test(m.body.trim()) ? m.body.trim() : null
+        const label = digit ? digitLabel(answeredQuestion(thread, i), digit) : null
         return (
           <Fragment key={m.id}>
             <Bubble

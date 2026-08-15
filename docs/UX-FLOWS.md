@@ -67,7 +67,7 @@ Read with [FEATURES.md](FEATURES.md) and
 | Route | What the page is |
 |---|---|
 | `/o/:token` | **The link in every text.** Per-order, 10-char token. Opens that one order with its actions, plus "you have N other open orders" |
-| `/portal/:token` | Per-vendor magic link, no login. All their open orders, grouped, with an equipment tab |
+| `/portal/:token` | Per-vendor magic link, no login. Every order the vendor still owes something on — unaccepted, in flight, or awaiting pickup — grouped, with an equipment tab. Delivered orders are excluded: the vendor has done their part until a pickup is triggered. Also where the backlog digest lands when reply codes run out |
 | `/vendor-portal` | Same component, no token. **Off the nav** — tokenless it can only render its "open the link we texted you" empty state, so it's a typed-URL fallback, not a surface |
 | `/status/:token` | Read-only vendor status view |
 | `/vendor` | Dispatcher board + in-page phone simulator. **Off the nav** — typed URL only |
@@ -485,6 +485,10 @@ the whole record of what changed:
    that whoever drives the demo has to remember the path.
 7. **The order form still shows no cost** (build plan item 6), so the DON's $150 threshold has no
    counterpart at the moment of ordering. `avg_allowed_usd` is right there in `shared/catalog.ts`.
+8. ~~**The vendor portal lists a vendor's whole history** — 45 rows for Beehive, 39 of them
+   delivered and needing nothing.~~ **Resolved.** `portalOrders()` now returns only the states the
+   vendor still owes something on, so the same link opens 10 rows. This also fixed the "N other
+   open orders" line on `/o/:token`, which was counting the same history.
 5. ~~**`/vendor` vs `/vendor-phone`**~~ — **resolved twice over.** `/vendor` is "Dispatcher board"
    in its own page header, and it has since left the nav entirely; "Vendor phone" now unambiguously
    means `/vendor-phone`, which the account menu opens as "DME vendor's phone". FEATURES.md §8.2.

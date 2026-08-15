@@ -429,11 +429,17 @@ one, so this is a stage direction, not a problem.
   it hasn't, narrate it and move on. **Never stand in silence waiting for a tick.**
 - The portal page has **shipped** — step 3 is a real click, and the confirm was verified end to end
   (`POST /api/portal/1c2282…/orders/1060/confirm` → `state: "dispatched"`).
-- **The digit beat, if you have 10 spare seconds at beat 5:** tap `1 · Accept` under the nag. The
-  receipt reads *"applied · no model needed"*, #1061 goes to **Accepted ✓** on tab 1, and the event
-  notes *"Vendor accepted by text (replied 1)"* at confidence 1.0 — a template × digit lookup
-  (`server/sms.ts` `REPLY_ROUTES`), no model call at all. **This ends the silence beat**, so only do
-  it after beats 6 and 7 have landed.
+- **The digit beat, if you have 10 spare seconds at beat 5:** type `1` into the box on the vendor
+  phone (there is nothing to tap — SMS has no buttons). The receipt reads *"applied · no model
+  needed"*, #1061 goes to **Accepted ✓** on tab 1, and the event notes *"Vendor accepted by text
+  (replied 1)"* at confidence 1.0 — a template × position lookup (`server/sms.ts` `VENDOR_ROUTES`),
+  no model call at all. **This ends the silence beat**, so only do it after beats 6 and 7 have
+  landed.
+  - **Verified 08-14: the digit here is `1`.** Vendor reply codes rotate — each open question owns a
+    pair, allocated per vendor (`server/slots.ts`) — but Beehive has only #1061 open in this
+    scenario, so it gets the first pair and `1` means accept. Re-check after re-seeding if you have
+    placed extra orders with Beehive during rehearsal: the message body always names its own digits,
+    so read the text on screen rather than trusting this line.
 - ~~`[FE PENDING: evidence source on the timeline]`~~ **DONE** — the ledger now reads the real
   `payload.source` + actor and prints *"digit reply · no model"*, *"nurse tap · no model"*,
   *"vendor text · parsed by Claude"* per event. Point at it when you say "no model."
