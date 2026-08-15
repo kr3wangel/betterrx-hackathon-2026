@@ -253,13 +253,10 @@ export async function handleInbound(vendorId: number, body: string): Promise<Mes
     orderId = parsed.order_ref ? Number(parsed.order_ref.replace(/\D/g, '')) || null : null
     const order = orderId ? getOrder(orderId) : null
 
-    if (parsed.intent === 'decline' && order) {
-      escalate(order.id, `Vendor declined order #${order.id}: ${parsed.notes ?? body}`)
-      reviewStatus = 'auto_applied'
-    } else if (
+    if (
       parsed.confidence >= CONFIDENCE_THRESHOLD &&
       order &&
-      INTENT_EVENT[parsed.intent]
+      (INTENT_EVENT[parsed.intent] || parsed.intent === 'decline')
     ) {
       try {
         applyParsed(order.id, parsed, 'ai')
@@ -285,6 +282,10 @@ export async function handleInbound(vendorId: number, body: string): Promise<Mes
 }
 
 export function applyParsed(orderId: number, parsed: ParsedMessage, actor: Actor): void {
+  if (parsed.intent === 'decline') {
+    escalate(orderId, `Vendor declined order #${orderId}: ${parsed.notes ?? 'no reason given'}`)
+    return
+  }
   if (parsed.intent === 'eta_update' && getOrder(orderId)?.state === 'ordered') {
     parsed = { ...parsed, intent: 'accept' }
   }

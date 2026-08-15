@@ -52,8 +52,8 @@ const ACCEPT: ReplyAction = {
   notes: 'Vendor accepted by text (replied 1)',
 }
 
-// Digit 2 escalates directly rather than routing through applyParsed: `decline` has no
-// entry in INTENT_EVENT and applyParsed would throw.
+// Digit 2 escalates directly rather than routing through applyParsed: a digit reply has no
+// parsed payload, and the reason names the template the vendor answered.
 const CANT_FILL: ReplyAction = {
   kind: 'escalate',
   reason: (order) => `Vendor can't fill order #${order.id} — reassign`,
