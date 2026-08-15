@@ -17,6 +17,7 @@ import VendorStatus from './pages/VendorStatus'
 import Nurse from './pages/Nurse'
 import Caregiver from './pages/Caregiver'
 import VendorPhone from './pages/VendorPhone'
+import Demo from './pages/Demo'
 
 // The persona surfaces of the DME module — the working tool.
 const surfaceLinks = [
@@ -190,6 +191,8 @@ function Shell() {
             <Route path="/portal/:token" element={<VendorPortal />} />
             <Route path="/status/:token" element={<VendorStatus />} />
             <Route path="/reports" element={<Reports />} />
+            {/* Unlisted in the nav — a presenter prop, not a product surface. */}
+            <Route path="/demo" element={<Demo />} />
           </Routes>
         </main>
         <Toaster />
