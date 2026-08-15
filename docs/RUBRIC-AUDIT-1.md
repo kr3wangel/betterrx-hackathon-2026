@@ -111,6 +111,12 @@ Audited at `c6fa709`. **For the team, not the judges.** Nothing below is softene
 
 **Gaps, ranked**
 
+> **Post-audit updates:** the driver condition attestation is now wired and walkable (checklist
+> defaults all-attested; a false opens the escalation — verified live), so gap 2 and the
+> "unbacked show-off line" note are resolved. The `/nurse`, `/reports`, `/order`, phone-emulator
+> screens all shipped after this audit ran. The hospice board was rebuilt per
+> `docs/BOARD-REDESIGN-SPEC.md`.
+
 1. ~~**`decline` bypasses the confidence gate.**~~ **FIXED post-audit** — decline now sits behind the same ≥0.8 gate (low-confidence declines land in the review queue, excluded from `calls_avoided`), and a human confirming a queued decline no longer 500s (`tests/messaging.test.ts` covers all paths). Original finding kept below for the record: `server/messaging.ts:256-258` runs *before* the threshold check and has no `confidence` term: a model-parsed `decline` at **confidence 0.2 opens an escalation and is marked `auto_applied`** — which also feeds it into `calls_avoided` (`reports.ts:78`). No test covers this branch. It predates the SMS work, so the specs saying "the gate is untouched" are literally true and materially misleading. This is the one thing in the repo a code-reading judge could use to contradict our central AI claim. ~3 lines to fix.
 2. **The "6/6" harness is weaker than the claim.** `parse-test.ts` asserts **intent only** (`:43`); order-resolution, ETA resolution and review-queue routing are printed as human notes and checked by nothing. It has no assertions, always exits 0, is not in `npm test`, and is non-deterministic (live model + `Date.now()`-relative deadlines). Honest phrasing: *"on one live run, all six hand-written messages produced the expected intent."*
 3. **No in-repo artifact for any of the numbers.** Cheapest fix in the audit: run it once, paste the output into `AI-APPROACH.md`.

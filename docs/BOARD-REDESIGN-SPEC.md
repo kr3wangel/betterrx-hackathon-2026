@@ -61,8 +61,9 @@ pickup crisis → **Call the vendor** (opens the detail view with the vendor's p
 
 ## Date rules (one format everywhere)
 
-- Future: `Today 3PM` · `Tomorrow 3PM` · `Friday 9AM` (weekday word within 6 days) · `Aug 22 9AM`
-  beyond. Minutes only when non-zero (`Friday 9:30AM`).
+- Future: **day only** — `Today` · `Tomorrow` · `Friday` (weekday word within 6 days) · `Aug 22`
+  beyond. No clock times on the board (amended post-build); exact times live in the row's
+  tap-open detail.
 - Overdue: elapsed, not date: `3 days overdue` / `5h overdue`.
 - Pickup rows show elapsed-in-home when overdue; promised time otherwise.
 

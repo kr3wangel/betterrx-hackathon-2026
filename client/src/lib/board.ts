@@ -91,10 +91,10 @@ export function formatWhen(iso: string, now: Date): When {
   const ms = d.getTime() - now.getTime()
   if (ms < 0) return { text: elapsedLabel(-ms), overdue: true }
   const days = calendarDaysApart(now, d)
-  if (days === 0) return { text: `Today ${clockLabel(d)}`, overdue: false }
-  if (days === 1) return { text: `Tomorrow ${clockLabel(d)}`, overdue: false }
-  if (days <= HORIZON_DAYS) return { text: `${WEEKDAYS[d.getDay()]} ${clockLabel(d)}`, overdue: false }
-  return { text: `${MONTHS[d.getMonth()]} ${d.getDate()} ${clockLabel(d)}`, overdue: false }
+  if (days === 0) return { text: 'Today', overdue: false }
+  if (days === 1) return { text: 'Tomorrow', overdue: false }
+  if (days <= HORIZON_DAYS) return { text: WEEKDAYS[d.getDay()], overdue: false }
+  return { text: `${MONTHS[d.getMonth()]} ${d.getDate()}`, overdue: false }
 }
 
 function pluralItem(equipmentName: string): string {
