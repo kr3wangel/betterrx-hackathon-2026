@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Camera, CheckCircle2, PackageCheck, Truck, X } from 'lucide-react'
+import { toast } from 'sonner'
 import { api } from '../lib/api'
 import { useLive, fmt } from '../lib/useLive'
 import { Card, CardContent } from '@/components/ui/card'
@@ -94,7 +95,20 @@ function JobCard({
   const [signature, setSignature] = useState<string | null>(null)
   const [condition, setCondition] = useState<ConditionState>(ALL_ATTESTED)
   const [submitting, setSubmitting] = useState(false)
+  const [starting, setStarting] = useState(false)
   const isPickup = job.state === 'pickup_pending' || job.state === 'pickup_overdue'
+
+  async function startDelivery() {
+    setStarting(true)
+    try {
+      await api.post(`/api/orders/${job.id}/events`, { type: 'out_for_delivery', actor: 'driver' })
+      // Deliberately no reset on success: the card only swaps to "Complete delivery" once the SSE
+      // refetch lands, and re-enabling before then lets a second tap 409 on an in-transit order.
+    } catch {
+      setStarting(false)
+      toast.error("That didn't go through — give it another tap.")
+    }
+  }
 
   async function submitPod() {
     setSubmitting(true)
@@ -149,11 +163,8 @@ function JobCard({
 
         <div className="space-y-2 pt-1">
           {job.state === 'dispatched' && (
-            <Button
-              className="w-full"
-              onClick={() => api.post(`/api/orders/${job.id}/events`, { type: 'out_for_delivery', actor: 'driver' })}
-            >
-              <Truck /> Start delivery
+            <Button className="w-full" disabled={starting} onClick={startDelivery}>
+              <Truck /> {starting ? 'Starting…' : 'Start delivery'}
             </Button>
           )}
 
@@ -186,9 +197,16 @@ function JobCard({
                 <SignaturePad onCapture={setSignature} />
               </div>
 
-              <Button className="w-full" disabled={!signature || submitting} onClick={submitPod}>
-                {submitting ? 'Submitting…' : isPickup ? 'Confirm pickup' : 'Confirm delivery'}
-              </Button>
+              <div className="space-y-1.5">
+                <Button className="w-full" disabled={!signature || submitting} onClick={submitPod}>
+                  {submitting ? 'Submitting…' : isPickup ? 'Confirm pickup' : 'Confirm delivery'}
+                </Button>
+                {!signature && (
+                  <p className="text-center text-xs text-muted-foreground">
+                    Sign in the box above to finish.
+                  </p>
+                )}
+              </div>
             </div>
           )}
         </div>

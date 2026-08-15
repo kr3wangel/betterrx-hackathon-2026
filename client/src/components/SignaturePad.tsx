@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
+import { Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
-export function SignaturePad({ onCapture }: { onCapture: (dataUrl: string) => void }) {
+export function SignaturePad({ onCapture }: { onCapture: (dataUrl: string | null) => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const drawing = useRef(false)
-  const [dirty, setDirty] = useState(false)
+  const inked = useRef(false)
+  const [signed, setSigned] = useState(false)
 
   useEffect(() => {
     const canvas = canvasRef.current!
@@ -20,6 +22,14 @@ export function SignaturePad({ onCapture }: { onCapture: (dataUrl: string) => vo
   const pos = (e: React.PointerEvent) => {
     const rect = canvasRef.current!.getBoundingClientRect()
     return { x: e.clientX - rect.left, y: e.clientY - rect.top }
+  }
+
+  function endStroke() {
+    if (!drawing.current) return
+    drawing.current = false
+    if (!inked.current) return
+    setSigned(true)
+    onCapture(canvasRef.current!.toDataURL('image/png'))
   }
 
   return (
@@ -41,25 +51,31 @@ export function SignaturePad({ onCapture }: { onCapture: (dataUrl: string) => vo
           const { x, y } = pos(e)
           ctx.lineTo(x, y)
           ctx.stroke()
-          setDirty(true)
+          inked.current = true
         }}
-        onPointerUp={() => {
-          drawing.current = false
-        }}
+        onPointerUp={endStroke}
+        onPointerCancel={endStroke}
       />
-      <div className="flex gap-2">
+      <div className="flex items-center justify-between gap-2">
+        {signed ? (
+          <span className="flex items-center gap-1 text-xs font-semibold text-success">
+            <Check className="size-3.5" /> Signature captured
+          </span>
+        ) : (
+          <span className="text-xs text-muted-foreground">Sign above with a finger or the mouse.</span>
+        )}
         <Button
           variant="secondary"
+          disabled={!signed}
           onClick={() => {
             const canvas = canvasRef.current!
             canvas.getContext('2d')!.clearRect(0, 0, canvas.width, canvas.height)
-            setDirty(false)
+            inked.current = false
+            setSigned(false)
+            onCapture(null)
           }}
         >
           Clear
-        </Button>
-        <Button disabled={!dirty} onClick={() => onCapture(canvasRef.current!.toDataURL('image/png'))}>
-          Capture signature
         </Button>
       </div>
     </div>
