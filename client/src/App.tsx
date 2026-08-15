@@ -37,11 +37,10 @@ const surfaceLinks: { to: string; label: string; roles: RoleId[] }[] = [
   { to: '/hospice', label: 'Board', roles: ['case_manager', 'admissions_nurse', 'director_of_nursing', 'field_nurse'] },
   { to: '/order', label: 'New order', roles: ['case_manager', 'admissions_nurse'] },
   { to: '/nurse', label: 'Nurse', roles: ['case_manager', 'field_nurse'] },
-  // "Dispatcher board", not "Vendor phone": /vendor-phone is a different page, and the
-  // account menu now names it, so two near-identical labels were on screen at once.
-  { to: '/vendor', label: 'Dispatcher board', roles: ['dispatcher'] },
-  { to: '/driver', label: 'Driver', roles: ['driver'] },
-  { to: '/vendor-portal', label: 'Portal', roles: ['dispatcher'] },
+  // Dispatcher's own two links are retired (/vendor, /vendor-portal — both still routed, URL
+  // only), so it anchors on the other vendor-side surface. Not the board: that would put a
+  // hospice's whole patient list in a vendor employee's nav.
+  { to: '/driver', label: 'Driver', roles: ['dispatcher', 'driver'] },
   { to: '/reports', label: 'Reports', roles: ['case_manager', 'director_of_nursing'] },
 ]
 
@@ -260,11 +259,12 @@ function Shell() {
             <Route path="/hospice" element={<Hospice />} />
             <Route path="/order" element={<Order />} />
             <Route path="/nurse" element={<Nurse />} />
-            <Route path="/vendor" element={<VendorPage />} />
             <Route path="/driver" element={<Driver />} />
-            {/* /portal/:token and /status/:token live outside the Shell — see PortalShell. */}
-            <Route path="/vendor-portal" element={<VendorPortal />} />
             <Route path="/reports" element={<Reports />} />
+            {/* Retired from the nav, kept routable: typed URL only.
+                /portal/:token and /status/:token live outside the Shell — see PortalShell. */}
+            <Route path="/vendor" element={<VendorPage />} />
+            <Route path="/vendor-portal" element={<VendorPortal />} />
             {/* Unlisted in the nav — a presenter prop, not a product surface. */}
             <Route path="/demo" element={<Demo />} />
           </Routes>

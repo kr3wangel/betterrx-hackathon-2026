@@ -33,15 +33,13 @@ over.
 | `/hospice` | Board | Case-manager board, rebuilt as v8: three sections (Needs you / On the way / Done) of five-slot rows, tap-open detail with risk reasons and evidence, escalation acknowledge, AI-parse review queue (confirm / reject), swap-vendor dialog. **The inline new-order form and the EMR simulator are no longer here** — ordering is `/order`, the EMR feed moved to `/demo` |
 | `/order` | New order | Place an order. SLA defaults applied by urgency — same-day for urgent, 24h routine |
 | `/nurse` | Nurse | Nurse-in-the-field status change. Death or discharge fires the pickup trigger directly, ahead of EMR propagation |
-| `/vendor` | Dispatcher board | Dispatcher board plus an in-page phone simulator — free-text reply, watch it parse |
 | `/driver` | Driver | Phone-sized. Today's deliveries and pickups, POD capture: photo, signature, and a condition attestation |
-| `/vendor-portal` | Portal | No-login vendor portal — the internal demo entry, no token |
-| `/reports` | Reports | Vendor scorecards, condition stats, calls-avoided counter, pickup latency, DME spend, cost-threshold approvals |
+| `/reports` | Reports | Vendor scorecards, condition stats, calls-avoided counter (all four sub-counters printed, so the breakdown sums to the hero), pickup latency, DME spend, cost-threshold approvals (labelled `synthetic` — decisions aren't saved) |
 
 **The nav is role-filtered.** Each entry carries `roles: RoleId[]` and `Shell()` filters it against
 the signed-in role: Case Manager sees Board / New order / Nurse / Reports; Admissions Nurse sees
-Board / New order; Field Nurse sees Board / Nurse; DON sees Board / Reports; Dispatcher sees Vendor
-phone / Portal; Driver sees Driver; **signed out sees everything**. Routes are deliberately *not*
+Board / New order; Field Nurse sees Board / Nurse; DON sees Board / Reports; Dispatcher and Driver
+both see Driver; **signed out sees everything**. Routes are deliberately *not*
 guarded — hiding a link never blocks a URL, so no screen becomes unreachable mid-demo. Full map in
 [UX-FLOWS.md](UX-FLOWS.md).
 
@@ -49,6 +47,8 @@ guarded — hiding a link never blocks a URL, so no screen becomes unreachable m
 
 | Route | Chrome | Reached by | What it does |
 |---|---|---|---|
+| `/vendor` | full Shell | Typed URL only — **retired from the nav** | Dispatcher board plus an in-page phone simulator — free-text reply, watch it parse. Still the one surface on the pre-token slate/blue palette, which is why it is off the nav rather than on stage |
+| `/vendor-portal` | full Shell | Typed URL only — **retired from the nav** | The same component as `/portal/:token` with no token, so all it can render is "open the link we texted you". As a nav destination it was a dead end by construction; kept as a URL fallback |
 | `/demo` | full Shell | Typed URL only — not in the nav, not in the account menu | The presenter's panel: mark a patient discharged or deceased (the EMR fallback path), and send any templated text by hand. Took both off the board in the v8 rebuild |
 | `/o/:token` | `PortalShell` | **The link in every vendor text** | That one order, its actions, and a link onward to the vendor's full portal if they have other work open. 10-character token, so the URL fits a text |
 | `/caregiver` | none | Account menu → Simulated phones (new tab), or typed URL | The family's phone. Full-screen SMS simulator: condition check arrives, reply 1–5 or free text, outcome shown as a delivery receipt |
@@ -99,7 +99,7 @@ these up or don't claim them.
 | Thing | Evidence | Status |
 |---|---|---|
 | `POST /api/messages/send` — send any templated message | `sms.ts` `sendTemplate` | **Now called** by `/demo`'s send-a-text form (`Demo.tsx`) and RowDetail's "Send another nudge" |
-| Cost-threshold approvals on `/reports` | `Reports.tsx:450` `decide()` | **UI only.** Local `useState` — no API call, no persistence, no ledger event, and **nothing gates dispatch** |
+| Cost-threshold approvals on `/reports` | `Reports.tsx` `decide()` | **UI only.** Local `useState` — no API call, no persistence, no ledger event, and **nothing gates dispatch**. The card now says so on screen: a `synthetic` badge in its header and "Design preview — decisions aren't saved yet" under the title |
 | Roles / sign-in | `App.tsx:47` is the only `useAuth` consumer | **Nav filtering only.** No page branches on role, no route guards, and `Actor` on the server has no matching split |
 
 **`/api/messages/reply` is now wired** (08-14). `VendorPhone` renders tappable quick replies under
@@ -167,7 +167,7 @@ verified-vs-vendor-reported badges · measured token costs · **role-filtered na
 | **Risk engine credibility pass** | M | Tune weights and threshold in `server/risk.ts`, keep tests green |
 | **`sms.ts` has no UI path** | ? | 331 lines, 33 tests, two endpoints nothing calls — see §2. Wire it or drop the claim |
 | **Demo-seed polish** | S | Names, timings, and data that read well projected |
-| **Visual polish pass** | M | Spacing, hierarchy, at-risk treatment, empty states, favicon |
+| **Visual polish pass** | M | Spacing, hierarchy, at-risk treatment, empty states (favicon done — inline coral-pill SVG in `client/index.html`) |
 
 ### Genuinely still open — pitch and process
 
@@ -247,14 +247,18 @@ clicking, not by CI.
 
 ## 8 · Known gaps worth a decision before freeze
 
-1. **Cost approvals look real and aren't.** `decide()` is local state; nothing persists and
-   nothing gates dispatch. Either wire it or make sure nobody clicks Approve on stage as if it
-   blocks an order.
+1. **Cost approvals look real and aren't** — *labelled, not wired* (08-14). `decide()` is still
+   local state; nothing persists and nothing gates dispatch. The screen no longer implies
+   otherwise: `synthetic` badge plus "Design preview — decisions aren't saved yet". Wiring it is
+   post-hackathon; until then, demo the queue as a design.
 2. ~~**`/vendor` is labelled "Vendor phone" in the nav and `/vendor-phone` also exists.**~~
    **Closed 08-14.** `/vendor` is now "Dispatcher board" in both the nav link and the page's own
    `PersonaHeader`, which is what it actually is: a dispatcher's order board that happens to carry
    an in-page thread. "Vendor phone" now means exactly one thing — `/vendor-phone`, named "DME
    vendor's phone" in the account menu. Nothing about the routes changed, only the labels.
+   **Superseded 08-14 (overnight):** `/vendor` has since left the nav altogether, along with the
+   tokenless `/vendor-portal`. Both routes still resolve; neither is a link any more. Dispatcher's
+   single nav anchor is **Driver**, the other vendor-side surface inside the Shell.
 3. ~~`sms.ts` has no UI path.~~ **Closed 08-14 — the reply half is wired.** Both phones POST to
    `/api/messages/reply` against the newest open question, so the vendor phone carries **both**
    paths in one text box. That is the AI argument made visible rather than asserted: a bare digit
