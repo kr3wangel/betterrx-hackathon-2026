@@ -40,10 +40,11 @@ underneath it mid-flight. The codebase wins; here is where and why.
    locked column name, but on `direction = 'in'` rows it identifies the *sender*. It is really a
    thread key. Naming it `recipient_type` anyway keeps one column instead of two and matches the
    locked decision; this paragraph is the honesty tax.
-3. **`decline` still has no event mapping.** `INTENT_EVENT` in `server/messaging.ts` has no
-   `decline` key and `applyParsed()` throws `intent decline has no event mapping`. Digit 2 on V1/V2
-   escalates directly, mirroring the `decline` branch in `handleInbound()` — it does not route
-   through `applyParsed`. (Same call as IVR spec deviation 5.)
+3. **`decline` still has no event mapping** — `INTENT_EVENT` in `server/messaging.ts` has no
+   `decline` key — but `applyParsed()` now handles it explicitly (escalate, no state transition,
+   no throw), and `handleInbound()` routes decline through the same ≥0.8 confidence gate as every
+   other intent (fixed post-spec; see `docs/RUBRIC-AUDIT-1.md` row 4). Digit 2 on V1/V2 still
+   escalates directly via the template route, unchanged.
 4. **Outbound sends are call-site-driven, not transition side effects.** `CLAUDE.md` says "outbound
    SMS templates fire as side effects of transitions"; in the code `sendToVendor()` is called from
    four explicit sites (`POST /orders`, `POST /orders/:id/swap-vendor`, `setPatientStatus()`,
