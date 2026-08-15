@@ -36,6 +36,7 @@ differentiation. It is the floor. Everything below is what we put above the floo
 | Someone interprets a voicemail | Model parses free text | **Two input paths, two trust levels** — a tap needs no model; free text is confidence-gated to a human queue |
 | Failure found at the front door | The link tells you it's late | **Rules-based risk fires before the deadline**, in sentences, with a one-click vendor swap |
 | Whoever is on shift | One link, one order | **Three personas, one ledger** — ordering nurse, case worker, directing nurse |
+| Nobody asks the house what showed up | Nothing — the link ends at "delivered" | **The household rates the equipment 1–5 by text**, and the answer lands on the vendor's scorecard |
 
 ### 1. The silence ladder — silence is signal from hour one
 
@@ -121,16 +122,62 @@ nurse** (oversight — vendor scorecards, open escalations, pickup latency). One
 ledger serves all three because every event carries its actor and its source; the directing nurse's
 scorecards are the risk engine's own raw material, no new data collection.
 
+### 7. The household is the only witness — so ask the household
+
+Everything above this is about *where the equipment is*. This is about *what actually arrived*. The
+sponsor's own discovery has broken wheelchairs and a chair with visible contamination, FAQ §9 names
+condition verification a strong differentiator, and the CEO raised vendor accountability for
+condition again at the pre-build briefing.
+
+The honest framing first, because a judge may know this: **a condition survey is not new.** DMEPOS
+suppliers are already required to survey beneficiary satisfaction to hold accreditation. What is new
+is **who owns the answers**. Today that data is collected by the supplier being graded, lives in the
+supplier's file, and never reaches the hospice that chose them — so it can't inform the next
+referral. We invert the ownership: the hospice asks, the hospice holds the record, and it lands on
+the scorecard the hospice uses to pick a vendor next time. The survey isn't the differentiator. The
+direction it flows is.
+
+The mechanism is one text. A driver's proof of delivery fires it automatically — *"…your hospice
+team here. The hospital bed was delivered today. Is it clean and working properly? Reply with a
+number 1-5 (1 = unusable, 5 = like new). That's all we need. Reply STOP to opt out."* The reply is
+parsed **deterministically — no model** (see §4: a caregiver rating is a digit). A **1 or 2 opens an
+escalation immediately**; every score, good or bad, rolls into `GET /api/vendors/condition` and
+surfaces on the DON's reports view as a per-vendor average and bad-rate, alongside on-time
+performance.
+
+Four guards, each enforced in `server/condition.ts` rather than in a policy document, and each a
+likely judge question:
+
+- **The caregiver, never the patient.** A hospice patient is frequently unable to answer a phone.
+  The person who opened the door and uses the bed is the family caregiver.
+- **Never after a death.** Once the patient is deceased, or the order has moved to pickup, this
+  channel goes silent. A grieving household does not get a survey.
+- **The equipment, never the care.** Hospices are measured on CAHPS and are rightly cautious about
+  anything resembling interference with a family survey. Keeping the question narrowly on the
+  physical object keeps this clear of that entirely — an assumption worth confirming with the sponsor.
+- **One question at a time, and an opt-out.** The household thread refuses to send while another
+  question is open, honours `contact_ok`, and asks each order only once.
+
+Set against the driver's own condition attestation captured in the POD, this is the **second
+witness**. The vendor's driver ticks *clean, functional, patient-ready* before he leaves; the
+household answers after he's gone. Same fact, two sources, one of which has nothing at stake — and
+the disagreement between them is exactly where a hospice would want to look.
+
 ### Stated honestly — what is running vs. what is designed
 
 Running and test-covered today: the silence ladder, the verified/vendor-reported flags and their
 escalations, the shared nurse/EMR pickup trigger, the magic-link tap path, the confidence-gated
-parse and review queue, the risk engine and SLA defaults. **In progress:** the ordering nurse's
-mobile pickup surface (the route and its logic are built and tested; the one-tap screen is not yet
-on the board) and the directing-nurse reports view. **Production path, spec'd not built:** the voice
-channel — an automated check-in call with press-1 confirm, because half a hospice's vendor rolodex
-is office landlines that cannot receive SMS at all. Vendor timing data in the demo is **synthetic
-and labeled synthetic**; vendor operational reality is an assumption we state, not one we validated
+parse and review queue, the risk engine and SLA defaults, the caregiver condition channel and its
+guards, the ordering nurse's mobile surface (`/nurse`), and the DON reports view (`/reports`) with
+live per-vendor condition rollups. **Production path, spec'd not built:** the voice channel — an
+automated check-in call with press-1 confirm, because half a hospice's vendor rolodex is office
+landlines that cannot receive SMS at all.
+
+**Both phone screens are simulators.** There is no SMS gateway; `/caregiver` and `/vendor-phone`
+stand in for the real handsets, and we will say so before anyone asks. The equipment catalog and
+prices are **real CMS data** — the Medicare DMEPOS Public Use File. Every patient, vendor, delivery
+time, condition rating, and outcome is **synthetic and labeled synthetic**, because CMS publishes
+billing, not logistics; vendor operational reality is an assumption we state, not one we validated
 (FAQ §1).
 
 ## The measure: phone calls that never happened
@@ -143,6 +190,7 @@ Every mechanism above maps to a call a human didn't have to make.
 | "Where is it? Is it on the truck?" | The board, live, both sides looking at the same order |
 | "It says delivered but there's no bed here" | The unproven-claim escalation, before the family notices |
 | The widow calling about the bed in the living room | The nurse's tap before she left the house |
+| "Is the bed they sent us actually clean?" | One text to the household, answered with a digit, scored against the vendor |
 | "How is this vendor actually doing?" | Per-vendor × equipment × weekday history the ledger already holds |
 
 For the hospice: discharges stop being hostage to vendor opacity, pickup delays get a clock and an
