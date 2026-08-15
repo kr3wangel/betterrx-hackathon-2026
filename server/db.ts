@@ -67,6 +67,7 @@ CREATE TABLE IF NOT EXISTS messages (
   patient_id INTEGER,
   template TEXT,
   answered_at TEXT,
+  reply_slot INTEGER,
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 CREATE TABLE IF NOT EXISTS escalations (
@@ -110,6 +111,7 @@ for (const stmt of [
   'ALTER TABLE messages ADD COLUMN patient_id INTEGER',
   'ALTER TABLE messages ADD COLUMN template TEXT',
   'ALTER TABLE messages ADD COLUMN answered_at TEXT',
+  'ALTER TABLE messages ADD COLUMN reply_slot INTEGER',
 ]) {
   try {
     db.exec(stmt)

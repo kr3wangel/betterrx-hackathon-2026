@@ -1,7 +1,7 @@
 import { db } from './db'
 import { applyEvent } from './statemachine'
 import { listOrders } from './store'
-import { pickupRequestText, sendToVendor } from './messaging'
+import { pickupRequestText, sendVendorQuestion } from './messaging'
 import type { PatientStatus } from '../shared/types'
 
 export type PatientStatusSource = 'nurse' | 'emr'
@@ -27,7 +27,9 @@ export function setPatientStatus(
     const delivered = listOrders('delivered').filter((o) => o.patient_id === patientId)
     for (const order of delivered) {
       applyEvent(order.id, 'pickup_triggered', { patient_status: status, source }, source === 'nurse' ? 'hospice' : 'system')
-      sendToVendor(order.vendor_id, order.id, pickupRequestText(order, patient?.market), 'v_pickup_request')
+      sendVendorQuestion(order.vendor_id, order.id, 'v_pickup_request', (digits) =>
+        pickupRequestText(order, patient?.market, digits),
+      )
       triggered.push(order.id)
     }
   }

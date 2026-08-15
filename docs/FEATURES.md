@@ -52,7 +52,7 @@ guarded — hiding a link never blocks a URL, so no screen becomes unreachable m
 | `/demo` | full Shell | Typed URL only — not in the nav, not in the account menu | The presenter's panel: mark a patient discharged or deceased (the EMR fallback path), and send any templated text by hand. Took both off the board in the v8 rebuild |
 | `/o/:token` | `PortalShell` | **The link in every vendor text** | That one order, its actions, and a link onward to the vendor's full portal if they have other work open. 10-character token, so the URL fits a text |
 | `/caregiver` | none | Account menu → Simulated phones (new tab), or typed URL | The family's phone. Full-screen SMS simulator: condition check arrives, reply 1–5 or free text, outcome shown as a delivery receipt |
-| `/vendor-phone` | none | Account menu → Simulated phones (new tab), or typed URL | The dispatcher's phone. **Two reply paths in one text box:** type a bare digit against an open question (deterministic route table, no model) or type prose (Claude, showing intent, confidence, and applied / sent-to-a-person). No buttons — SMS has none |
+| `/vendor-phone` | none | Account menu → Simulated phones (new tab), or typed URL | The dispatcher's phone. **Two reply paths in one text box:** type a digit owned by an open question (deterministic route table, no model) or type prose (Claude, showing intent, confidence, and applied / sent-to-a-person). No buttons — SMS has none. Posts to `/api/messages/inbound` with just a sender and a body, exactly what a gateway webhook delivers; the screen carries no routing knowledge |
 | `/portal/:token` | `PortalShell` | `/o/:token`'s "see all", or the fallback URLs in DEMO-SCRIPT | Per-vendor portal — every open order grouped, plus an equipment tab. No account. **No longer what a text links to** |
 | `/status/:token` | `PortalShell` | A texted magic link | Vendor status view, read-only |
 
@@ -77,10 +77,11 @@ suppresses itself on real handsets.
 | Order lifecycle state machine | `statemachine.ts` | 8 states, guarded transitions, every change appends an event and broadcasts |
 | Risk scoring | `risk.ts` | **Rules-based on purpose** — explainable, tunable, reasons in sentences |
 | Watchdog | `watchdog.ts` | 30s tick: recompute risk, escalate threshold crossings, flag overdue pickups, silence ladder |
-| Vendor SMS parsing | `messaging.ts` + `llm.ts` | Claude, with a confidence gate — ≥0.8 auto-applies, below lands in the human review queue |
+| Vendor SMS parsing | `messaging.ts` + `llm.ts` | Claude, with a confidence gate — ≥0.8 auto-applies, below lands in the human review queue. Prompt carries the vendor's open orders plus a focus hint (the newest unanswered question) so bare prose like "ok" can be placed |
+| Rotating reply codes | `slots.ts` + `shared/slots.ts` | **Five open questions per vendor, each owning a digit pair** — (1,2) (3,4) (5,6) (7,8) (9,0), odd = affirmative. Each message states its own pair, so a question buried five texts back is still answerable, in any order, days apart. A follow-up reuses its order's pair rather than spending a new one. Sixth question → one rate-limited digest with a portal link, never a recycled code |
 | Caregiver condition parsing | `condition.ts` | **Deterministic regex, no model.** A digit is a digit |
 | Household messaging | `messaging.ts` | `sendToFamily` with a gate — silent after a death, one open question at a time |
-| Magic-link tokens | `portal.ts` | Vendor access with no account |
+| Magic-link tokens | `portal.ts` | Vendor access with no account. `portalOrders()` lists only what the vendor still owes something on — unaccepted, in flight, awaiting pickup — not their delivered history (that was 39 of Beehive's 45 rows) |
 | Roles / mock login | `client/src/lib/auth.tsx` | 6 roles, `AuthProvider`, `useAuth()`, localStorage-backed. **Client-side only** — see §2 |
 | SLA defaults | `sla.ts` | Same-day urgent, 24h routine, stated as an assumption per FAQ §7 |
 | Proof of delivery | `pods.ts` | Photo, signature, timestamp, plus condition attestation |
@@ -218,18 +219,18 @@ $150/mo approval threshold, and every medication spend figure.
 
 ## 7 · Test coverage
 
-**14 files, 150 tests** (re-derived 08-14). Core logic is covered; UI and routes deliberately
-are not.
+**14 files, 172 tests** (re-derived 08-14, after rotating reply codes). Core logic is covered; UI
+and routes deliberately are not.
 
 | File | Tests | Covers |
 |---|---:|---|
-| `sms.test.ts` | 35 | SMS templates, reply handling, and quick-reply/route-table drift |
+| `sms.test.ts` | 53 | SMS templates, reply handling, route-table integrity, rotating reply codes, gateway-shaped inbound |
 | `reports.test.ts` | 15 | Scorecards, calls avoided, latency |
+| `portal.test.ts` | 13 | Magic-link flows |
 | `condition.test.ts` | 12 | Caregiver rating parser, including the ambiguity cases |
 | `risk.test.ts` | 12 | Risk scoring and thresholds |
 | `messaging.test.ts` | 11 | Parse pipeline, confidence gate, decline handling |
 | `at-risk.test.ts` | 9 | Board selectors |
-| `portal.test.ts` | 9 | Magic-link flows |
 | `statemachine.test.ts` | 9 | Transition guards |
 | `silence.test.ts` | 8 | Silence ladder |
 | `evidence.test.ts` | 7 | Verified vs reported |

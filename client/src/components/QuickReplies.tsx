@@ -1,39 +1,80 @@
-import type { Message, MessageTemplate, SmsReplyResult } from '../../../shared/types'
+import { digitOffset } from '../../../shared/slots'
+import type { FamilyTemplate, Message, SmsReplyResult, VendorTemplate } from '../../../shared/types'
 
 /**
  * Reading digit replies in the two phone simulators.
  *
  * There used to be tappable buttons here. There aren't now, and shouldn't be: these
  * screens stand in for SMS on a real handset, which has no buttons — a vendor or a family
- * types "1" into the box like any other text. The file keeps its name to avoid churning
+ * types "7" into the box like any other text. The file keeps its name to avoid churning
  * imports mid-build; what it holds is the read side.
  *
- * A digit under a known question is deterministic — server/sms.ts REPLY_ROUTES maps
- * template x digit to an action, at confidence 1.0 with no model call. That table is
- * authoritative; the labels below are cosmetic, used to annotate a bubble after the fact
- * ("1 · Today"), and the client never decides the action.
+ * A digit under a known question is deterministic — server/sms.ts maps template x position
+ * to an action, at confidence 1.0 with no model call. That table is authoritative; the
+ * labels below are cosmetic, used to annotate a bubble after the fact ("7 · Today"), and
+ * the client never decides the action.
+ *
+ * Vendor labels are positional because vendor digits rotate: which pair a question owns is
+ * what addresses it in a flat SMS thread, so the label can only be resolved against the
+ * question's own slot. Family labels stay literal — one question at a time in a household
+ * thread, and f_condition_check's 1-5 is a rating whose digits are the meaning.
  */
 
-const DIGIT_LABELS: Partial<Record<MessageTemplate, Record<string, string>>> = {
-  v_order_request: { '1': 'Accept', '2': "Can't fill" },
-  v_ack_nag: { '1': 'Accept', '2': "Can't fill" },
-  v_eta_check: { '1': 'On schedule', '2': 'Delayed' },
-  v_pickup_request: { '1': 'Today', '2': 'Later' },
+const VENDOR_LABELS: Partial<Record<VendorTemplate, readonly [string, string]>> = {
+  v_order_request: ['Accept', "Can't fill"],
+  v_ack_nag: ['Accept', "Can't fill"],
+  v_eta_check: ['On schedule', 'Delayed'],
+  v_pickup_request: ['Today', 'Later'],
+}
+
+const FAMILY_LABELS: Partial<Record<FamilyTemplate, Record<string, string>>> = {
   f_delivery_confirm: { '1': "Yes, it's here", '2': 'No, not yet' },
   f_condition_check: { '1': 'Unusable', '2': 'Poor', '3': 'Acceptable', '4': 'Good', '5': 'Like new' },
 }
 
-export function digitLabel(template: MessageTemplate | null, digit: string): string | null {
-  return (template && DIGIT_LABELS[template]?.[digit]) ?? null
+/** Just enough of a question to label a reply to it: what it asked, and which pair it owns. */
+export interface Answerable {
+  template: Message['template']
+  reply_slot: number | null
+}
+
+export function digitLabel(question: Answerable | null | undefined, digit: string): string | null {
+  const template = question?.template
+  if (!template) return null
+  if (!template.startsWith('v_')) return FAMILY_LABELS[template as FamilyTemplate]?.[digit] ?? null
+
+  const pair = VENDOR_LABELS[template as VendorTemplate]
+  if (!pair || question.reply_slot === null) return null
+  const offset = digitOffset(question.reply_slot, digit)
+  return offset === null ? null : pair[offset]
 }
 
 /** An outbound question still waiting on an answer, with digits we know how to render. */
 export function isOpenQuestion(m: Message): boolean {
-  return m.direction === 'out' && !!m.template && !m.answered_at && !!DIGIT_LABELS[m.template]
+  if (m.direction !== 'out' || !m.template || m.answered_at) return false
+  return m.template.startsWith('v_')
+    ? m.reply_slot !== null && !!VENDOR_LABELS[m.template as VendorTemplate]
+    : !!FAMILY_LABELS[m.template as FamilyTemplate]
 }
 
-/** The question an inbound bubble answers: the nearest templated outbound above it. */
+/**
+ * The question an inbound bubble answers.
+ *
+ * Vendor side this is decided by the digit, not by position: the whole point of rotating
+ * pairs is that a reply can land on a question several messages back, so scanning upward
+ * for the nearest outbound would label it with whatever was asked most recently. Only when
+ * no open question owns the digit — prose, or a household thread — does proximity apply.
+ */
 export function answeredQuestion(thread: Message[], index: number): Message | undefined {
+  const digit = thread[index].body.trim()
+  // Nearest question above that owned this digit — not the first in the thread, since a
+  // pair is recycled once its question closes and an old bubble must keep its own meaning.
+  if (/^[0-9]$/.test(digit)) {
+    for (let i = index - 1; i >= 0; i--) {
+      const m = thread[i]
+      if (m.direction === 'out' && m.reply_slot !== null && digitLabel(m, digit)) return m
+    }
+  }
   for (let i = index - 1; i >= 0; i--) {
     const m = thread[i]
     if (m.direction === 'out' && m.template) return m
@@ -43,7 +84,8 @@ export function answeredQuestion(thread: Message[], index: number): Message | un
 
 /** Delivery-receipt line, so the consequence of a reply reads as part of the conversation. */
 export function ReplyReceipt({ result }: { result: SmsReplyResult }) {
-  const digit = result.digit ? `${result.digit}${digitLabel(result.template, result.digit) ? ` · ${digitLabel(result.template, result.digit)}` : ''} — ` : ''
+  const label = result.digit ? digitLabel({ template: result.template, reply_slot: result.slot }, result.digit) : null
+  const digit = result.digit ? `${result.digit}${label ? ` · ${label}` : ''} — ` : ''
 
   if (result.outcome === 'applied') {
     return (
@@ -54,6 +96,13 @@ export function ReplyReceipt({ result }: { result: SmsReplyResult }) {
   }
   if (result.outcome === 'prompt') {
     return <div className="pt-1 text-right text-[11px] text-slate-400">{digit}we texted back a question</div>
+  }
+  if (result.outcome === 'clarify') {
+    return (
+      <div className="pt-1 text-right text-[11px] text-amber-600">
+        {digit}that code isn't open — we asked which order rather than guessing
+      </div>
+    )
   }
   return (
     <div className="pt-1 text-right text-[11px] text-amber-600">

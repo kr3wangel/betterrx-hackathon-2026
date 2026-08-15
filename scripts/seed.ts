@@ -1,5 +1,6 @@
 import { db } from '../server/db'
 import { orderRequestText } from '../server/messaging'
+import { allocateSlot, slotDigits, SLOT_BASES } from '../server/slots'
 import { computeRisk, RISK_THRESHOLD } from '../server/risk'
 import { conditionCheckText } from '../server/condition'
 import { getOrder } from '../server/store'
@@ -346,10 +347,12 @@ const insertEvent = db.prepare(
 const insertPod = db.prepare(
   'INSERT INTO pods (order_id, kind, photo_path, signature_path, captured_at) VALUES (?, ?, ?, ?, ?)',
 )
-// Mirrors what sendToVendor() writes for POST /orders — same template key, so the digit
-// router and the watchdog's nag de-dup both recognise a seeded thread.
+// Mirrors what sendVendorQuestion() writes for POST /orders — same template key and a real
+// reply pair, so the digit router, the watchdog's nag de-dup and slot allocation all
+// recognise a seeded thread. A seeded question with no pair would own no digits, and its
+// body would promise codes that route nowhere.
 const insertVendorMessage = db.prepare(
-  "INSERT INTO messages (order_id, vendor_id, direction, body, recipient_type, template, created_at) VALUES (?, ?, 'out', ?, 'vendor', ?, ?)",
+  "INSERT INTO messages (order_id, vendor_id, direction, body, recipient_type, template, reply_slot, answered_at, created_at) VALUES (?, ?, 'out', ?, 'vendor', ?, ?, ?, ?)",
 )
 const insertEscalation = db.prepare(
   'INSERT INTO escalations (order_id, reason, status, created_at) VALUES (?, ?, ?, ?)',
@@ -470,11 +473,17 @@ function seedOrder(
     placedAt,
   )
   insertEvent.run(id, 'order_placed', null, 'hospice', placedAt)
+  // An order that already moved past 'ordered' was answered off-camera; recording that
+  // releases its pair, so a seeded world doesn't open with four of five codes spoken for.
+  const answeredAt = state === 'ordered' ? null : placedAt
+  const slot = allocateSlot(vendorId, id) ?? SLOT_BASES[0]
   insertVendorMessage.run(
     id,
     vendorId,
-    orderRequestText(getOrder(id)!, PATIENTS.find((p) => p.id === patientId)?.market ?? ''),
+    orderRequestText(getOrder(id)!, PATIENTS.find((p) => p.id === patientId)?.market ?? '', slotDigits(slot)),
     'v_order_request',
+    slot,
+    answeredAt,
     placedAt,
   )
   if (['dispatched', 'in_transit', 'delivered', 'pickup_pending'].includes(state)) {

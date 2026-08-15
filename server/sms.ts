@@ -3,6 +3,7 @@ import { broadcast } from './sse'
 import {
   ackNagText,
   applyParsed,
+  clarifyText,
   deliveredThanksText,
   deliveryConfirmText,
   etaCheckText,
@@ -15,7 +16,9 @@ import {
   pickupRequestText,
   sendToFamily,
   sendToVendor,
+  sendVendorQuestion,
 } from './messaging'
+import { closeSlot, digitOffset, resolveDigit, type SlotDigits } from './slots'
 import { handleCaregiverReply, sendConditionCheck } from './condition'
 import { applyEvent, escalate } from './statemachine'
 import { getOrder, rowToMessage } from './store'
@@ -32,11 +35,15 @@ import type {
 } from '../shared/types'
 
 /**
- * Template x digit -> action. At a known lifecycle moment a digit has exactly one meaning,
- * so no model needs to read it: the same "1" means "yes, it arrived" under
- * f_delivery_confirm and "the equipment is unusable" under f_condition_check. The question
- * carries the meaning, and the question is a column. Anything this table does not resolve
- * goes to the review queue rather than being guessed at.
+ * Template x position -> action. At a known lifecycle moment a reply has exactly one
+ * meaning, so no model needs to read it: "yes" means "I accept" under v_order_request and
+ * "I'm on schedule" under v_eta_check. The question carries the meaning, and the question
+ * is a column. Anything these tables do not resolve goes to the review queue rather than
+ * being guessed at.
+ *
+ * Vendors are indexed by position, not by digit, because vendor digits rotate — the pair a
+ * question owns is what addresses it in a flat SMS thread (server/slots.ts). Offset 0 is
+ * always the affirmative, offset 1 always the problem, whichever pair got allocated.
  */
 export type ReplyAction =
   | { kind: 'apply'; intent: MessageIntent; eta: 'target_at' | null; notes: string }
@@ -49,7 +56,9 @@ const ACCEPT: ReplyAction = {
   kind: 'apply',
   intent: 'accept',
   eta: null,
-  notes: 'Vendor accepted by text (replied 1)',
+  // No digit in any of these notes: routeDigit appends the one actually received, because
+  // which digit means "accept" depends on the pair the question was allocated.
+  notes: 'Vendor accepted by text',
 }
 
 // Digit 2 escalates directly rather than routing through applyParsed: a digit reply has no
@@ -61,30 +70,39 @@ const CANT_FILL: ReplyAction = {
 
 const CONDITION: ReplyAction = { kind: 'delegate', handler: 'condition' }
 
-export const REPLY_ROUTES: Partial<Record<MessageTemplate, Record<string, ReplyAction>>> = {
-  v_order_request: { '1': ACCEPT, '2': CANT_FILL },
-  v_ack_nag: { '1': ACCEPT, '2': CANT_FILL },
-  v_eta_check: {
-    '1': {
+/** [affirmative, problem] — the digits that mean these are whatever pair the row owns. */
+export const VENDOR_ROUTES: Partial<Record<VendorTemplate, readonly [ReplyAction, ReplyAction]>> = {
+  v_order_request: [ACCEPT, CANT_FILL],
+  v_ack_nag: [ACCEPT, CANT_FILL],
+  v_eta_check: [
+    {
       kind: 'apply',
       intent: 'eta_update',
       eta: 'target_at',
-      notes: 'Vendor confirmed the delivery is on schedule (replied 1)',
+      notes: 'Vendor confirmed the delivery is on schedule',
     },
-    '2': { kind: 'prompt', text: 'When do you expect to deliver? Text back a day and time.' },
-  },
-  v_pickup_request: {
+    { kind: 'prompt', text: 'When do you expect to deliver? Text back a day and time.' },
+  ],
+  v_pickup_request: [
     // eta stays null on purpose: pickupAnchor() re-anchors the overdue clock on any
     // eta_set that lands after pickup_triggered, so writing "today" here would let a
-    // vendor stay permanently not-overdue by texting 1 once a day. See SMS-SIM-SPEC 6.4.
-    '1': {
+    // vendor stay permanently not-overdue by answering yes once a day. See SMS-SIM-SPEC 6.4.
+    {
       kind: 'apply',
       intent: 'pickup_scheduled',
       eta: null,
-      notes: 'Vendor says they can collect it today (replied 1)',
+      notes: 'Vendor says they can collect it today',
     },
-    '2': { kind: 'prompt', text: 'When can you collect it? Text back a day and time.' },
-  },
+    { kind: 'prompt', text: 'When can you collect it? Text back a day and time.' },
+  ],
+}
+
+/**
+ * Households keep literal digits. Nothing rotates here: a family thread carries one
+ * question at a time by householdGate(), so there is nothing to disambiguate, and
+ * f_condition_check's 1-5 is a rating whose digits *are* the meaning.
+ */
+export const FAMILY_ROUTES: Partial<Record<FamilyTemplate, Record<string, ReplyAction>>> = {
   f_delivery_confirm: {
     '1': { kind: 'family_confirm', confirmed: true },
     '2': { kind: 'family_confirm', confirmed: false },
@@ -92,11 +110,33 @@ export const REPLY_ROUTES: Partial<Record<MessageTemplate, Record<string, ReplyA
   f_condition_check: { '1': CONDITION, '2': CONDITION, '3': CONDITION, '4': CONDITION, '5': CONDITION },
 }
 
-const VENDOR_BODY: Record<VendorTemplate, (order: Order, area: string) => string> = {
-  v_order_request: (order, area) => orderRequestText(order, area),
-  v_ack_nag: (order) => ackNagText(order),
-  v_eta_check: (order) => etaCheckText(order),
-  v_pickup_request: (order, area) => pickupRequestText(order, area),
+function isVendorTemplate(template: MessageTemplate): template is VendorTemplate {
+  return template.startsWith('v_')
+}
+
+/**
+ * The action a reply triggers, or undefined when nothing owns it.
+ *
+ * Vendor side, the digit must belong to the pair this row was allocated — that is the
+ * ownership check, and it is what stops "1" from applying to whichever question happens to
+ * be newest. An unowned digit resolves to nothing and is asked about, never guessed.
+ */
+function actionFor(question: Message, digit: string): ReplyAction | undefined {
+  const template = question.direction === 'out' ? question.template : null
+  if (!template) return undefined
+  if (!isVendorTemplate(template)) return FAMILY_ROUTES[template]?.[digit]
+  if (question.reply_slot === null) return undefined
+  const offset = digitOffset(question.reply_slot, digit)
+  return offset === null ? undefined : VENDOR_ROUTES[template]?.[offset]
+}
+
+type VendorQuestion = Exclude<VendorTemplate, 'v_backlog_digest'>
+
+const VENDOR_BODY: Record<VendorQuestion, (order: Order, area: string, digits: SlotDigits) => string> = {
+  v_order_request: (order, area, digits) => orderRequestText(order, area, digits),
+  v_ack_nag: (order, _area, digits) => ackNagText(order, digits),
+  v_eta_check: (order, _area, digits) => etaCheckText(order, digits),
+  v_pickup_request: (order, area, digits) => pickupRequestText(order, area, digits),
 }
 
 const FAMILY_BODY: Record<Exclude<FamilyTemplate, 'f_condition_check'>, (order: Order) => string> = {
@@ -119,12 +159,20 @@ export function sendTemplate(orderId: number, template: MessageTemplate): { mess
   }
 
   if (template in VENDOR_BODY) {
-    const vendorTemplate = template as VendorTemplate
+    const vendorTemplate = template as VendorQuestion
     const area = (
       db.prepare('SELECT market FROM patients WHERE id = ?').get(order.patient_id) as { market: string } | undefined
     )?.market
-    const body = VENDOR_BODY[vendorTemplate](order, area ?? '')
-    return { message_id: sendToVendor(order.vendor_id, orderId, body, vendorTemplate), body }
+    const sent = sendVendorQuestion(order.vendor_id, orderId, vendorTemplate, (digits) =>
+      VENDOR_BODY[vendorTemplate](order, area ?? '', digits),
+    )
+    if (!sent) {
+      throw Object.assign(new Error("this vendor's five reply codes are all in use — a digest went out instead"), {
+        status: 409,
+      })
+    }
+    const body = db.prepare('SELECT body FROM messages WHERE id = ?').get(sent.message_id) as { body: string }
+    return { message_id: sent.message_id, body: body.body }
   }
 
   const familyTemplate = template as Exclude<FamilyTemplate, 'f_condition_check'>
@@ -164,10 +212,12 @@ function recordInbound(
         question.patient_id,
       )
     if (answered) {
-      db.prepare('UPDATE messages SET answered_at = ? WHERE id = ? AND answered_at IS NULL').run(
-        new Date().toISOString(),
-        question.id,
-      )
+      const at = new Date().toISOString()
+      // Retiring the pair closes every question still holding it, not just the row that was
+      // replied to: a nag reuses its order's original pair, and leaving the request open
+      // would keep those digits allocated for the life of the order.
+      if (question.reply_slot !== null) closeSlot(question.vendor_id, question.reply_slot, at)
+      else db.prepare('UPDATE messages SET answered_at = ? WHERE id = ? AND answered_at IS NULL').run(at, question.id)
     }
     return Number(result.lastInsertRowid)
   })
@@ -196,6 +246,7 @@ function result(
     in_reply_to: question.id,
     template: question.direction === 'out' ? question.template : null,
     digit,
+    slot: question.reply_slot,
     outcome,
     prompt,
     order: question.order_id ? getOrder(question.order_id) : null,
@@ -205,7 +256,7 @@ function result(
 function routeDigit(question: Message, digit: string): SmsReplyResult {
   const order = question.order_id ? getOrder(question.order_id) : null
   const template = question.direction === 'out' ? question.template : null
-  const action = template ? REPLY_ROUTES[template]?.[digit] : undefined
+  const action = actionFor(question, digit)
 
   if (!action || !order) {
     return result(question, recordInbound(question, digit, null, 'needs_review', false), digit, 'unmapped')
@@ -220,7 +271,7 @@ function routeDigit(question: Message, digit: string): SmsReplyResult {
         order_ref: String(order.id),
         intent: action.intent,
         eta_iso: action.eta === 'target_at' ? order.target_at : null,
-        notes: action.notes,
+        notes: `${action.notes} (replied ${digit})`,
         confidence: 1,
       }
       const messageId = recordInbound(question, digit, parsed, 'auto_applied', true)
@@ -294,6 +345,7 @@ async function routeText(question: Message, body: string): Promise<SmsReplyResul
       in_reply_to: question.id,
       template: question.direction === 'out' ? question.template : null,
       digit: null,
+      slot: question.reply_slot,
       outcome: message.review_status === 'auto_applied' ? 'applied' : 'review',
       prompt: null,
       order: message.order_id ? getOrder(message.order_id) : question.order_id ? getOrder(question.order_id) : null,
@@ -331,8 +383,71 @@ export async function handleReply(input: ReplyInput): Promise<SmsReplyResult> {
   // digit. So a bare digit typed into the box has to route exactly like a structured one,
   // or the deterministic path would only exist for callers who already knew to use it.
   // Anything longer than a single digit is prose and still goes through routeText.
-  const typed = !digit && /^[1-9]$/.test(body) ? body : ''
+  const typed = !digit && DIGIT.test(body) ? body : ''
   const resolved = digit || typed
 
   return resolved ? routeDigit(question, resolved) : routeText(question, body)
+}
+
+/** 0 is in play because the fifth pair is (9, 0) — see server/slots.ts. */
+const DIGIT = /^[0-9]$/
+
+function orphanInbound(vendorId: number, body: string): number {
+  const id = Number(
+    db
+      .prepare(
+        "INSERT INTO messages (order_id, vendor_id, direction, body, review_status, recipient_type) VALUES (NULL, ?, 'in', ?, 'needs_review', 'vendor')",
+      )
+      .run(vendorId, body).lastInsertRowid,
+  )
+  broadcast({ type: 'message', message_id: id, vendor_id: vendorId, direction: 'in' })
+  return id
+}
+
+/**
+ * What a real SMS gateway hands us: a sender and a body, with no reply-to of any kind.
+ *
+ * This is where the rotating pairs pay for themselves. A bare digit is resolved by
+ * *ownership* — which open question was allocated that pair — so the deterministic route
+ * table is reachable over plain SMS instead of only from a caller that already knew which
+ * message it was answering. Before the pairs existed, this path had no choice but to hand
+ * "1" to a model, which then correctly refused to guess between the vendor's open orders.
+ *
+ * A digit nothing owns is a typo or an answer to a retired pair. We ask which order rather
+ * than applying it to whatever is newest, and the reply still lands in the review queue so
+ * the hospice sees it either way.
+ */
+export async function handleVendorInbound(vendorId: number, body: string): Promise<SmsReplyResult> {
+  const text = body.trim()
+
+  if (DIGIT.test(text)) {
+    const owned = resolveDigit(vendorId, text)
+    if (owned) return routeDigit(owned.question, text)
+
+    const messageId = orphanInbound(vendorId, text)
+    const clarify = clarifyText(vendorId)
+    if (clarify) sendToVendor(vendorId, null, clarify)
+    return {
+      message_id: messageId,
+      in_reply_to: null,
+      template: null,
+      digit: text,
+      slot: null,
+      outcome: clarify ? 'clarify' : 'review',
+      prompt: clarify,
+      order: null,
+    }
+  }
+
+  const message = await handleInbound(vendorId, body)
+  return {
+    message_id: message.id,
+    in_reply_to: null,
+    template: null,
+    digit: null,
+    slot: null,
+    outcome: message.review_status === 'auto_applied' ? 'applied' : 'review',
+    prompt: null,
+    order: message.order_id ? getOrder(message.order_id) : null,
+  }
 }

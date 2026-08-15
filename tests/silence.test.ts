@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { db } from '../server/db'
 import { ackNagText } from '../server/messaging'
 import { resolveOrderToken } from '../server/portal'
+import { slotDigits } from '../server/slots'
 import { applyEvent } from '../server/statemachine'
 import { getOrder } from '../server/store'
 import { tick } from '../server/watchdog'
@@ -29,7 +30,7 @@ function openEscalations(orderId: number) {
 describe('ackNagText', () => {
   it('names the order and equipment and carries the magic link', () => {
     const id = seedOrder()
-    const text = ackNagText(getOrder(id)!)
+    const text = ackNagText(getOrder(id)!, slotDigits(1))
     expect(text).toContain(`#${id}`)
     expect(text).toContain('Hospital bed')
     expect(text).toMatch(/accept or decline/i)
@@ -50,7 +51,7 @@ describe('silence ladder: nag', () => {
     const msgs = outbound(id)
     expect(msgs).toHaveLength(1)
     expect(msgs[0].vendor_id).toBe(1)
-    expect(msgs[0].body).toBe(ackNagText(getOrder(id)!))
+    expect(msgs[0].body).toBe(ackNagText(getOrder(id)!, slotDigits(1)))
   })
 
   it('does not re-send the nag on subsequent ticks', () => {
