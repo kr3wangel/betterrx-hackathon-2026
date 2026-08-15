@@ -260,6 +260,15 @@ export interface VendorLeverage {
   escalations: number
   /** (nags + escalations) / orders_total. The staff-time tax of working with this vendor. */
   interventions_per_order: number | null
+  /** Every templated question we texted them — requests, nags, ETA checks, pickup asks. */
+  questions_asked: number
+  questions_answered: number
+  /** Median hours from question sent to reply received, over answered questions. */
+  median_answer_hours: number | null
+  /** Questions sent more than NEVER_ANSWERED_AFTER_HOURS ago and still unanswered. */
+  never_answered: number
+  /** never_answered over questions old enough to judge. Null until one is that old. */
+  never_answered_rate: number | null
 }
 
 export interface ReportSummary {

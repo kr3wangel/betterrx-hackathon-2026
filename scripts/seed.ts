@@ -1,5 +1,5 @@
 import { db } from '../server/db'
-import { orderRequestText } from '../server/messaging'
+import { ackNagText, orderRequestText } from '../server/messaging'
 import { allocateSlot, slotDigits, SLOT_BASES } from '../server/slots'
 import { computeRisk, RISK_THRESHOLD } from '../server/risk'
 import { conditionCheckText } from '../server/condition'
@@ -63,6 +63,14 @@ interface VendorProfile {
   pod_rate: number
   /** When late with no POD, odds the vendor reports it as on time anyway. Feeds the trust gap. */
   fudge_rate: number
+  /** Typical hours before this vendor answers a texted question. Feeds median answer time. */
+  answer_hours: number
+  /**
+   * Share of question threads (request + any nag) that never get any answer. The
+   * message-level never-answered rate reads higher than this, since an ignored thread
+   * contributes two dead texts once the nag fires.
+   */
+  ignore_rate: number
   notes: string
 }
 
@@ -83,6 +91,8 @@ const VENDORS: VendorProfile[] = [
     pickup_hours: 20,
     pod_rate: 0.86,
     fudge_rate: 0.1,
+    answer_hours: 0.5,
+    ignore_rate: 0.04,
     notes: 'Regional. Reliable except Friday heavy-item runs.',
   },
   {
@@ -105,6 +115,10 @@ const VENDORS: VendorProfile[] = [
     // on-time more often than not. Their claimed rate looks fine; their verified rate doesn't.
     pod_rate: 0.45,
     fudge_rate: 0.55,
+    // The responsiveness story: the branch phone sits unwatched, so a texted question
+    // waits most of a workday for an answer and nearly a third are never answered at all.
+    answer_hours: 7,
+    ignore_rate: 0.3,
     notes: 'National branch, M–F 9–5. Slow, and pickups drift for days.',
   },
   {
@@ -119,8 +133,10 @@ const VENDORS: VendorProfile[] = [
     weak_days: { 6: 0.12 },
     weak_codes: {},
     pickup_hours: 26,
-    pod_rate: 0.8,
-    fudge_rate: 0.15,
+    pod_rate: 0.85,
+    fudge_rate: 0.08,
+    answer_hours: 1,
+    ignore_rate: 0.06,
     notes: 'Regional. Steady, mild weekend softness.',
   },
 ]
@@ -395,10 +411,17 @@ for (const h of history.filter((x) => x.day_offset <= MATERIALIZE_DAYS)) {
   // CLAIM (a timestamp just inside the target), which is all the hospice would have known.
   // vendorLeverage() surfaces the difference as the trust gap. Drawn here, after the
   // history loop, so vendor_stats and the scorecards are untouched by these rolls.
+  //
+  // Keyed off the order id, NOT the shared stream: the shared PRNG is add-and-hash, and
+  // the materialize loop burns a near-constant number of draws per seeded day, so a
+  // stream-positioned roll repeats daily — it was handing Canyon exactly one ignored
+  // thread per day, 2.7× its stated rate, like clockwork.
   const profile = VENDORS.find((v) => v.id === h.vendor_id)!
-  const hasPod = rand() < profile.pod_rate
-  const fudged = !hasPod && !h.on_time && rand() < profile.fudge_rate
-  const recorded_at = fudged ? new Date(h.target_at.getTime() - between(10, 50) * 60_000) : h.delivered_at
+  const orderRand = mulberry32((id * 0x9e3779b1) | 0)
+  const orderBetween = (lo: number, hi: number) => lo + orderRand() * (hi - lo)
+  const hasPod = orderRand() < profile.pod_rate
+  const fudged = !hasPod && !h.on_time && orderRand() < profile.fudge_rate
+  const recorded_at = fudged ? new Date(h.target_at.getTime() - orderBetween(10, 50) * 60_000) : h.delivered_at
 
   insertOrder.run(
     id,
@@ -414,7 +437,53 @@ for (const h of history.filter((x) => x.day_offset <= MATERIALIZE_DAYS)) {
     iso(h.ordered_at),
   )
   insertEvent.run(id, 'order_placed', null, 'hospice', iso(h.ordered_at))
-  insertEvent.run(id, 'vendor_accepted', null, 'vendor', iso(new Date(h.ordered_at.getTime() + 900_000)))
+
+  // The question ledger: every order opened with a request text, answered per the vendor's
+  // habits — acceptance lands when they actually replied, not a flat 15 minutes in, and an
+  // ignored text gets no acceptance event at all (the order was delivered anyway; they just
+  // never answered, which is what never_answered_rate measures). Slow answers and silence
+  // get the ack nag the watchdog would have sent, and silence past that gets its escalation.
+  // Answered rows keep a slot for realism; an ignored question's pair rotated onward to
+  // newer asks long ago, so it carries none — weeks-dead questions must not squat the five
+  // live pairs and jam the demo phones.
+  const ignoredQuestion = orderRand() < profile.ignore_rate
+  const answeredAt = ignoredQuestion
+    ? null
+    : new Date(h.ordered_at.getTime() + profile.answer_hours * orderBetween(0.3, 2.5) * 3_600_000)
+  const order = getOrder(id)!
+  const area = PATIENTS.find((p) => p.id === h.patient_id)!.market
+  insertVendorMessage.run(
+    id,
+    h.vendor_id,
+    orderRequestText(order, area, slotDigits(SLOT_BASES[0])),
+    'v_order_request',
+    ignoredQuestion ? null : SLOT_BASES[0],
+    answeredAt ? iso(answeredAt) : null,
+    iso(h.ordered_at),
+  )
+  const nagAt = new Date(h.ordered_at.getTime() + 2 * 3_600_000)
+  if (ignoredQuestion || answeredAt!.getTime() > nagAt.getTime()) {
+    insertVendorMessage.run(
+      id,
+      h.vendor_id,
+      ackNagText(order, slotDigits(SLOT_BASES[0])),
+      'v_ack_nag',
+      ignoredQuestion ? null : SLOT_BASES[0],
+      answeredAt ? iso(answeredAt) : null,
+      iso(nagAt),
+    )
+  }
+  if (ignoredQuestion) {
+    insertEscalation.run(
+      id,
+      `No response to the automated check-in — order #${id} is still unconfirmed 4h after placement`,
+      'resolved',
+      iso(new Date(h.ordered_at.getTime() + 4 * 3_600_000)),
+    )
+  } else {
+    insertEvent.run(id, 'vendor_accepted', null, 'vendor', iso(answeredAt!))
+  }
+
   insertEvent.run(
     id,
     'delivered',

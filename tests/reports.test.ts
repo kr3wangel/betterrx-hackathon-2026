@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { db } from '../server/db'
-import { reportSummary, vendorLeverage, vendorScorecards } from '../server/reports'
+import { MIN_TRUST_COHORT, reportSummary, vendorLeverage, vendorScorecards } from '../server/reports'
 import { seedFixtures, seedOrder } from './helpers'
 
 beforeEach(() => {
@@ -185,9 +185,10 @@ describe('vendorLeverage', () => {
   })
 
   it('computes the trust gap as claimed minus verified once both cohorts have support', () => {
-    for (let i = 0; i < 5; i++) deliveredOrder(BEFORE, true)
-    for (let i = 0; i < 5; i++) deliveredOrder(AFTER, true)
-    for (let i = 0; i < 10; i++) deliveredOrder(BEFORE, false)
+    const half = Math.ceil(MIN_TRUST_COHORT / 2)
+    for (let i = 0; i < half; i++) deliveredOrder(BEFORE, true)
+    for (let i = 0; i < half; i++) deliveredOrder(AFTER, true)
+    for (let i = 0; i < MIN_TRUST_COHORT; i++) deliveredOrder(BEFORE, false)
 
     const row = vendorLeverage().find((l) => l.vendor.id === 1)!
     expect(row.verified_on_time_rate).toBeCloseTo(0.5, 10)
@@ -196,8 +197,8 @@ describe('vendorLeverage', () => {
   })
 
   it('withholds the trust gap while either cohort is below the minimum sample', () => {
-    for (let i = 0; i < 10; i++) deliveredOrder(BEFORE, true)
-    for (let i = 0; i < 9; i++) deliveredOrder(AFTER, false)
+    for (let i = 0; i < MIN_TRUST_COHORT; i++) deliveredOrder(BEFORE, true)
+    for (let i = 0; i < MIN_TRUST_COHORT - 1; i++) deliveredOrder(AFTER, false)
 
     const row = vendorLeverage().find((l) => l.vendor.id === 1)!
     expect(row.claimed_on_time_rate).toBe(0)
@@ -255,6 +256,68 @@ describe('vendorLeverage', () => {
     expect(row.orders_total).toBe(0)
     expect(row.trust_gap).toBeNull()
     expect(row.interventions_per_order).toBeNull()
+    expect(row.questions_asked).toBe(0)
+    expect(row.median_answer_hours).toBeNull()
+    expect(row.never_answered_rate).toBeNull()
+  })
+})
+
+describe('vendorLeverage — responsiveness', () => {
+  const NOW = new Date('2026-08-15T12:00:00.000Z')
+
+  function insertQuestion(template: string, createdAt: string, answeredAt: string | null, vendorId = 1) {
+    db.prepare(
+      "INSERT INTO messages (order_id, vendor_id, direction, body, recipient_type, template, answered_at, created_at) VALUES (NULL, ?, 'out', 'q', 'vendor', ?, ?, ?)",
+    ).run(vendorId, template, answeredAt, createdAt)
+  }
+
+  it('takes the median answer time over answered questions only', () => {
+    insertQuestion('v_order_request', '2026-08-14T00:00:00.000Z', '2026-08-14T01:00:00.000Z')
+    insertQuestion('v_eta_check', '2026-08-14T00:00:00.000Z', '2026-08-14T04:00:00.000Z')
+    insertQuestion('v_pickup_request', '2026-08-14T00:00:00.000Z', '2026-08-14T20:00:00.000Z')
+    insertQuestion('v_order_request', '2026-08-01T00:00:00.000Z', null)
+
+    const row = vendorLeverage(NOW).find((l) => l.vendor.id === 1)!
+    expect(row.questions_asked).toBe(4)
+    expect(row.questions_answered).toBe(3)
+    expect(row.median_answer_hours).toBeCloseTo(4, 10)
+  })
+
+  it('averages the two middle values when the answered count is even', () => {
+    insertQuestion('v_order_request', '2026-08-14T00:00:00.000Z', '2026-08-14T02:00:00.000Z')
+    insertQuestion('v_order_request', '2026-08-14T00:00:00.000Z', '2026-08-14T06:00:00.000Z')
+
+    const row = vendorLeverage(NOW).find((l) => l.vendor.id === 1)!
+    expect(row.median_answer_hours).toBeCloseTo(4, 10)
+  })
+
+  it('counts a question as never answered only once it is older than 24h', () => {
+    insertQuestion('v_order_request', '2026-08-13T00:00:00.000Z', null) // 36h old — ignored
+    insertQuestion('v_order_request', '2026-08-15T06:00:00.000Z', null) // 6h old — still in play
+    insertQuestion('v_order_request', '2026-08-13T06:00:00.000Z', '2026-08-13T08:00:00.000Z') // old, answered
+
+    const row = vendorLeverage(NOW).find((l) => l.vendor.id === 1)!
+    expect(row.never_answered).toBe(1)
+    expect(row.never_answered_rate).toBeCloseTo(0.5, 10)
+  })
+
+  it('leaves the never-answered rate null while no question is old enough to judge', () => {
+    insertQuestion('v_order_request', '2026-08-15T06:00:00.000Z', null)
+
+    const row = vendorLeverage(NOW).find((l) => l.vendor.id === 1)!
+    expect(row.never_answered).toBe(0)
+    expect(row.never_answered_rate).toBeNull()
+  })
+
+  it('ignores the backlog digest and conversational sends — they ask for nothing', () => {
+    insertQuestion('v_backlog_digest', '2026-08-13T00:00:00.000Z', null)
+    db.prepare(
+      "INSERT INTO messages (order_id, vendor_id, direction, body, recipient_type, created_at) VALUES (NULL, 1, 'out', 'chat', 'vendor', '2026-08-13T00:00:00.000Z')",
+    ).run()
+
+    const row = vendorLeverage(NOW).find((l) => l.vendor.id === 1)!
+    expect(row.questions_asked).toBe(0)
+    expect(row.never_answered_rate).toBeNull()
   })
 })
 

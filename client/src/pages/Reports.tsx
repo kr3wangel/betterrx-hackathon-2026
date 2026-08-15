@@ -476,6 +476,7 @@ function ContractLeverage({ leverage }: { leverage: VendorLeverage[] }) {
   )
 
   const gapPoints = (gap: number) => `${gap > 0 ? '+' : ''}${Math.round(gap * 100)} pts`
+  const answerTime = (h: number) => (h < 1 ? `${Math.round(h * 60)}m` : `${h.toFixed(1)}h`)
 
   return (
     <Card>
@@ -503,6 +504,7 @@ function ContractLeverage({ leverage }: { leverage: VendorLeverage[] }) {
               <TableHead className="text-right">Verified on-time</TableHead>
               <TableHead className="text-right">Claimed on-time</TableHead>
               <TableHead className="text-right">Trust gap</TableHead>
+              <TableHead className="text-right">Answers in</TableHead>
               <TableHead className="text-right">Interventions / order</TableHead>
             </TableRow>
           </TableHeader>
@@ -527,7 +529,7 @@ function ContractLeverage({ leverage }: { leverage: VendorLeverage[] }) {
                   {l.trust_gap == null ? (
                     <span
                       className="text-faint"
-                      title="Withheld: fewer than 10 deliveries in one of the cohorts — a gap that small a sample would be noise, not a finding"
+                      title="Withheld: fewer than 15 deliveries in one of the cohorts — a gap on that small a sample would be noise, not a finding"
                     >
                       —
                     </span>
@@ -536,6 +538,14 @@ function ContractLeverage({ leverage }: { leverage: VendorLeverage[] }) {
                       {gapPoints(l.trust_gap)}
                     </Badge>
                   )}
+                </TableCell>
+                <TableCell className="text-right tabular-nums">
+                  {l.median_answer_hours == null ? '—' : answerTime(l.median_answer_hours)}
+                  <div className="text-xs font-normal text-faint">
+                    {l.never_answered_rate == null
+                      ? `${l.questions_asked} asked`
+                      : `never answers ${pct(l.never_answered_rate)} · ${l.questions_asked} asked`}
+                  </div>
                 </TableCell>
                 <TableCell className="text-right tabular-nums">
                   {l.interventions_per_order == null ? '—' : l.interventions_per_order.toFixed(2)}
@@ -552,10 +562,13 @@ function ContractLeverage({ leverage }: { leverage: VendorLeverage[] }) {
           <span className="font-semibold">verified</span> when a driver POD exists, and{' '}
           <span className="font-semibold">claimed</span> when the only evidence is the vendor saying
           so. The trust gap is claimed minus verified on-time — a vendor whose word consistently
-          outruns their PODs earns a bigger gap — and is withheld until both cohorts have 10
-          deliveries. Interventions count automated chases plus escalations: staff time the vendor
-          cost us. Every number is computed from the append-only event ledger on request, which is
-          what makes it a renewal argument rather than an impression.
+          outruns their PODs earns a bigger gap — and is withheld until both cohorts have 15
+          deliveries. <span className="font-semibold">Answers in</span> is the median time from a
+          texted question to its reply; every question carries a sent and an answered timestamp,
+          and one unanswered after 24 hours counts as never answered (younger ones are still in
+          play). Interventions count automated chases plus escalations: staff time the vendor cost
+          us. Every number is computed from the append-only event ledger on request, which is what
+          makes it a renewal argument rather than an impression.
         </p>
       </CardContent>
     </Card>

@@ -46,12 +46,27 @@ export function vendorScorecards(): VendorScorecard[] {
 }
 
 export const LEVERAGE_DEFINITION =
-  'Computed live from the event ledger on every request, never from the seeded scorecard history. A delivery is verified when a driver POD (photo/signature) exists for it, claimed when the only evidence is the vendor saying so. On-time compares the first delivered event’s timestamp against the order’s target. The trust gap is claimed-on-time minus verified-on-time — a vendor whose word consistently outruns their PODs earns a bigger gap — and is only reported once both cohorts have 10 deliveries, because a gap built on a handful of orders is noise. Interventions count automated ack chases plus escalations — each one is staff time the vendor cost us.'
+  'Computed live from the event ledger on every request, never from the seeded scorecard history. A delivery is verified when a driver POD (photo/signature) exists for it, claimed when the only evidence is the vendor saying so. On-time compares the first delivered event’s timestamp against the order’s target. The trust gap is claimed-on-time minus verified-on-time — a vendor whose word consistently outruns their PODs earns a bigger gap — and is only reported once both cohorts have 15 deliveries, because a gap built on a handful of orders is noise. Interventions count automated ack chases plus escalations — each one is staff time the vendor cost us. Responsiveness reads the question ledger: every templated text carries a sent timestamp and, once a reply resolves it, an answered timestamp — the median gap is how long this vendor sits on a question, and a question still unanswered after 24 hours counts as ignored (younger ones are still in play, so they count toward neither side).'
 
-/** A trust gap over fewer deliveries than this per cohort is noise, not a finding. */
-export const MIN_TRUST_COHORT = 10
+/**
+ * A trust gap over fewer deliveries than this per cohort is noise, not a finding — at 10
+ * per cohort a reliable vendor still showed a +16pt "gap" off one lucky claimed run.
+ */
+export const MIN_TRUST_COHORT = 15
 
-export function vendorLeverage(): VendorLeverage[] {
+/** A question younger than this could still get answered; only older ones count as ignored. */
+export const NEVER_ANSWERED_AFTER_HOURS = 24
+
+const QUESTION_TEMPLATES = "('v_order_request', 'v_ack_nag', 'v_eta_check', 'v_pickup_request')"
+
+function median(xs: number[]): number | null {
+  if (!xs.length) return null
+  const sorted = [...xs].sort((a, b) => a - b)
+  const mid = Math.floor(sorted.length / 2)
+  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2
+}
+
+export function vendorLeverage(now = new Date()): VendorLeverage[] {
   const vendors = db.prepare('SELECT * FROM vendors ORDER BY name').all() as Vendor[]
   const orders = db.prepare('SELECT id, vendor_id, target_at FROM orders').all() as {
     id: number
@@ -82,6 +97,20 @@ export function vendorLeverage(): VendorLeverage[] {
     .all() as { vendor_id: number; n: number }[]) {
     escalationsByVendor.set(row.vendor_id, row.n)
   }
+  // Identified by template, not reply_slot — an expired question's pair rotates onward,
+  // but it was still a question we asked and they ignored. The digest isn't in the list:
+  // it asks for nothing.
+  const questionsByVendor = new Map<number, { created_at: string; answered_at: string | null }[]>()
+  for (const row of db
+    .prepare(
+      `SELECT vendor_id, created_at, answered_at FROM messages WHERE direction = 'out' AND template IN ${QUESTION_TEMPLATES}`,
+    )
+    .all() as { vendor_id: number; created_at: string; answered_at: string | null }[]) {
+    const list = questionsByVendor.get(row.vendor_id) ?? []
+    list.push(row)
+    questionsByVendor.set(row.vendor_id, list)
+  }
+  const ageFloor = now.getTime() - NEVER_ANSWERED_AFTER_HOURS * 3_600_000
 
   return vendors.map((vendor) => {
     const own = orders.filter((o) => o.vendor_id === vendor.id)
@@ -105,6 +134,12 @@ export function vendorLeverage(): VendorLeverage[] {
     const claimedRate = claimedCount ? claimedOnTime / claimedCount : null
     const nags = nagsByVendor.get(vendor.id) ?? 0
     const escalations = escalationsByVendor.get(vendor.id) ?? 0
+    const questions = questionsByVendor.get(vendor.id) ?? []
+    const answerHours = questions
+      .filter((q) => q.answered_at !== null)
+      .map((q) => (Date.parse(q.answered_at!) - Date.parse(q.created_at)) / 3_600_000)
+    const oldEnough = questions.filter((q) => Date.parse(q.created_at) < ageFloor)
+    const neverAnswered = oldEnough.filter((q) => q.answered_at === null).length
     return {
       vendor,
       orders_total: own.length,
@@ -120,6 +155,11 @@ export function vendorLeverage(): VendorLeverage[] {
       nags_sent: nags,
       escalations,
       interventions_per_order: own.length ? (nags + escalations) / own.length : null,
+      questions_asked: questions.length,
+      questions_answered: answerHours.length,
+      median_answer_hours: median(answerHours),
+      never_answered: neverAnswered,
+      never_answered_rate: oldEnough.length ? neverAnswered / oldEnough.length : null,
     }
   })
 }

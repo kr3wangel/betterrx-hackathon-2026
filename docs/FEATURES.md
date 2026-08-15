@@ -89,7 +89,7 @@ suppresses itself on real handsets.
 | Proof of delivery | `pods.ts` | Photo, signature, timestamp, plus condition attestation |
 | EMR webhook | `pickups.ts` | Simulated patient-status events drive automatic pickup |
 | Reports | `reports.ts` | Vendor scorecards, calls avoided, pickup latency |
-| Contract leverage | `reports.ts` `vendorLeverage()` | **The renewal-negotiation table**, computed live from the event ledger — never from seeded `vendor_stats`. Splits each vendor's on-time rate into POD-**verified** vs **claimed** (vendor's word only); the difference is the **trust gap**, withheld until both cohorts have 10 deliveries so a small sample can't masquerade as a finding. Plus interventions per order (ack nags + escalations = staff time the vendor cost us). `GET /api/reports/vendor-leverage`, rendered on `/reports`. The seed gives each vendor a `pod_rate` and a `fudge_rate` (a late, unverified delivery sometimes gets reported as on-time), so Beehive's word measurably outruns its PODs |
+| Contract leverage | `reports.ts` `vendorLeverage()` | **The renewal-negotiation table**, computed live from the event ledger — never from seeded `vendor_stats`. Splits each vendor's on-time rate into POD-**verified** vs **claimed** (vendor's word only); the difference is the **trust gap**, withheld until both cohorts have 15 deliveries so a small sample can't masquerade as a finding. **Responsiveness** reads the question ledger: every templated text carries a sent and (once replied) an answered timestamp, giving median time-to-answer and a never-answered rate (a question only counts as ignored after 24h). Plus interventions per order (ack nags + escalations = staff time the vendor cost us). `GET /api/reports/vendor-leverage`, rendered on `/reports`. The seed gives each vendor `pod_rate`/`fudge_rate` (a late, unverified delivery sometimes gets reported as on-time) and `answer_hours`/`ignore_rate` (question threads answered slow, or never), so Beehive's word measurably outruns its PODs (+20 pts), it sits on a question for a median 8.6h, and never answers ~32% of texts — while Wasatch answers in ~40m and ignores ~6% |
 | Live updates | `sse.ts` + `useEventStream` | One shared SSE stream app-wide |
 | Synthetic world | `scripts/seed.ts` + `shared/catalog.ts` | CMS-grounded 12-code catalog, a simulated year, vendor stats **derived** from it |
 
@@ -224,13 +224,13 @@ as on-time anyway (per-vendor `pod_rate` / `fudge_rate` in the seed).
 
 ## 7 · Test coverage
 
-**14 files, 185 tests** (re-derived 08-15, after the contract-leverage panel). Core logic is
-covered; UI and routes deliberately are not.
+**14 files, 190 tests** (re-derived 08-15, after contract leverage + vendor responsiveness).
+Core logic is covered; UI and routes deliberately are not.
 
 | File | Tests | Covers |
 |---|---:|---|
 | `sms.test.ts` | 53 | SMS templates, reply handling, route-table integrity, rotating reply codes, gateway-shaped inbound |
-| `reports.test.ts` | 23 | Scorecards, calls avoided, latency, contract leverage (trust gap, cohort minimum, interventions) |
+| `reports.test.ts` | 28 | Scorecards, calls avoided, latency, contract leverage (trust gap, cohort minimum, interventions, median answer time, never-answered rate) |
 | `portal.test.ts` | 13 | Magic-link flows |
 | `condition.test.ts` | 12 | Caregiver rating parser, including the ambiguity cases |
 | `risk.test.ts` | 12 | Risk scoring and thresholds |
