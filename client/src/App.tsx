@@ -2,6 +2,8 @@ import type { ReactNode } from 'react'
 import { NavLink, Navigate, Route, Routes, useNavigate } from 'react-router-dom'
 import { Check, ChevronDown, ExternalLink, LogOut, Smartphone } from 'lucide-react'
 import { useEventStream } from './hooks/useEventStream'
+import { useEventNarration } from './hooks/useEventNarration'
+import { HighlightProvider } from './lib/highlight'
 import { ROLES, useAuth, type RoleId } from './lib/auth'
 import {
   DropdownMenu,
@@ -210,67 +212,75 @@ function Shell() {
 
   return (
     <TooltipProvider delayDuration={200}>
-      <div className="min-h-screen bg-background text-foreground">
-        <header className="border-b border-border bg-card">
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-3">
-            {/* Coral pill logo */}
-            <span className="rounded-full bg-primary px-3 py-1 font-display text-sm font-extrabold tracking-tight text-primary-foreground">
-              betterRX
-            </span>
-            {/* Product-level nav — DME active, underlined in coral */}
-            <nav className="flex items-center gap-4">
-              {productTabs.map((t) => (
-                <span
-                  key={t.label}
-                  className={cn(
-                    'text-sm font-semibold',
-                    t.active
-                      ? 'border-b-2 border-primary pb-0.5 text-foreground'
-                      : 'text-muted-foreground'
-                  )}
-                >
-                  {t.label}
-                </span>
-              ))}
-            </nav>
-            <div className="ml-auto flex items-center gap-4">
-              <span className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-                <span
-                  className={cn('h-2.5 w-2.5 rounded-full', connected ? 'bg-success' : 'bg-destructive')}
-                />
-                {connected ? 'Live' : 'Disconnected'}
+      <HighlightProvider>
+        <Narrator />
+        <div className="min-h-screen bg-background text-foreground">
+          <header className="border-b border-border bg-card">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-3">
+              {/* Coral pill logo */}
+              <span className="rounded-full bg-primary px-3 py-1 font-display text-sm font-extrabold tracking-tight text-primary-foreground">
+                betterRX
               </span>
-              <AccountControl />
+              {/* Product-level nav — DME active, underlined in coral */}
+              <nav className="flex items-center gap-4">
+                {productTabs.map((t) => (
+                  <span
+                    key={t.label}
+                    className={cn(
+                      'text-sm font-semibold',
+                      t.active
+                        ? 'border-b-2 border-primary pb-0.5 text-foreground'
+                        : 'text-muted-foreground'
+                    )}
+                  >
+                    {t.label}
+                  </span>
+                ))}
+              </nav>
+              <div className="ml-auto flex items-center gap-4">
+                <span className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                  <span
+                    className={cn('h-2.5 w-2.5 rounded-full', connected ? 'bg-success' : 'bg-destructive')}
+                  />
+                  {connected ? 'Live' : 'Disconnected'}
+                </span>
+                <AccountControl />
+              </div>
             </div>
-          </div>
-          {/* Surface (persona) nav for the DME module */}
-          <div className="flex flex-wrap gap-1 border-t border-border px-5 py-2">
-            {links.map((l) => (
-              <NavLink key={l.to} to={l.to} className={surfaceLinkClass}>
-                {l.label}
-              </NavLink>
-            ))}
-          </div>
-        </header>
+            {/* Surface (persona) nav for the DME module */}
+            <div className="flex flex-wrap gap-1 border-t border-border px-5 py-2">
+              {links.map((l) => (
+                <NavLink key={l.to} to={l.to} className={surfaceLinkClass}>
+                  {l.label}
+                </NavLink>
+              ))}
+            </div>
+          </header>
 
-        <main className="mx-auto max-w-7xl px-5 py-8 md:px-8">
-          <Routes>
-            <Route path="/" element={<Navigate to="/hospice" replace />} />
-            <Route path="/hospice" element={<Hospice />} />
-            <Route path="/order" element={<Order />} />
-            <Route path="/nurse" element={<Nurse />} />
-            <Route path="/driver" element={<Driver />} />
-            <Route path="/reports" element={<Reports />} />
-            {/* Retired from the nav, kept routable: typed URL only.
-                /portal/:token and /status/:token live outside the Shell — see PortalShell. */}
-            <Route path="/vendor" element={<VendorPage />} />
-            <Route path="/vendor-portal" element={<VendorPortal />} />
-            {/* Unlisted in the nav — a presenter prop, not a product surface. */}
-            <Route path="/demo" element={<Demo />} />
-          </Routes>
-        </main>
-        <Toaster />
-      </div>
+          <main className="mx-auto max-w-7xl px-5 py-8 md:px-8">
+            <Routes>
+              <Route path="/" element={<Navigate to="/hospice" replace />} />
+              <Route path="/hospice" element={<Hospice />} />
+              <Route path="/order" element={<Order />} />
+              <Route path="/nurse" element={<Nurse />} />
+              <Route path="/driver" element={<Driver />} />
+              <Route path="/reports" element={<Reports />} />
+              {/* Retired from the nav, kept routable: typed URL only.
+                  /portal/:token and /status/:token live outside the Shell — see PortalShell. */}
+              <Route path="/vendor" element={<VendorPage />} />
+              <Route path="/vendor-portal" element={<VendorPortal />} />
+              {/* Unlisted in the nav — a presenter prop, not a product surface. */}
+              <Route path="/demo" element={<Demo />} />
+            </Routes>
+          </main>
+          <Toaster />
+        </div>
+      </HighlightProvider>
     </TooltipProvider>
   )
+}
+
+function Narrator() {
+  useEventNarration()
+  return null
 }
