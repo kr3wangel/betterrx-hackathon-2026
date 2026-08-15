@@ -514,11 +514,15 @@ function ContractLeverage({ leverage }: { leverage: VendorLeverage[] }) {
                 </TableCell>
                 <TableCell className="text-right tabular-nums">
                   {l.verified_on_time_rate == null ? '—' : pct(l.verified_on_time_rate)}
-                  <div className="text-xs font-normal text-faint">POD-backed, n={l.verified_deliveries}</div>
+                  <div className="text-xs font-normal text-faint">
+                    {l.verified_deliveries === 1 ? '1 delivery with proof' : `${l.verified_deliveries} deliveries with proof`}
+                  </div>
                 </TableCell>
                 <TableCell className="text-right tabular-nums">
                   {l.claimed_on_time_rate == null ? '—' : pct(l.claimed_on_time_rate)}
-                  <div className="text-xs font-normal text-faint">their word, n={l.claimed_deliveries}</div>
+                  <div className="text-xs font-normal text-faint">
+                    {l.claimed_deliveries === 1 ? '1 on their word alone' : `${l.claimed_deliveries} on their word alone`}
+                  </div>
                 </TableCell>
                 <TableCell className="text-right">
                   {l.trust_gap == null ? (
