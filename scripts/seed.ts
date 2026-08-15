@@ -3,6 +3,7 @@ import { ackNagText, orderRequestText, vendorAckText } from '../server/messaging
 import { slotDigits, SLOT_BASES } from '../server/slots'
 import { computeRisk, RISK_THRESHOLD } from '../server/risk'
 import { conditionCheckText } from '../server/condition'
+import { demoDay } from '../server/portal'
 import { getOrder } from '../server/store'
 import { CATALOG, byCode } from '../shared/catalog'
 import type { Order, VendorStat } from '../shared/types'
@@ -71,6 +72,8 @@ interface VendorProfile {
    * contributes two dead texts once the nag fires.
    */
   ignore_rate: number
+  /** Stops the dispatcher says they can take in a day, or null for a vendor that never declares. */
+  stops_per_day: number | null
   notes: string
 }
 
@@ -93,6 +96,7 @@ const VENDORS: VendorProfile[] = [
     fudge_rate: 0.1,
     answer_hours: 0.5,
     ignore_rate: 0.04,
+    stops_per_day: 6,
     notes: 'Regional. Reliable except Friday heavy-item runs.',
   },
   {
@@ -119,6 +123,8 @@ const VENDORS: VendorProfile[] = [
     // waits most of a workday for an answer and nearly a third are never answered at all.
     answer_hours: 7,
     ignore_rate: 0.3,
+    // The vendor that fudges deliveries is the one that never tells us its capacity.
+    stops_per_day: null,
     notes: 'National branch, M–F 9–5. Slow, and pickups drift for days.',
   },
   {
@@ -137,6 +143,7 @@ const VENDORS: VendorProfile[] = [
     fudge_rate: 0.08,
     answer_hours: 1,
     ignore_rate: 0.06,
+    stops_per_day: 5,
     notes: 'Regional. Steady, mild weekend softness.',
   },
 ]
@@ -298,7 +305,7 @@ for (let d = HISTORY_DAYS; d >= 1; d--) {
 // ---------------------------------------------------------------- write
 
 db.exec(
-  'DELETE FROM pods; DELETE FROM escalations; DELETE FROM messages; DELETE FROM order_events; DELETE FROM orders; DELETE FROM vendor_stats; DELETE FROM vendors; DELETE FROM patients;',
+  'DELETE FROM vendor_capacity; DELETE FROM pods; DELETE FROM escalations; DELETE FROM messages; DELETE FROM order_events; DELETE FROM orders; DELETE FROM vendor_stats; DELETE FROM vendors; DELETE FROM patients;',
 )
 
 db.exec('DELETE FROM condition_reports;')
@@ -313,6 +320,14 @@ const insertVendor = db.prepare(
 )
 for (const v of [...VENDORS, COLD_START_VENDOR])
   insertVendor.run(v.id, v.name, v.phone, v.channel, v.service_area, v.contact_name)
+
+// Today's declared stop capacity. An absent row is itself information — Beehive never
+// declares, and the cold-start vendor has nothing until someone taps it.
+const insertCapacity = db.prepare(
+  'INSERT INTO vendor_capacity (vendor_id, day, stops, declared_at) VALUES (?, ?, ?, ?)',
+)
+for (const v of VENDORS)
+  if (v.stops_per_day !== null) insertCapacity.run(v.id, demoDay(), v.stops_per_day, new Date().toISOString())
 
 // Vendor stats derived from the simulated year, not hand-typed.
 const insertStat = db.prepare(

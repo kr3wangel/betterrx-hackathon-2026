@@ -110,6 +110,14 @@ describe('isNarratableType', () => {
     expect(isNarratableType(orderEvent('risk_updated'))).toBe(false)
     expect(isNarratableType(orderEvent('family_notified'))).toBe(false)
   })
+
+  // A dispatcher editing their own stop count is not board news; capacity is a display
+  // input, never an event the hospice gets toasted about.
+  it('is false for a vendor capacity declaration', () => {
+    const event = { type: 'vendor_capacity', at: AT, vendor_id: 3 } as const
+    expect(isNarratableType(event)).toBe(false)
+    expect(decideNarration(event, makeWorld(), [], NOW)).toEqual({ narrate: false, reason: 'not_narratable' })
+  })
 })
 
 describe('noise rules', () => {

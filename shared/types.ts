@@ -315,8 +315,27 @@ export interface ReportSummary {
   }
 }
 
+/**
+ * A vendor's day in the unit the vendor uses: stops, one per household per direction.
+ * The ledger-derived counts are ours and render as fact; `capacity` is the vendor's word
+ * and renders as a claim. `remaining_today` is computed server-side so no client re-derives
+ * it — clients render these numbers, never compute them.
+ */
+export interface VendorLoad {
+  vendor_id: number
+  open_stops: number
+  due_today_stops: number
+  overdue_pickups: number
+  /** Today's declaration, or null when the vendor has not declared. 0 is a real declaration. */
+  capacity: number | null
+  declared_at: string | null
+  /** max(0, capacity - due_today_stops), or null with no declaration. */
+  remaining_today: number | null
+}
+
 export type ServerEvent =
   | { type: 'heartbeat'; at: string }
+  | { type: 'vendor_capacity'; at: string; vendor_id: number }
   | { type: 'order_event'; at: string; order_id: number; event_type: OrderEventType; state: OrderState }
   | { type: 'escalation'; at: string; order_id: number; escalation_id: number }
   | { type: 'message'; at: string; message_id: number; vendor_id: number; direction: 'in' | 'out' }

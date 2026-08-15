@@ -22,6 +22,8 @@ import {
   resolveOrderToken,
   vendorToken,
   portalOrders,
+  vendorLoad,
+  declareCapacity,
   portalConfirm,
   portalSetEta,
   portalDecline,
@@ -198,7 +200,18 @@ routes.post('/emr/patient-status', (req, res) => {
 routes.get('/portal/:token', (req, res) => {
   const vendor = resolveToken(req.params.token)
   if (!vendor) return res.status(404).json({ error: 'unknown link' })
-  res.json({ vendor, orders: portalOrders(vendor.id) })
+  res.json({ vendor, orders: portalOrders(vendor.id), load: vendorLoad(vendor.id) })
+})
+
+routes.post('/portal/:token/capacity', (req, res) => {
+  const vendor = resolveToken(req.params.token)
+  if (!vendor) return res.status(404).json({ error: 'unknown link' })
+  res.json(declareCapacity(vendor.id, Number(req.body?.stops)))
+})
+
+routes.get('/vendors/load', (_req, res) => {
+  const vendors = db.prepare('SELECT id FROM vendors ORDER BY id').all() as { id: number }[]
+  res.json(vendors.map((v) => vendorLoad(v.id)))
 })
 
 /**
