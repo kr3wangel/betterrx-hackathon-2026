@@ -205,6 +205,7 @@ function OrderRequestCard({
               <Input
                 id={`eta-${order.id}`}
                 type="datetime-local"
+                className="text-base"
                 value={etaValue}
                 onChange={(e) => setEtaValue(e.target.value)}
               />
