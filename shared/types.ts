@@ -89,6 +89,11 @@ export interface Order {
   risk_reasons: string[] | null
   delivery_verified: boolean
   pickup_verified: boolean
+  /**
+   * The vendor answered the pickup ask. Separate from `eta_at`, which a pickup affirmative
+   * deliberately never writes so a daily "yes" can't hold the order out of overdue.
+   */
+  pickup_committed: boolean
   /** A household said the equipment arrived. Weaker than a POD, stronger than a vendor claim. */
   family_confirmed: boolean
   created_at: string

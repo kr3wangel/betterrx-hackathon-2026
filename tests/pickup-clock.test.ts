@@ -82,6 +82,16 @@ describe('pickup overdue clock', () => {
     expect(overdueEvents(id)).toHaveLength(0)
   })
 
+  it('still flags a pickup the vendor committed to with no eta', () => {
+    const id = seedOrder({ state: 'delivered', created_at: hoursAgo(240) })
+    triggerPickup(id, hoursAgo(30))
+    applyEvent(id, 'eta_set', { eta_iso: null, source: 'group reply' }, 'vendor')
+    expect(getOrder(id)!.pickup_committed).toBe(true)
+    tick(new Date())
+    expect(getOrder(id)!.state).toBe('pickup_overdue')
+    expect(overdueEvents(id)).toEqual([{ hours_waiting: 30 }])
+  })
+
   it('measures from a post-trigger eta when that eta is itself past the window', () => {
     const id = seedOrder({ state: 'delivered', created_at: hoursAgo(240) })
     triggerPickup(id, hoursAgo(40))

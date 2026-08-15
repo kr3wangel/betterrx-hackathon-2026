@@ -50,6 +50,46 @@ describe('provenance flags', () => {
   })
 })
 
+describe('pickup commitment flag', () => {
+  function triggeredPickup(): number {
+    const id = seedOrder({ state: 'delivered' })
+    applyEvent(id, 'pickup_triggered', { patient_status: 'deceased' }, 'hospice')
+    return id
+  }
+
+  it('an eta-less eta_set after the trigger commits the pickup without writing eta_at', () => {
+    const id = triggeredPickup()
+    expect(getOrder(id)!.pickup_committed).toBe(false)
+    applyEvent(id, 'eta_set', { eta_iso: null, source: 'group reply' }, 'vendor')
+    const order = getOrder(id)!
+    expect(order.pickup_committed).toBe(true)
+    expect(order.eta_at).toBeNull()
+  })
+
+  it('a delivery-phase eta_set before the trigger does not commit the pickup', () => {
+    const id = seedOrder({ state: 'in_transit' })
+    applyEvent(id, 'eta_set', { eta_iso: new Date().toISOString() }, 'vendor')
+    applyEvent(id, 'delivered', { pod: true }, 'driver')
+    applyEvent(id, 'pickup_triggered', { patient_status: 'deceased' }, 'hospice')
+    expect(getOrder(id)!.pickup_committed).toBe(false)
+  })
+
+  it('an order with no pickup trigger at all is never committed', () => {
+    const id = seedOrder({ state: 'in_transit' })
+    applyEvent(id, 'eta_set', { eta_iso: new Date().toISOString() }, 'vendor')
+    expect(getOrder(id)!.pickup_committed).toBe(false)
+  })
+
+  it('listOrders carries the flag', () => {
+    const committed = triggeredPickup()
+    const waiting = triggeredPickup()
+    applyEvent(committed, 'eta_set', { eta_iso: null }, 'vendor')
+    const orders = listOrders()
+    expect(orders.find((o) => o.id === committed)!.pickup_committed).toBe(true)
+    expect(orders.find((o) => o.id === waiting)!.pickup_committed).toBe(false)
+  })
+})
+
 describe('unproven delivery claims', () => {
   it('applyParsed with intent delivered escalates for missing proof', () => {
     const id = seedOrder({ state: 'in_transit' })

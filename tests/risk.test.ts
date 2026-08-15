@@ -20,6 +20,7 @@ function order(overrides: Partial<Order> = {}): Order {
     risk_reasons: null,
     delivery_verified: false,
     pickup_verified: false,
+    pickup_committed: false,
     family_confirmed: false,
     created_at: '2026-08-14T00:00:00Z',
     ...overrides,

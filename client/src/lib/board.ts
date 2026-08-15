@@ -115,7 +115,7 @@ export function decisionLine(card: VendorScorecard, order: Order, now: Date): st
 
 export function statePill(order: Order): Pill {
   if (isPickup(order)) {
-    return order.eta_at
+    return order.eta_at || order.pickup_committed
       ? { tone: 'good', label: 'Confirmed ✓', action: null }
       : { tone: 'wait', label: 'Waiting on vendor', action: null }
   }
