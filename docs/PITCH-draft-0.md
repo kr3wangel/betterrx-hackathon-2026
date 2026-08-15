@@ -18,9 +18,12 @@ if this draft and the demo script disagree about what's on screen, the demo scri
 
 **Timing rail** (targets, not handcuffs — the 0:30 slack at the end absorbs drift):
 
-| 0:00 | 0:25 | 0:45 | 1:45 | 2:30 | 4:00 | 4:15 | 4:30 | 5:00 |
+| 0:00 | 0:25 | 0:45 | 1:45 | 2:40 | 4:10 | 4:25 | 4:40 | 5:00 |
 |---|---|---|---|---|---|---|---|---|
 | open | problem | S1 | S2 | S3 | reports | close | done | slack |
+
+*(S2 went 0:45 → 0:55 on 08-15 to put the vendor's reply on stage; the ten seconds came out of the
+end slack, which is now 0:20. Everything from S3 on shifts ten seconds later.)*
 
 ---
 
@@ -86,7 +89,7 @@ Confirm delivery. Back to tab 1 as the badge flips.*
 > **"Delivered" isn't a claim here. It's a photo, a signature, and a timestamp — the badge says
 > *Verified*, not vendor-reported. Margaret's bed is in the house tonight.**
 
-## 1:45 — Scenario 2: the nurse in the home (0:45)
+## 1:45 — Scenario 2: the nurse in the home (0:55)
 
 *(Reseed scenario2; hard-refresh tabs 1 and 3.)*
 
@@ -102,7 +105,13 @@ Confirm delivery. Back to tab 1 as the badge flips.*
 
 > Two pickups scheduled. Zero phone calls made by anyone in that house. And the vendor got one
 > text, not two — a bed and a concentrator in the same living room is one truck at one door.
-> **One death. One text. One trip.**
+
+▶ *Tab 7 → Wasatch → type the affirmative digit the text names ([SCREEN] — read it off the bubble,
+the pairs rotate) → the receipt lands. Glance at tab 1.*
+
+> **One digit from the vendor, and both pickups are committed — the trip is the unit, and no model
+> touched it.** [SCREEN — *"applied to 2 orders · no model needed"*.] **One death. One text. One
+> trip. One digit.**
 
 ▶ *Tab 2, driver — two PICK UP cards.*
 

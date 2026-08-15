@@ -39,11 +39,16 @@ board. The product is the meat in the middle; the family is the bread.
 | 1 | Cold open — Margaret | 0:25 | 0:25 |
 | 2 | The problem + the one-line frame | 0:20 | 0:45 |
 | 3 | **Scenario 1** — the case worker's save | 1:00 | 1:45 |
-| 4 | **Scenario 2** — the nurse in the home | 0:45 | 2:30 |
-| 5 | **Scenario 3** — the cold-start vendor (climax) | 1:30 | 4:00 |
-| 6 | Reporting beat — the directing nurse | 0:15 | 4:15 |
-| 7 | Close — the family line | 0:15 | 4:30 |
-| — | **Slack** (seed reloads, a watchdog tick that runs late, one judge interruption) | **0:30** | 5:00 |
+| 4 | **Scenario 2** — the nurse in the home | 0:55 | 2:40 |
+| 5 | **Scenario 3** — the cold-start vendor (climax) | 1:30 | 4:10 |
+| 6 | Reporting beat — the directing nurse | 0:15 | 4:25 |
+| 7 | Close — the family line | 0:15 | 4:40 |
+| — | **Slack** (seed reloads, a watchdog tick that runs late, one judge interruption) | **0:20** | 5:00 |
+
+> **Scenario 2 grew from 0:45 to 0:55 on 08-15**, and the ten seconds came out of the slack, not
+> out of another beat — the vendor-reply beat (step 2b) is the only place the batching payoff is
+> visible on stage. Slack is now **0:20**. If that feels thin at the second rehearsal, the honest
+> trade is scenario 2's step 5 (the optional caregiver-thread glance), which was already optional.
 
 Cut order if you are behind at 3:00: drop the scenario-1 delivery (stop after the vendor confirms),
 then the reporting beat. **Never cut scenario 3's silence variant** — it is the differentiator.
@@ -137,7 +142,7 @@ Two tabs need the refresh for their own reasons even when a broadcast does land:
 | 4 | `http://localhost:5173/reports` | S6 |
 | 5 | `http://localhost:5173/demo` | fallback only — EMR feed, send-a-text-by-hand |
 | 6 | `http://localhost:5173/caregiver` | S3's F1 chain; goes live in S1 the instant the POD lands |
-| 7 | `http://localhost:5173/vendor-phone` | **S1 steps 3-4, all of S3** — the vendor's handset |
+| 7 | `http://localhost:5173/vendor-phone` | **S1 steps 3-4, S2 step 2b, all of S3** — the vendor's handset |
 
 **Setup order matters.** Type tabs 1–5 yourself. Then, standing on **tab 5**, open the account menu
 (top-right, under the role list) → **Simulated phones** → **"Caregiver's phone"**, then the same
@@ -148,6 +153,16 @@ doing it mid-demo is not.
 
 > ⚠️ **Open them during setup, not mid-demo.** Open a phone from tab 1 while presenting and every
 > "Tab N" instruction below shifts by one.
+
+**Sign in as `Driver` before the demo** — do it once on **tab 2** during setup. Every POD writes the
+signed-in role into the ledger (`api.ts:6` sends `X-Role`, the ledger stores it as `actor_role`), and
+the browser's default is **Case Manager** — so an untouched machine records a case manager signing
+for the equipment, which is the one line a judge reading the ledger will pick out. `[QUIRK]` The role
+is **one global setting, not per tab** (`localStorage` key `betterrx.role`, `auth.tsx:22`): switching
+it on tab 2 switches it for tabs 1, 3 and 4 too, so whatever it says is what the ledger records for
+*every* tap you make. That only bites if you point at role attribution on stage. If you plan to, flip
+to **Field Nurse** for S2 step 1 and back to **Driver** before S1 step 5 / S2 step 3; otherwise leave
+it on Driver and don't narrate who acted.
 
 **Why `/vendor-phone` is last:** magic links inside the thread are real anchors with
 `target="_blank"` (`PhoneScreen.tsx:135-146`), so tapping one spawns the portal to the *right* of
@@ -328,7 +343,7 @@ Now open tab 1.
 
 ---
 
-## 4 · Scenario 2 — the nurse in the home (0:45)
+## 4 · Scenario 2 — the nurse in the home (0:55)
 
 **Seed:** `npm run seed scenario2` — then **hard-refresh tab 1 *and* tab 3**. This scenario seeds an
 all-`delivered` board, so **nothing will broadcast and nothing will refresh itself** — measured, not
@@ -343,6 +358,7 @@ board at all. They are inside **Done · N this week** (open `history ▸` if you
 |---|---|---|---|
 | 1 | Tab 3 `/nurse` → **Ruth Nakamura** → **Passed away** → **Confirm, with care** | A phone-shaped screen: *"Who has a change to report?"*, then *"What changed for Ruth Nakamura?"* with two choices — *Went home / discharged* and *Passed away*. The confirm card reads *"We'll schedule the equipment pickup with care and a note for the family. Take your time — this is the only step you need to do."* Then a toast: *"Recorded, with care."* | "The nurse is standing in the living room. She taps this once. That's the whole trigger — the sponsor told us their own discovery found the EMR-only path fail: someone dies and the vendor never finds out." |
 | 2 | *(switch to tab 1 — no click)* | Ruth's two orders leave **Done** and appear in **On the way** as **one grouped row**: `Ruth Nakamura · Pickup · 2 items · — · 0 of 2 moving` (no date, because a pickup has no deadline of its own). **One** pickup text lands in Wasatch's thread, with a magic link — *"Pickup needed — 2 items from one home (hospital bed, oxygen concentrator), area Ogden. Family is present — please schedule promptly. Reply 1 if you can get both today, 2 to give us a window: `…/portal/<token>`"* | "Two pickups scheduled. Zero phone calls made by anyone in that house — **one death, one text, one trip.**" |
+| 2b | Tab 7 `/vendor-phone` → header picker → **Wasatch** → in the message box type **the affirmative digit the text itself names** (read it off the bubble — *"Reply N if you can get both today"*) → send | The bubble goes out, the status line reads **"sending…"** — not *"reading…"*, the model's word — and the green receipt lands under it: ***"N · Yes — the whole stop — applied to 2 orders · no model needed"*** (`QuickReplies.tsx:85-98`). Glance at tab 1: Ruth's grouped row reflects the vendor's commitment | "One digit from the vendor, and both pickups are committed — the trip is the unit, and no model touched it." |
 | 3 | Tab 2 `/driver` → vendor **Wasatch** *(already the default — no switch needed here)* | Two **PICK UP** job cards, each carrying *"**The family is grieving.** Call ahead, be brief and kind."* | "The dispatcher sees logistics. Never the death." |
 | 4 | **Complete pickup** → sign → **Confirm pickup** | The job card is replaced by a green completion card — and inside it, a coral **Family notified** panel quoting the **actual sentence** sent to the household: *"Your hospice team: the equipment has been picked up. There's nothing else you need to do. We're thinking of your family."* (`Driver.tsx:73-81,221-226`) | **"Ruth's family made zero phone calls. That's the product."** |
 | 5 | *(optional, if you have the slack)* tab 6 `/caregiver` → Ken Nakamura's thread | The same sentence, in the household's own thread | — |
@@ -360,17 +376,35 @@ board at all. They are inside **Done · N this week** (open `history ▸` if you
 - "Two pickups" is now literally two: the trigger returns `pickups_triggered: [1050, 1051]`. Before
   the seed fix it returned **13** — Ruth's share of the synthetic year was still sitting in
   `delivered`, and every one of them fired a pickup text into Wasatch's thread.
-- **Two pickups, one text — that's trip batching, built 08-15, and it's worth the extra beat.**
-  Both orders go to Wasatch from the same home, so `setPatientStatus()` sends a single
-  `v_pickup_group` question spending **one** of Wasatch's five reply pairs instead of two.
-  Optional detour if you have the slack and tab 7 is open: type the affirmative digit **the text
-  itself names** (read it off the bubble — it is whichever pair the question was allocated) and the
-  receipt reads *"… · Yes — the whole stop — applied to 2 orders · no model needed"* — one digit,
-  two per-order commitments, the ledger stamps both *"group reply · no model"*, and the family
-  gets **one** notice, not two. The line: *"We batch the asking, never the answering — every order
-  still keeps its own clock and its own proof."* **Don't take this detour and then also do step 4's
-  POD on those orders without re-seeding** — the pickup is already scheduled by then, which is
-  fine, but the driver card copy shifts under you.
+- **Two pickups, one text — that's trip batching, built 08-15, and step 2b is the only place it is
+  visible.** Both orders go to Wasatch from the same home, so `setPatientStatus()` sends a single
+  `v_pickup_group` question spending **one** of Wasatch's five reply pairs instead of two. The
+  spare line if a judge leans in: *"We batch the asking, never the answering — every order still
+  keeps its own clock and its own proof."*
+- **Step 2b's order is not negotiable: step 2 first, then the digit.** Do not touch the phone until
+  tab 1 has shown the grouped row and you have read the ONE text out of Wasatch's thread. The whole
+  point of the beat is that the audience sees *one* question before they see it answered *twice*;
+  answer it first and there is nothing left to point at.
+- **Read the digit off the bubble — it is not always `1`.** Pairs rotate ((1,2) (3,4) (5,6) (7,8)
+  (9,0), odd = affirmative) and the question states its own pair in its body: *"Reply N if you can
+  get both today, N+1 to give us a window."* Say the digit you can see on the projector.
+- **The digit consumes the question — type it once.** A second copy of the same digit does not
+  re-apply; the question is already answered, so the repeat drops into the human review queue
+  (`sms.ts:331-333`) and your receipt line is gone. If you fat-finger it, move on — don't retype.
+- **What tab 1 does at step 2b:** the row reflects the vendor's commitment, and the commitment
+  itself is one click down — open the row and each sub-row's ledger reads *"ETA set · group reply ·
+  no model"* (`domain.ts`). **Check at rehearsal what the row actually reads after the digit and
+  narrate that**, in your own words — this pill was being changed on 08-15 and the script
+  deliberately doesn't quote its text. Never promise a specific pill on stage.
+- **Step 2b does not disturb step 3.** The driver's card copy keys off the order's state, not off
+  the vendor's answer (`Driver.tsx:202,268-272`), and a pickup affirmative deliberately writes **no
+  ETA** — so the two PICK UP cards and the *"family is grieving"* line are identical whether or not
+  the vendor has said yes. Verified end to end: the E2E run drove both PODs *after* the group reply.
+- **The digit also texts the household — once, for the whole trip.** The group affirmative sends a
+  single `f_pickup_notice` off the anchor order (`sms.ts:313-314`), not one per item. It is a
+  *different* text from step 4's closing sentence (`f_picked_up_thanks`), so step 4's coral panel
+  still lands as written; just don't say the family hears nothing until the driver is done. If you
+  take step 5 to tab 6 you will see both, in order.
 - **The driver still sees two cards, and that's honest.** Grouping the *asking* is built; grouping
   the driver's *stop view* is designed only (`docs/SMS-BATCHING-SPEC.md` §6). Don't imply
   otherwise at step 3.
