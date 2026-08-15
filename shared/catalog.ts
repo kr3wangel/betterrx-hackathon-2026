@@ -27,6 +27,13 @@ export interface CatalogItem {
   avg_allowed_usd: number
   national_benes: number
   typical_urgency: Urgency
+  /**
+   * Consumables only: Medicare's replacement schedule for the code, in days — the
+   * payer-approved resupply cadence. Presence of this field is what marks an item as a
+   * consumable: delivered consumables are re-ordered automatically by the watchdog once
+   * the window elapses (server/resupply.ts). Equipment never carries it.
+   */
+  resupply_days?: number
 }
 
 export const CATALOG: CatalogItem[] = [
@@ -45,6 +52,16 @@ export const CATALOG: CatalogItem[] = [
   { hcpcs_code: 'E0250', equipment_name: 'Hospital bed, fixed height', rental: true, avg_allowed_usd: 65.47, national_benes: 3_523, typical_urgency: 'urgent' },
   { hcpcs_code: 'E0143', equipment_name: 'Walker, folding wheeled', rental: false, avg_allowed_usd: 64.17, national_benes: 493_270, typical_urgency: 'routine' },
   { hcpcs_code: 'E0163', equipment_name: 'Commode chair', rental: false, avg_allowed_usd: 68.40, national_benes: 134_569, typical_urgency: 'routine' },
+
+  // --- Consumables (V5): resupply_days is the Medicare replacement schedule for the code
+  // (A7030/A7037: 1 per 3 months; A7038: pairs monthly; A6196: wound-care refill ~monthly).
+  // ⚠️ Unlike the rows above, these dollar/beneficiary figures are fee-schedule
+  // approximations, NOT from the PUF pull — re-pull the dataset before quoting them.
+  // Kept out of the seeded year of history on purpose (scripts/seed.ts filters on
+  // resupply_days), or every long-delivered consumable would auto-reorder at boot.
+  { hcpcs_code: 'A7030', equipment_name: 'CPAP full face mask', rental: false, avg_allowed_usd: 134.0, national_benes: 600_000, typical_urgency: 'routine', resupply_days: 90 },
+  { hcpcs_code: 'A7038', equipment_name: 'CPAP disposable filters (pair)', rental: false, avg_allowed_usd: 5.6, national_benes: 650_000, typical_urgency: 'routine', resupply_days: 30 },
+  { hcpcs_code: 'A6196', equipment_name: 'Alginate wound dressing', rental: false, avg_allowed_usd: 11.5, national_benes: 90_000, typical_urgency: 'routine', resupply_days: 30 },
 ]
 
 export const byCode = (code: string): CatalogItem | undefined =>

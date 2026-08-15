@@ -113,6 +113,7 @@ export function eventSourceNote(event: OrderEvent): string | null {
   if (source === 'portal') return 'magic link · no model'
   if (source === 'nurse') return 'nurse tap · no model'
   if (source === 'emr') return 'EMR webhook · no model'
+  if (source === 'resupply') return 'auto-resupply · payer cadence, no model'
   return null
 }
 

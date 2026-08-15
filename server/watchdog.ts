@@ -2,6 +2,7 @@ import { db } from './db'
 import { applyEvent, escalate } from './statemachine'
 import { ackNagText, etaCheckText, sendVendorQuestion } from './messaging'
 import { computeRisk, RISK_THRESHOLD } from './risk'
+import { scheduleResupplies } from './resupply'
 import { listOrders, vendorStats } from './store'
 import type { Order } from '../shared/types'
 
@@ -120,6 +121,8 @@ export function tick(now = new Date()): void {
       }
     }
   }
+
+  scheduleResupplies(now)
 }
 
 export function startWatchdog(intervalMs = 30_000): void {
