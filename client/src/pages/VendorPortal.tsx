@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { Link2Off, Minus, PackageSearch, Plus, Truck } from 'lucide-react'
+import { Link2Off, PackageSearch, Truck } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Order, OrderState, VendorLoad } from '../../../shared/types'
 import { Badge } from '@/components/ui/badge'
@@ -100,88 +100,27 @@ function declaredLine(load: VendorLoad): string | null {
   if (load.capacity === null) return null
   if (load.capacity === 0) return 'You said: no trucks today.'
   if (load.remaining_today === 0) return 'At capacity for today.'
-  return `Room for ${load.remaining_today} more today.`
+  return `Room for ${load.remaining_today} more of the ${load.capacity} stops you can take today.`
 }
 
-function TodayStrip({
-  load,
-  onDeclare,
-}: {
-  load: VendorLoad
-  onDeclare: (stops: number) => Promise<VendorLoad>
-}) {
-  const [saved, setSaved] = useState<VendorLoad | null>(null)
-  const [draft, setDraft] = useState<number | null>(null)
-  const [saving, setSaving] = useState(false)
-
-  useEffect(() => setSaved(null), [load])
-
-  const shown = saved ?? load
-  const value = draft ?? shown.capacity ?? 0
-  const declared = declaredLine(shown)
-
-  const save = async () => {
-    const rollback = draft
-    setDraft(value)
-    setSaving(true)
-    try {
-      setSaved(await onDeclare(value))
-      toast.success('The hospice can see your capacity.')
-    } catch {
-      setDraft(rollback)
-      toast.error("That didn't go through — give it another tap.")
-    } finally {
-      setSaving(false)
-    }
-  }
+function TodayStrip({ load }: { load: VendorLoad }) {
+  const declared = declaredLine(load)
 
   return (
-    <Card className="gap-4 px-5 py-5 sm:px-7">
+    <Card className="gap-3 px-5 py-5 sm:px-7">
       <div>
         <div className="text-xs font-extrabold uppercase tracking-[0.14em] text-primary">Today</div>
         <p className="mt-1.5 font-display text-xl font-extrabold tabular-nums text-foreground">
-          {loadLine(shown)}
+          {loadLine(load)}
         </p>
       </div>
 
-      <div className="flex flex-wrap items-center gap-3 border-t border-border pt-4">
-        <span className="text-sm text-muted-foreground">How many stops can you take today?</span>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="icon"
-            aria-label="One fewer stop"
-            disabled={saving || value === 0}
-            onClick={() => setDraft(Math.max(0, value - 1))}
-          >
-            <Minus />
-          </Button>
-          <span
-            aria-live="polite"
-            className="min-w-10 text-center font-display text-2xl font-extrabold tabular-nums text-foreground"
-          >
-            {value}
-          </span>
-          <Button
-            variant="outline"
-            size="icon"
-            aria-label="One more stop"
-            disabled={saving}
-            onClick={() => setDraft(value + 1)}
-          >
-            <Plus />
-          </Button>
-        </div>
-        <Button onClick={() => void save()} disabled={saving}>
-          {saving ? 'Saving…' : 'Save'}
-        </Button>
-      </div>
-
       {declared && (
-        <div>
+        <div className="border-t border-border pt-3">
           <p className="text-sm font-semibold text-foreground tabular-nums">{declared}</p>
           <p className="mt-1 text-xs leading-relaxed text-faint">
-            The stop counts are ours, from your open orders; the capacity number is yours.
+            The stop counts are ours, from your open orders; the capacity number is yours — text us
+            to change it.
           </p>
         </div>
       )}
@@ -191,7 +130,7 @@ function TodayStrip({
 
 export default function VendorPortal() {
   const { token } = useParams<{ token: string }>()
-  const { vendor, orders, load, loading, error, confirm, setEta, decline, declareCapacity } =
+  const { vendor, orders, load, loading, error, confirm, setEta, decline } =
     usePortal(token)
 
   const [now, setNow] = useState(() => Date.now())
@@ -352,7 +291,7 @@ export default function VendorPortal() {
         <StatTile value={atPatientCount} label="At a patient" />
       </div>
 
-      {load && <TodayStrip load={load} onDeclare={declareCapacity} />}
+      {load && <TodayStrip load={load} />}
 
       <Tabs defaultValue="orders">
         <TabsList>
