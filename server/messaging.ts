@@ -307,6 +307,21 @@ export function pickupGroupText(orders: Order[], patientArea: string | undefined
   return `Pickup needed — ${orders.length} items from one home${items}${where}. Family is present — please schedule promptly. Reply ${yes} if you can get ${all} today, ${no} to give us a window: ${portalLink(orders[0].vendor_id)}`
 }
 
+/**
+ * The delivery-side twin of pickupGroupText: one multi-item placement for one home is one
+ * ask, one text, one reply pair. The deadline shown is the earliest across the bundle —
+ * the truck leaves once, so the tightest item sets the trip.
+ */
+export function orderGroupText(orders: Order[], patientArea: string, [yes, no]: SlotDigits): string {
+  const where = patientArea ? `, area ${patientArea}` : ''
+  const manifest = manifestText(orders)
+  const items = manifest ? ` (${manifest})` : ''
+  const targets = orders.map((o) => o.target_at).filter(Boolean) as string[]
+  const due = targets.length ? whenText(targets.sort()[0]) : 'ASAP'
+  const all = orders.length === 2 ? 'both' : `all ${orders.length}`
+  return `New order — ${orders.length} items for one home${items}${where}, deliver by ${due}. Reply ${yes} to accept ${all}, ${no} if you can't fill it — or confirm here: ${portalLink(orders[0].vendor_id)}`
+}
+
 export function ackNagText(order: Order, [yes, no]: SlotDigits): string {
   return `Order #${order.id} (${order.equipment_name}) hasn't been confirmed — reply ${yes} to accept, ${no} if you can't fill it, or tap to accept or decline: ${orderLink(order.id)}`
 }
@@ -353,6 +368,13 @@ export function groupAckText(digit: string, appliedCount: number, skipped: strin
   const covered = appliedCount === 2 && !skipped.length ? 'both pickups are' : `${appliedCount} pickups are`
   const caveat = skipped.length ? ` (${skipped.join(', ')} already handled — nothing needed there)` : ''
   return `Got your "${digit}" — ${covered} on the books for today${caveat}. Thanks.`
+}
+
+/** The order-group receipt: same shape, delivery wording — nothing is "on the books for today". */
+export function orderGroupAckText(digit: string, appliedCount: number, skipped: string[]): string {
+  const covered = appliedCount === 2 && !skipped.length ? 'both items are' : `all ${appliedCount} items are`
+  const caveat = skipped.length ? ` (${skipped.join(', ')} already handled — nothing needed there)` : ''
+  return `Got your "${digit}" — ${covered} confirmed with you${caveat}. Thanks.`
 }
 
 /** The receipt when we couldn't act on prose automatically — honest, and still a receipt. */

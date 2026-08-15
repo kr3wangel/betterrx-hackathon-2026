@@ -11,6 +11,8 @@ import {
   groupAckText,
   handleInbound,
   householdGate,
+  orderGroupAckText,
+  orderGroupText,
   orderRequestText,
   INTENT_EVENT,
   pickedUpThanksText,
@@ -113,6 +115,21 @@ export const VENDOR_ROUTES: Partial<Record<VendorTemplate, readonly [ReplyAction
     },
     { kind: 'prompt', text: 'When can you collect them? Text back a day and time.' },
   ],
+  // The delivery-side twin: one digit accepts every item on the placement. The negative
+  // escalates the whole bundle — a vendor who can't fill it needs a human to re-route,
+  // same as a single order's CANT_FILL, just once per item so nothing is silently dropped.
+  v_order_group: [
+    {
+      kind: 'apply',
+      intent: 'accept',
+      eta: null,
+      notes: 'Vendor accepted the whole order by text',
+    },
+    {
+      kind: 'escalate',
+      reason: (order) => `Vendor can't fill order #${order.id} — reassign`,
+    },
+  ],
 }
 
 /**
@@ -157,6 +174,8 @@ const VENDOR_BODY: Record<VendorQuestion, (order: Order, area: string, digits: S
   v_pickup_request: (order, area, digits) => pickupRequestText(order, area, digits),
   // Degenerate single-order rendering; the real group send builds the manifest in pickups.ts.
   v_pickup_group: (order, area, digits) => pickupGroupText([order], area, digits),
+  // Same degenerate shape; the real group send builds the manifest in orders.ts.
+  v_order_group: (order, area, digits) => orderGroupText([order], area, digits),
 }
 
 const FAMILY_BODY: Record<Exclude<FamilyTemplate, 'f_condition_check'>, (order: Order) => string> = {
@@ -317,8 +336,14 @@ function applyGroup(question: Message, digit: string, action: Extract<ReplyActio
 
   const anchor = applied.length ? getOrder(applied[0]) : null
   if (anchor) {
-    sendToVendor(question.vendor_id, anchor.id, groupAckText(digit, applied.length, skipped))
-    sendToFamily(anchor.patient_id, anchor.id, pickupNoticeText('today'), 'f_pickup_notice')
+    if (question.template === 'v_order_group') {
+      // A delivery acceptance is vendor business, not household news — the family hears
+      // when something is actually on its way, same as any single order.
+      sendToVendor(question.vendor_id, anchor.id, orderGroupAckText(digit, applied.length, skipped))
+    } else {
+      sendToVendor(question.vendor_id, anchor.id, groupAckText(digit, applied.length, skipped))
+      sendToFamily(anchor.patient_id, anchor.id, pickupNoticeText('today'), 'f_pickup_notice')
+    }
   }
 
   return {
@@ -352,7 +377,7 @@ function routeDigit(question: Message, digit: string): SmsReplyResult {
 
   switch (action.kind) {
     case 'apply': {
-      if (template === 'v_pickup_group') return applyGroup(question, digit, action)
+      if (template === 'v_pickup_group' || template === 'v_order_group') return applyGroup(question, digit, action)
       const parsed: ParsedMessage = {
         order_ref: String(order.id),
         intent: action.intent,
@@ -378,7 +403,13 @@ function routeDigit(question: Message, digit: string): SmsReplyResult {
 
     case 'escalate': {
       const messageId = recordInbound(question, digit, null, 'auto_applied', true)
-      escalate(order.id, action.reason(order))
+      // A group decline flags every item on the manifest — one escalation each, so no
+      // bundled order is silently left waiting on a vendor who already said no.
+      const targets = template === 'v_order_group' ? manifest(question) : [order.id]
+      for (const targetId of targets) {
+        const target = getOrder(targetId)
+        if (target) escalate(target.id, action.reason(target))
+      }
       sendToVendor(question.vendor_id, order.id, vendorAckText(order, 'decline', digit))
       return result(question, messageId, digit, 'applied')
     }

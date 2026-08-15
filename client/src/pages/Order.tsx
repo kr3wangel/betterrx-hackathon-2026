@@ -59,8 +59,11 @@ export default function Order() {
   const [loadError, setLoadError] = useState(false)
 
   const [patientId, setPatientId] = useState('')
-  const [hcpcs, setHcpcs] = useState(DEFAULT_CODE)
-  const [quantity, setQuantity] = useState('1')
+  // One placement can carry many items — an admission is a bundle (bed + oxygen + walker),
+  // and the vendor gets ONE text for the lot. Each row is an order; the batching is in the asking.
+  const [items, setItems] = useState<{ hcpcs: string; quantity: string }[]>([
+    { hcpcs: DEFAULT_CODE, quantity: '1' },
+  ])
   const [urgency, setUrgency] = useState<Urgency>(DEFAULT_URGENCY)
   // Seeded from the default urgency so the deadline is never blank; a tier click or a manual
   // edit both flow through here, so the field and the urgency always agree.
@@ -90,7 +93,11 @@ export default function Order() {
 
   const activePatients = useMemo(() => patients.filter((p) => p.status === 'active'), [patients])
   const markets = useMemo(() => [...new Set(patients.map((p) => p.market))].sort(), [patients])
-  const item = useMemo<CatalogItem | undefined>(() => CATALOG.find((c) => c.hcpcs_code === hcpcs), [hcpcs])
+  const catalogItems = useMemo<(CatalogItem | undefined)[]>(
+    () => items.map((row) => CATALOG.find((c) => c.hcpcs_code === row.hcpcs)),
+    [items],
+  )
+  const chosenItems = catalogItems.filter((c): c is CatalogItem => !!c)
   const patient = useMemo(() => patients.find((p) => String(p.id) === patientId), [patients, patientId])
 
   // Only vendors that cover the patient's market, best on-time first. Before a patient is
@@ -111,7 +118,12 @@ export default function Order() {
     setNeededBy(deadlineFrom(u))
   }
 
-  const canSubmit = patientId !== '' && vendorId !== '' && !!item && !submitting
+  const canSubmit =
+    patientId !== '' && vendorId !== '' && items.length > 0 && catalogItems.every(Boolean) && !submitting
+
+  function setItemRow(index: number, patch: Partial<{ hcpcs: string; quantity: string }>) {
+    setItems((prev) => prev.map((row, i) => (i === index ? { ...row, ...patch } : row)))
+  }
 
   async function addVendor() {
     const name = newVendorName.trim()
@@ -146,30 +158,39 @@ export default function Order() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
-    if (!canSubmit || !item) return
+    if (!canSubmit) return
     setSubmitting(true)
     // The order id only comes back in the response, so the suppression key is the patient.
     expectOwn([`patient:${Number(patientId)}`])
     try {
-      const order = await api.post<Order>('/api/orders', {
+      const created = await api.post<Order | { orders: Order[] }>('/api/orders', {
         patient_id: Number(patientId),
         vendor_id: Number(vendorId),
-        hcpcs_code: item.hcpcs_code,
-        equipment_name: item.equipment_name,
-        quantity: Number(quantity) || 1,
         urgency,
         target_at: neededBy ? new Date(neededBy).toISOString() : null,
+        items: items.map((row, i) => ({
+          hcpcs_code: catalogItems[i]!.hcpcs_code,
+          equipment_name: catalogItems[i]!.equipment_name,
+          quantity: Number(row.quantity) || 1,
+        })),
       })
-      toast.success('Order placed — vendor texted', {
-        description: `${item.equipment_name} for ${patient?.name ?? 'the patient'} is on the board.`,
-        action: { label: 'Place another', onClick: () => navigate('/order') },
-      })
+      const orders = 'orders' in created ? created.orders : [created]
+      toast.success(
+        orders.length === 1 ? 'Order placed — vendor texted' : `Order placed — ${orders.length} items, one text`,
+        {
+          description:
+            orders.length === 1
+              ? `${chosenItems[0]?.equipment_name ?? 'The equipment'} for ${patient?.name ?? 'the patient'} is on the board.`
+              : `Everything for ${patient?.name ?? 'the patient'} is on the board — the vendor answers one question for the whole bundle.`,
+          action: { label: 'Place another', onClick: () => navigate('/order') },
+        },
+      )
       // Reset for the next admission, keeping equipment/urgency and re-seeding the deadline.
       setPatientId('')
-      setQuantity('1')
+      setItems((prev) => prev.map((row) => ({ ...row, quantity: '1' })))
       setVendorId('')
       setNeededBy(deadlineFrom(urgency))
-      navigate('/hospice', { state: { highlight: { orderIds: [order.id], at: Date.now() } } })
+      navigate('/hospice', { state: { highlight: { orderIds: orders.map((o) => o.id), at: Date.now() } } })
     } catch {
       toast.error('Couldn’t place the order', {
         description: 'Something went wrong reaching the server. Try again.',
@@ -220,42 +241,64 @@ export default function Order() {
               />
             </Field>
 
-            <Field label="Equipment" htmlFor="order-equipment">
-              <Select value={hcpcs} onValueChange={setHcpcs}>
-                <SelectTrigger id="order-equipment">
-                  <SelectValue placeholder="Choose equipment…" />
-                </SelectTrigger>
-                <SelectContent>
-                  {CATALOG.map((c) => (
-                    <SelectItem key={c.hcpcs_code} value={c.hcpcs_code}>
-                      {c.equipment_name}{' '}
-                      <span className="tabular-nums text-faint">{c.hcpcs_code}</span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <Field
+              label={items.length > 1 ? `Equipment · ${items.length} items, one text` : 'Equipment'}
+              htmlFor="order-equipment"
+            >
+              <div className="space-y-2">
+                {items.map((row, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <Select value={row.hcpcs} onValueChange={(v) => setItemRow(i, { hcpcs: v })}>
+                      <SelectTrigger id={i === 0 ? 'order-equipment' : undefined} aria-label={`Item ${i + 1}`}>
+                        <SelectValue placeholder="Choose equipment…" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {CATALOG.map((c) => (
+                          <SelectItem key={c.hcpcs_code} value={c.hcpcs_code}>
+                            {c.equipment_name}{' '}
+                            <span className="tabular-nums text-faint">{c.hcpcs_code}</span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      aria-label={`Item ${i + 1} quantity`}
+                      type="number"
+                      min={1}
+                      className="w-20 shrink-0 tabular-nums"
+                      value={row.quantity}
+                      onChange={(e) => setItemRow(i, { quantity: e.target.value })}
+                    />
+                    {items.length > 1 && (
+                      <button
+                        type="button"
+                        aria-label={`Remove item ${i + 1}`}
+                        className="shrink-0 rounded-md px-2 py-1 text-sm font-bold text-muted-foreground hover:bg-muted hover:text-foreground"
+                        onClick={() => setItems((prev) => prev.filter((_, j) => j !== i))}
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  className="text-xs font-semibold text-primary hover:underline"
+                  onClick={() => setItems((prev) => [...prev, { hcpcs: DEFAULT_CODE, quantity: '1' }])}
+                >
+                  + Add another item — the vendor gets one text for the whole order.
+                </button>
+              </div>
             </Field>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Field label="Quantity" htmlFor="order-quantity">
-                <Input
-                  id="order-quantity"
-                  type="number"
-                  min={1}
-                  className="tabular-nums"
-                  value={quantity}
-                  onChange={(e) => setQuantity(e.target.value)}
-                />
-              </Field>
-              <Field label="Needed by" hint="set by urgency" htmlFor="order-needed-by">
-                <Input
-                  id="order-needed-by"
-                  type="datetime-local"
-                  value={neededBy}
-                  onChange={(e) => setNeededBy(e.target.value)}
-                />
-              </Field>
-            </div>
+            <Field label="Needed by" hint="set by urgency" htmlFor="order-needed-by">
+              <Input
+                id="order-needed-by"
+                type="datetime-local"
+                value={neededBy}
+                onChange={(e) => setNeededBy(e.target.value)}
+              />
+            </Field>
 
             <Field label="Urgency" note={urgencyNote(urgency, neededBy)} captionId="order-urgency-label">
               <div className="flex gap-2" role="group" aria-labelledby="order-urgency-label">
@@ -376,7 +419,7 @@ export default function Order() {
             </div>
           </div>
 
-          <ThisOrder patient={patient} item={item} vendor={vendor} neededBy={neededBy} />
+          <ThisOrder patient={patient} items={chosenItems} vendor={vendor} neededBy={neededBy} />
         </form>
       )}
     </div>
@@ -442,12 +485,12 @@ function OnTime({ rate }: { rate: number | null }) {
 /** The context rail — the operational facts a nurse acts on, not a pitch for the product. */
 function ThisOrder({
   patient,
-  item,
+  items,
   vendor,
   neededBy,
 }: {
   patient?: Patient
-  item?: CatalogItem
+  items: CatalogItem[]
   vendor?: VendorWithStats
   neededBy: string
 }) {
@@ -508,17 +551,30 @@ function ThisOrder({
         )}
       </Fact>
 
-      {item?.rental && (
+      {items.length > 1 && (
+        <Fact label={`Items · ${items.length}`}>
+          <span className="font-normal text-muted-foreground">
+            {items.map((c) => c.equipment_name).join(' · ')}
+          </span>
+          <span className="block font-normal text-muted-foreground">
+            One text to the vendor — one reply covers the whole bundle.
+          </span>
+        </Fact>
+      )}
+
+      {items.some((c) => c.rental) && (
         <p className="mt-3 border-t border-[#f3ddd2] pt-3 text-xs text-muted-foreground">
           Rented equipment — tracked through pickup and return, so a late return can’t cost the hospice.
         </p>
       )}
-      {item?.resupply_days && (
-        <p className="mt-3 border-t border-[#f3ddd2] pt-3 text-xs text-muted-foreground">
-          Consumable — the payer covers a refill every {item.resupply_days} days. Once this order is
-          delivered, the next one places itself when that window opens. Nobody has to remember.
-        </p>
-      )}
+      {items
+        .filter((c) => c.resupply_days)
+        .map((c) => (
+          <p key={c.hcpcs_code} className="mt-3 border-t border-[#f3ddd2] pt-3 text-xs text-muted-foreground">
+            {c.equipment_name} is a consumable — the payer covers a refill every {c.resupply_days} days.
+            Once it&rsquo;s delivered, the next order places itself when that window opens. Nobody has to remember.
+          </p>
+        ))}
     </aside>
   )
 }
