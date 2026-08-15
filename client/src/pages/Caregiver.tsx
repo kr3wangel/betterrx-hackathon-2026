@@ -120,6 +120,8 @@ function Thread({ household, picker }: { household: Household; picker: React.Rea
   const [reply, setReply] = useState<SmsReplyResult | null>(null)
   const [legacy, setLegacy] = useState<CaregiverReplyResult | null>(null)
 
+  // The one question a digit can answer, whether typed or tapped — the buttons render here
+  // and nowhere else, so both paths resolve against the same row.
   const openQuestion = useMemo(() => [...rows].reverse().find(isOpenQuestion), [rows])
   const hasCheck = rows.some((m) => m.template === 'f_condition_check')
 
@@ -210,7 +212,7 @@ function Thread({ household, picker }: { household: Household; picker: React.Rea
             >
               <Linkify text={m.body} />
             </Bubble>
-            {isOpenQuestion(m) && <QuickReplies message={m} onResult={setReply} />}
+            {m.id === openQuestion?.id && <QuickReplies message={m} onResult={setReply} />}
             {mine && reply?.message_id === m.id && <ReplyReceipt result={reply} />}
           </Fragment>
         )
