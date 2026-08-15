@@ -285,8 +285,24 @@ export function vendorAckText(order: Order, intent: MessageIntent): string {
   }
 }
 
-/** The receipt when we couldn't act on it automatically — honest, and still a receipt. */
+/** The receipt when we couldn't act on prose automatically — honest, and still a receipt. */
 export const RECEIVED_ACK = 'Got your message — a coordinator will take a look and follow up shortly.'
+
+/** A digit reply that landed on an already-answered question: echo it, name the order. */
+export function staleReplyAckText(digit: string, order: Order): string {
+  return `Got your "${digit}" — order #${order.id} (${order.equipment_name}) was already updated earlier. A coordinator will take a look and follow up shortly.`
+}
+
+/**
+ * A digit nothing could act on: echo it, and name the order when the reply-to told us one.
+ * Never guesses — "no open request matches" is the honest reading of an unowned digit.
+ */
+export function unknownDigitAckText(digit: string, order: Order | null): string {
+  const context = order
+    ? `that's not one of the reply codes for order #${order.id} (${order.equipment_name})`
+    : 'no open request matches that code right now'
+  return `Got your "${digit}" — ${context}. A coordinator will take a look and follow up shortly.`
+}
 
 // Household copy. Stricter than the vendor templates: equipment named generically, and
 // no order number, patient name, HCPCS code, quantity or address anywhere.

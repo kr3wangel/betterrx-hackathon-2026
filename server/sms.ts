@@ -14,13 +14,14 @@ import {
   pickedUpThanksText,
   pickupNoticeText,
   pickupRequestText,
-  RECEIVED_ACK,
   sendToFamily,
   sendToVendor,
   sendVendorQuestion,
+  staleReplyAckText,
+  unknownDigitAckText,
   vendorAckText,
 } from './messaging'
-import { closeSlot, digitOffset, resolveDigit, type SlotDigits } from './slots'
+import { closeSlot, digitOffset, lastAnsweredOwner, resolveDigit, type SlotDigits } from './slots'
 import { handleCaregiverReply, sendConditionCheck } from './condition'
 import { applyEvent, escalate } from './statemachine'
 import { getOrder, rowToMessage } from './store'
@@ -260,17 +261,21 @@ function routeDigit(question: Message, digit: string): SmsReplyResult {
   const template = question.direction === 'out' ? question.template : null
   const action = actionFor(question, digit)
 
-  // Even the dead ends get a receipt — the sender's phone shows nothing else, so silence
-  // here reads as "the system ate my text". Vendor threads only: family dead-ends are
-  // handled by the condition channel's own copy.
+  // Even the dead ends get a receipt that echoes the digit and names the order when we
+  // know it — the sender's phone shows nothing else, so silence here reads as "the system
+  // ate my text". Vendor threads only: family dead-ends are the condition channel's copy.
   if (!action || !order) {
     const messageId = recordInbound(question, digit, null, 'needs_review', false)
-    if (question.recipient_type === 'vendor') sendToVendor(question.vendor_id, question.order_id, RECEIVED_ACK)
+    if (question.recipient_type === 'vendor') {
+      sendToVendor(question.vendor_id, question.order_id, unknownDigitAckText(digit, order))
+    }
     return result(question, messageId, digit, 'unmapped')
   }
   if (question.answered_at) {
     const messageId = recordInbound(question, digit, null, 'needs_review', false)
-    if (question.recipient_type === 'vendor') sendToVendor(question.vendor_id, question.order_id, RECEIVED_ACK)
+    if (question.recipient_type === 'vendor') {
+      sendToVendor(question.vendor_id, question.order_id, staleReplyAckText(digit, order))
+    }
     return result(question, messageId, digit, 'review')
   }
 
@@ -438,10 +443,17 @@ export async function handleVendorInbound(vendorId: number, body: string): Promi
     if (owned) return routeDigit(owned.question, text)
 
     const messageId = orphanInbound(vendorId, text)
-    // The clarify text is itself the receipt; with nothing open to clarify against, the
-    // generic one goes out instead — a text into the void must never get silence back.
+    // The receipt, best context first: live questions -> the clarify text lists what IS
+    // open; a retired pair -> name the order that digit already updated; otherwise echo
+    // the digit back. A text into the void never gets silence.
     const clarify = clarifyText(vendorId)
-    sendToVendor(vendorId, null, clarify ?? RECEIVED_ACK)
+    const stale = clarify ? null : lastAnsweredOwner(vendorId, text)
+    const staleOrder = stale?.order_id ? getOrder(stale.order_id) : null
+    sendToVendor(
+      vendorId,
+      null,
+      clarify ?? (staleOrder ? staleReplyAckText(text, staleOrder) : unknownDigitAckText(text, null)),
+    )
     return {
       message_id: messageId,
       in_reply_to: null,

@@ -794,7 +794,8 @@ describe('inbound with no reply-to', () => {
     expect(result.prompt).toBeNull()
     const out = messages().filter((m) => m.direction === 'out')
     expect(out).toHaveLength(1)
-    expect(out[0].body).toMatch(/coordinator will take a look/)
+    // The receipt echoes the digit back — the sender must recognise which text it answers.
+    expect(out[0].body).toMatch(/Got your "1" — no open request matches that code/)
   })
 })
 
@@ -836,7 +837,7 @@ describe('acknowledgement receipts', () => {
     expect(conversational[0].body).toBe('When can you collect it? Text back a day and time.')
   })
 
-  it('sends the generic receipt when a reply lands on an already-answered question', async () => {
+  it('echoes the digit and names the order when a reply lands on an answered question', async () => {
     const id = seedOrder()
     const questionId = ask(id, 'v_order_request')
     await handleReply({ reply_to_message_id: questionId, digit: '1' })
@@ -844,8 +845,21 @@ describe('acknowledgement receipts', () => {
     const result = await handleReply({ reply_to_message_id: questionId, digit: '1' })
 
     expect(result.outcome).toBe('review')
+    const receipts = acks(id).filter((m) => /coordinator will take a look/.test(m.body))
+    expect(receipts).toHaveLength(1)
+    expect(receipts[0].body).toMatch(new RegExp(`Got your "1" — order #${id} .* was already updated earlier`))
+  })
+
+  it('echoes the digit and names the order when the digit is not one of its codes', async () => {
+    const id = seedOrder()
+    const questionId = ask(id, 'v_order_request')
+
+    const result = await handleReply({ reply_to_message_id: questionId, digit: '9' })
+
+    expect(result.outcome).toBe('unmapped')
     const receipts = acks(id)
-    expect(receipts.filter((m) => /coordinator will take a look/.test(m.body))).toHaveLength(1)
+    expect(receipts).toHaveLength(1)
+    expect(receipts[0].body).toMatch(new RegExp(`Got your "9" — that's not one of the reply codes for order #${id}`))
   })
 
   it('sends the generic receipt for prose that lands in the review queue', async () => {
@@ -859,6 +873,19 @@ describe('acknowledgement receipts', () => {
       (m) => m.direction === 'out' && m.template === null && /coordinator will take a look/.test(m.body),
     )
     expect(receipts).toHaveLength(1)
+  })
+
+  it('a repeated digit through the gateway names the order it already updated', async () => {
+    const id = seedOrder()
+    ask(id, 'v_order_request')
+    await handleVendorInbound(1, '1')
+
+    const result = await handleVendorInbound(1, '1')
+
+    expect(result.outcome).toBe('review')
+    const stale = messages().filter((m) => m.direction === 'out' && /already updated earlier/.test(m.body))
+    expect(stale).toHaveLength(1)
+    expect(stale[0].body).toMatch(new RegExp(`Got your "1" — order #${id}`))
   })
 
   it('acknowledgements own no reply pair and never count as questions', async () => {

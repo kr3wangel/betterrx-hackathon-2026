@@ -80,7 +80,7 @@ suppresses itself on real handsets.
 | Risk scoring | `risk.ts` | **Rules-based on purpose** — explainable, tunable, reasons in sentences |
 | Watchdog | `watchdog.ts` | 30s tick: recompute risk, escalate threshold crossings, flag overdue pickups, silence ladder |
 | Vendor SMS parsing | `messaging.ts` + `llm.ts` | Claude, with a confidence gate — ≥0.8 auto-applies, below lands in the human review queue. Prompt carries the vendor's open orders plus a focus hint (the newest unanswered question) so bare prose like "ok" can be placed |
-| Acknowledgement receipts | `vendorAckText()` in `messaging.ts` | **Every vendor update gets a texted receipt back** (08-15) — the phones show nothing but time under a bubble, so the reply IS the confirmation, as a real SMS system would send it. Applied → says what happened ("Got it — order #1042 is confirmed with you"); parked for review → "a coordinator will take a look"; can't-fill → "we'll reassign"; and when a human confirms from the review queue the vendor gets the delayed receipt. Conversational sends — no template, no reply pair, never counted as questions |
+| Acknowledgement receipts | `vendorAckText()` + friends in `messaging.ts` | **Every vendor text gets a receipt back that echoes the digit and names the order** (08-15) — the phones show nothing but time under a bubble, so the reply IS the confirmation, as a real SMS system would send it. Applied → "Got it — order #1042 is confirmed with you"; can't-fill → "we'll reassign order #X"; a repeated digit → "Got your \"1\" — order #1042 was already updated earlier" (via `lastAnsweredOwner()`, receipt copy only, never routing); a digit nothing ever owned → "no open request matches that code"; prose parked for review → "a coordinator will take a look"; and a review-queue confirm sends the delayed receipt. Conversational sends — no template, no reply pair, never counted as questions |
 | Rotating reply codes | `slots.ts` + `shared/slots.ts` | **Five open questions per vendor, each owning a digit pair** — (1,2) (3,4) (5,6) (7,8) (9,0), odd = affirmative. Each message states its own pair, so a question buried five texts back is still answerable, in any order, days apart. A follow-up reuses its order's pair rather than spending a new one. Sixth question → one rate-limited digest with a portal link, never a recycled code |
 | Caregiver condition parsing | `condition.ts` | **Deterministic regex, no model.** A digit is a digit |
 | Household messaging | `messaging.ts` | `sendToFamily` with a gate — silent after a death, one open question at a time |
@@ -226,13 +226,13 @@ as on-time anyway (per-vendor `pod_rate` / `fudge_rate` in the seed).
 
 ## 7 · Test coverage
 
-**14 files, 197 tests** (re-derived 08-15, after contract leverage, vendor responsiveness, the
+**14 files, 199 tests** (re-derived 08-15, after contract leverage, vendor responsiveness, the
 actor-role split, and acknowledgement receipts). Core logic is covered; UI and routes
 deliberately are not.
 
 | File | Tests | Covers |
 |---|---:|---|
-| `sms.test.ts` | 62 | SMS templates, reply handling, route-table integrity, rotating reply codes, gateway-shaped inbound, acknowledgement receipts |
+| `sms.test.ts` | 64 | SMS templates, reply handling, route-table integrity, rotating reply codes, gateway-shaped inbound, acknowledgement receipts |
 | `reports.test.ts` | 28 | Scorecards, calls avoided, latency, contract leverage (trust gap, cohort minimum, interventions, median answer time, never-answered rate) |
 | `portal.test.ts` | 13 | Magic-link flows |
 | `condition.test.ts` | 12 | Caregiver rating parser, including the ambiguity cases |
