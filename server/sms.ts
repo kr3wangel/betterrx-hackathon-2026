@@ -327,5 +327,12 @@ export async function handleReply(input: ReplyInput): Promise<SmsReplyResult> {
   const body = (input.body ?? '').trim()
   if (!digit && !body) throw Object.assign(new Error('digit or body required'), { status: 400 })
 
-  return digit ? routeDigit(question, digit) : routeText(question, body)
+  // A gateway delivers "1" as text like any other message — nothing arrives tagged as a
+  // digit. So a bare digit typed into the box has to route exactly like a structured one,
+  // or the deterministic path would only exist for callers who already knew to use it.
+  // Anything longer than a single digit is prose and still goes through routeText.
+  const typed = !digit && /^[1-9]$/.test(body) ? body : ''
+  const resolved = digit || typed
+
+  return resolved ? routeDigit(question, resolved) : routeText(question, body)
 }

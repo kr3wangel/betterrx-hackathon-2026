@@ -1,15 +1,17 @@
-import { useState } from 'react'
-import { api } from '../lib/api'
 import type { Message, MessageTemplate, SmsReplyResult } from '../../../shared/types'
 
 /**
- * Tappable digit replies for the two phone simulators.
+ * Reading digit replies in the two phone simulators.
+ *
+ * There used to be tappable buttons here. There aren't now, and shouldn't be: these
+ * screens stand in for SMS on a real handset, which has no buttons — a vendor or a family
+ * types "1" into the box like any other text. The file keeps its name to avoid churning
+ * imports mid-build; what it holds is the read side.
  *
  * A digit under a known question is deterministic — server/sms.ts REPLY_ROUTES maps
  * template x digit to an action, at confidence 1.0 with no model call. That table is
- * authoritative; the labels below are cosmetic and the client never decides the action.
- * It only says which bubble is being answered (`reply_to_message_id`), and the server
- * derives vendor, patient, order and template from that row.
+ * authoritative; the labels below are cosmetic, used to annotate a bubble after the fact
+ * ("1 · Today"), and the client never decides the action.
  */
 
 const DIGIT_LABELS: Partial<Record<MessageTemplate, Record<string, string>>> = {
@@ -39,47 +41,7 @@ export function answeredQuestion(thread: Message[], index: number): Message | un
   return undefined
 }
 
-export function QuickReplies({
-  message,
-  onResult,
-}: {
-  message: Message
-  onResult?: (result: SmsReplyResult) => void
-}) {
-  const [busy, setBusy] = useState(false)
-  const options = message.template ? Object.entries(DIGIT_LABELS[message.template] ?? {}) : []
-  if (!options.length) return null
-
-  return (
-    <div className="flex flex-wrap justify-end gap-1.5 pt-1.5">
-      {options.map(([digit, label]) => (
-        <button
-          key={digit}
-          type="button"
-          disabled={busy}
-          onClick={async () => {
-            setBusy(true)
-            try {
-              onResult?.(
-                await api.post<SmsReplyResult>('/api/messages/reply', {
-                  reply_to_message_id: message.id,
-                  digit,
-                }),
-              )
-            } finally {
-              setBusy(false)
-            }
-          }}
-          className="rounded-full border border-blue-600 px-3 py-1.5 text-[12px] font-medium text-blue-700 active:bg-blue-50 disabled:opacity-40"
-        >
-          <span className="font-semibold tabular-nums">{digit}</span> · {label}
-        </button>
-      ))}
-    </div>
-  )
-}
-
-/** Delivery-receipt line, so the consequence of a tap reads as part of the conversation. */
+/** Delivery-receipt line, so the consequence of a reply reads as part of the conversation. */
 export function ReplyReceipt({ result }: { result: SmsReplyResult }) {
   const digit = result.digit ? `${result.digit}${digitLabel(result.template, result.digit) ? ` · ${digitLabel(result.template, result.digit)}` : ''} — ` : ''
 
