@@ -29,13 +29,22 @@
   .eyebrow { color: var(--coral); text-transform: uppercase; font-weight: 800; letter-spacing: 0.15em; font-size: 12px; }
   h1, h2, h3 { margin: 0; font-weight: 800; letter-spacing: -0.025em; line-height: 1.05; }
 
-  header.masthead { padding: 44px 0 6px; }
-  .brandrow { display: flex; align-items: center; gap: 12px; margin-bottom: 44px; }
-  .pill { background: var(--coral); color: #fff; font-weight: 800; padding: 6px 14px; border-radius: 999px; font-size: 15px; }
+  .topbar { position: sticky; top: 0; z-index: 50; background: rgba(247,245,243,.86); backdrop-filter: saturate(140%) blur(10px); -webkit-backdrop-filter: saturate(140%) blur(10px); border-bottom: 1px solid var(--border); }
+  .topbar .wrap { display: flex; align-items: center; gap: 16px; height: 60px; }
+  .pill { background: var(--coral); color: #fff; font-weight: 800; padding: 6px 13px; border-radius: 999px; font-size: 14px; white-space: nowrap; text-decoration: none; }
   .pill .rx { opacity: .78; }
-  .navtabs { display: flex; gap: 18px; margin-left: 4px; color: var(--faint); font-weight: 700; font-size: 13px; }
-  .navtabs .on { color: var(--ink); border-bottom: 2px solid var(--coral); padding-bottom: 3px; }
-  header.masthead h1 { font-size: clamp(30px, 5.4vw, 58px); max-width: 17ch; margin-top: 16px; }
+  .letternav { display: flex; gap: 4px; margin-left: auto; }
+  .letternav a { display: flex; align-items: baseline; gap: 8px; text-decoration: none; padding: 7px 12px; border-radius: 10px; color: var(--faint); font-weight: 700; font-size: 13px; transition: color .18s ease, background .18s ease; }
+  .letternav a .ltr { font-size: 13px; font-weight: 800; }
+  .letternav a .txt { font-weight: 600; }
+  .letternav a:hover { color: var(--ink); background: rgba(226,123,94,.08); }
+  .letternav a.on { color: var(--coral-deep); background: var(--coral-tint); }
+  .letternav a:focus-visible { outline: 2px solid var(--coral); outline-offset: 2px; }
+  header.masthead { padding: 48px 0 6px; }
+  .del-badge { display: inline-flex; align-items: center; gap: 10px; margin-bottom: 18px; }
+  .del-badge .lt { width: 34px; height: 34px; border-radius: 10px; background: var(--navy); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 17px; }
+  .del-badge .of { font-size: 12px; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; color: var(--faint); }
+  header.masthead h1 { font-size: clamp(30px, 5.4vw, 58px); max-width: 17ch; margin-top: 4px; }
   header.masthead h1 .hl { color: var(--coral); }
   .lede { margin: 22px 0 0; font-size: clamp(17px, 2.2vw, 21px); color: var(--muted); max-width: 60ch; }
 
@@ -126,6 +135,8 @@
   footer .src { color: var(--muted); max-width: 78ch; margin: 0 auto 8px; }
 
   @media (max-width: 840px) {
+    .letternav a .txt { display: none; }
+    .letternav a { padding: 8px 10px; }
     .rail { grid-template-columns: 1fr; gap: 14px; }
     .pipe { display: none; }
     .conn { position: static; transform: none; margin: 6px 0 0; display: inline-block; }
@@ -142,11 +153,24 @@
 </head>
 <body>
 
+<div class="topbar">
+  <div class="wrap">
+    <a class="pill" href="deliverables-v1.html">better<span class="rx">RX</span></a>
+    <nav class="letternav" aria-label="Deliverables">
+      <a href="deliverable-a.html"><span class="ltr">A</span><span class="txt">Working app</span></a>
+      <a href="deliverable-b.html"><span class="ltr">B</span><span class="txt">AI approach</span></a>
+      <a href="deliverable-c.html"><span class="ltr">C</span><span class="txt">Differentiation</span></a>
+      <a href="integration-pitch-v1.html" class="on"><span class="ltr">D</span><span class="txt">Integration</span></a>
+      <a href="deliverable-e.html"><span class="ltr">E</span><span class="txt">Scenarios</span></a>
+    </nav>
+  </div>
+</div>
+
 <header class="masthead">
   <div class="wrap">
-    <div class="brandrow">
-      <span class="pill">better<span class="rx">RX</span></span>
-      <nav class="navtabs"><span>Pharmacy</span><span class="on">DME</span><span>Reports</span></nav>
+    <div class="del-badge">
+      <span class="lt">D</span>
+      <span class="of">Deliverable D · Integration approach</span>
     </div>
     <p class="eyebrow">How the equipment side connects</p>
     <h1>We don't add another system. We put equipment on the feed hospices <span class="hl">already trust</span>.</h1>

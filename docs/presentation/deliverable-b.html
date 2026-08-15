@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>B · AI approach — BetterRX DME</title>
+<style>
+  :root {
+    --ground: #F7F5F3; --surface: #FFFFFF; --ink: #263240; --muted: #5C6B75; --faint: #93A0AA;
+    --border: #EBE7E3; --coral: #E27B5E; --coral-deep: #D2694C; --coral-tint: #FBEFEA;
+    --navy: #2C3A49; --green: #3E9C6B; --green-tint: #E9F3ED; --amber: #9A7B2E; --amber-tint: #FBF4E2;
+    --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --mono: ui-monospace, "SF Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+    --shadow: 0 1px 2px rgba(38,50,64,.04), 0 14px 34px -20px rgba(38,50,64,.20);
+    --shadow-lift: 0 1px 2px rgba(38,50,64,.05), 0 30px 66px -30px rgba(38,50,64,.34);
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { margin: 0; background: var(--ground); color: var(--ink); font-family: var(--sans); line-height: 1.55; -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 0 26px; }
+  a { color: inherit; }
+  h1, h2, h3, h4 { margin: 0; font-weight: 800; letter-spacing: -0.025em; line-height: 1.05; }
+  .eyebrow { color: var(--coral); text-transform: uppercase; font-weight: 800; letter-spacing: 0.15em; font-size: 12px; }
+
+  .topbar { position: sticky; top: 0; z-index: 50; background: rgba(247,245,243,.86); backdrop-filter: saturate(140%) blur(10px); -webkit-backdrop-filter: saturate(140%) blur(10px); border-bottom: 1px solid var(--border); }
+  .topbar .wrap { display: flex; align-items: center; gap: 16px; height: 60px; }
+  .pill { background: var(--coral); color: #fff; font-weight: 800; padding: 6px 13px; border-radius: 999px; font-size: 14px; white-space: nowrap; text-decoration: none; }
+  .pill .rx { opacity: .78; }
+  .letternav { display: flex; gap: 4px; margin-left: auto; }
+  .letternav a { display: flex; align-items: baseline; gap: 8px; text-decoration: none; padding: 7px 12px; border-radius: 10px; color: var(--faint); font-weight: 700; font-size: 13px; transition: color .18s ease, background .18s ease; }
+  .letternav a .ltr { font-size: 13px; font-weight: 800; }
+  .letternav a .txt { font-weight: 600; }
+  .letternav a:hover { color: var(--ink); background: rgba(226,123,94,.08); }
+  .letternav a.on { color: var(--coral-deep); background: var(--coral-tint); }
+  .letternav a:focus-visible { outline: 2px solid var(--coral); outline-offset: 2px; }
+
+  header.masthead { padding: 52px 0 8px; }
+  .del-badge { display: inline-flex; align-items: center; gap: 10px; margin-bottom: 20px; }
+  .del-badge .lt { width: 34px; height: 34px; border-radius: 10px; background: var(--navy); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 17px; }
+  .del-badge .of { font-size: 12px; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; color: var(--faint); }
+  header.masthead h1 { font-size: clamp(30px, 5.2vw, 56px); max-width: 20ch; }
+  header.masthead h1 .hl { color: var(--coral); }
+  .lede { margin: 22px 0 0; font-size: clamp(17px, 2.2vw, 21px); color: var(--muted); max-width: 62ch; }
+  .lede b { color: var(--ink); font-weight: 700; }
+  .lede code { font-family: var(--mono); font-size: .82em; background: var(--surface); border: 1px solid var(--border); padding: 1px 6px; border-radius: 5px; color: var(--navy); }
+
+  section { padding: 42px 0; }
+  .sectitle { max-width: 54ch; margin: 0 0 26px; }
+  .sectitle h2 { font-size: clamp(22px, 3.3vw, 31px); }
+  .sectitle p { margin: 12px 0 0; color: var(--muted); font-size: 16px; }
+
+  /* SIGNATURE: the confidence gate */
+  .gate { background: var(--surface); border: 1px solid var(--border); border-radius: 26px; box-shadow: var(--shadow-lift); padding: 34px 30px; }
+  .gaterail { display: grid; grid-template-columns: 1.1fr auto 1fr; align-items: center; gap: 8px; }
+  .node { border-radius: 16px; padding: 18px 20px; }
+  .node.msg { background: var(--ground); border: 1px solid var(--border); }
+  .node.msg .q { font-size: 11px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); margin-bottom: 8px; }
+  .node.msg .txt { font-size: 14px; color: var(--ink); font-style: italic; }
+  .node.parse { background: var(--navy); color: #fff; text-align: center; }
+  .node.parse .m { font-size: 12px; font-weight: 800; letter-spacing: .04em; color: #E8A98F; }
+  .node.parse .d { font-size: 12px; color: #C6D0D8; margin-top: 6px; }
+  .node.parse .schema { font-family: var(--mono); font-size: 10.5px; color: #9FD4B4; margin-top: 8px; }
+  .arrowcol { display: flex; flex-direction: column; align-items: center; gap: 6px; color: var(--faint); font-weight: 800; }
+  .arrowcol .g { font-size: 20px; color: var(--coral); }
+  .outs { display: flex; flex-direction: column; gap: 10px; }
+  .out { border-radius: 14px; padding: 14px 16px; border: 1px solid var(--border); }
+  .out.apply { background: var(--green-tint); border-color: #CDE7D8; }
+  .out.review { background: var(--coral-tint); border-color: #F1CFC2; }
+  .out .cond { font-size: 12px; font-weight: 800; }
+  .out.apply .cond { color: #2f7a53; }
+  .out.review .cond { color: var(--coral-deep); }
+  .out .r { font-size: 13px; color: var(--ink); margin-top: 4px; }
+  .gatefoot { margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--border); font-size: 13.5px; color: var(--muted); text-align: center; }
+  .gatefoot b { color: var(--ink); }
+
+  /* did / didnt */
+  .twocol { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .panel { border-radius: 18px; padding: 24px 26px; border: 1px solid var(--border); background: var(--surface); box-shadow: var(--shadow); }
+  .panel .lab { font-size: 11px; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; margin-bottom: 16px; }
+  .panel.did .lab { color: var(--coral-deep); }
+  .panel.didnt .lab { color: var(--green); }
+  .panel ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 13px; }
+  .panel li { font-size: 14px; color: var(--ink); padding-left: 26px; position: relative; line-height: 1.5; }
+  .panel li b { font-weight: 700; }
+  .panel li span { color: var(--muted); }
+  .panel.did li::before { content: "→"; position: absolute; left: 0; color: var(--coral); font-weight: 800; }
+  .panel.didnt li::before { content: "✕"; position: absolute; left: 0; color: var(--green); font-weight: 800; font-size: 13px; }
+
+  .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 22px 24px; box-shadow: var(--shadow); }
+  .card h4 { font-size: 15px; margin-bottom: 8px; }
+  .card p { margin: 0; font-size: 13.5px; color: var(--muted); line-height: 1.5; }
+  .card p b { color: var(--ink); font-weight: 700; }
+  .card code { font-family: var(--mono); font-size: 11.5px; color: var(--coral-deep); }
+
+  .band { background: var(--navy); border-radius: 26px; padding: 38px 40px; color: #fff; }
+  .band h3 { color: #fff; font-size: clamp(19px,2.6vw,24px); }
+  .band .bsub { margin: 10px 0 26px; color: #C6D0D8; font-size: 15px; max-width: 60ch; }
+  .statgrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+  .st { background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12); border-radius: 16px; padding: 20px 22px; }
+  .st .n { font-size: 28px; font-weight: 800; letter-spacing: -0.03em; line-height: 1; }
+  .st .n .u { font-size: 14px; color: #A7B4BE; font-weight: 700; }
+  .st .l { margin-top: 9px; font-size: 12.5px; color: #C6D0D8; line-height: 1.4; }
+  .band .measured { margin-top: 18px; font-size: 12.5px; color: #A7B4BE; }
+  .band .measured code { font-family: var(--mono); color: #E8A98F; }
+
+  .honest { border-left: 3px solid var(--amber); background: var(--amber-tint); border-radius: 0 16px 16px 0; padding: 20px 24px; }
+  .honest .lab { font-size: 11px; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; color: var(--amber); margin-bottom: 8px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .honest .lab .synth { background: #efe2bd; color: var(--amber); padding: 2px 9px; border-radius: 999px; letter-spacing: .04em; }
+  .honest p { margin: 0; font-size: 14px; color: #6b5620; line-height: 1.6; }
+  .honest p b { color: #4d3d13; }
+  .honest code { font-family: var(--mono); font-size: 12px; background: rgba(154,123,46,.12); padding: 1px 6px; border-radius: 5px; }
+
+  footer { padding: 34px 0 60px; color: var(--faint); font-size: 12.5px; }
+  footer .nextprev { display: flex; justify-content: space-between; gap: 12px; padding: 22px 0 26px; border-top: 1px solid var(--border); margin-bottom: 20px; }
+  footer .nextprev a { text-decoration: none; font-weight: 700; font-size: 14px; color: var(--ink); display: inline-flex; align-items: center; gap: 8px; }
+  footer .nextprev a.next { color: var(--coral-deep); margin-left: auto; }
+  footer .nextprev a:hover { color: var(--coral); }
+  footer .src { color: var(--muted); max-width: 80ch; }
+
+  @media (max-width: 860px) {
+    .letternav a .txt { display: none; }
+    .letternav a { padding: 8px 10px; }
+    .gaterail { grid-template-columns: 1fr; }
+    .arrowcol { flex-direction: row; padding: 4px 0; }
+    .twocol, .cards, .statgrid { grid-template-columns: 1fr; }
+    .statgrid { grid-template-columns: 1fr 1fr; }
+  }
+  @media (prefers-reduced-motion: reduce) { .letternav a { transition: none; } }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="wrap">
+    <a class="pill" href="deliverables-v1.html">better<span class="rx">RX</span></a>
+    <nav class="letternav" aria-label="Deliverables">
+      <a href="deliverable-a.html"><span class="ltr">A</span><span class="txt">Working app</span></a>
+      <a href="deliverable-b.html" class="on"><span class="ltr">B</span><span class="txt">AI approach</span></a>
+      <a href="deliverable-c.html"><span class="ltr">C</span><span class="txt">Differentiation</span></a>
+      <a href="integration-pitch-v1.html"><span class="ltr">D</span><span class="txt">Integration</span></a>
+      <a href="deliverable-e.html"><span class="ltr">E</span><span class="txt">Scenarios</span></a>
+    </nav>
+  </div>
+</div>
+
+<header class="masthead">
+  <div class="wrap">
+    <div class="del-badge">
+      <span class="lt">B</span>
+      <span class="of">Deliverable B · AI approach</span>
+    </div>
+    <h1>One model, in the one place rules <span class="hl">structurally cannot go</span>.</h1>
+    <p class="lede">We use Claude in exactly one spot: reading a vendor's free-text reply into a structured
+      order event. The rules baseline — <code>/yes|confirm/ → accept</code>, datetime regexes — fails on a
+      whole <b>category</b> of input: order inference and relative-time resolution. Everything else is
+      deterministic on purpose.</p>
+  </div>
+</header>
+
+<main>
+  <!-- SIGNATURE: the confidence gate -->
+  <section>
+    <div class="wrap">
+      <div class="sectitle">
+        <h2>The safety story is one gate</h2>
+        <p>The parse is schema-constrained, so the model can't invent fields or patient details. Then a
+          confidence gate decides whether it ever touches an order — with a human on the other side of it.</p>
+      </div>
+
+      <div class="gate">
+        <div class="gaterail">
+          <div class="node msg">
+            <div class="q">Vendor texts back</div>
+            <div class="txt">"yes bed will be there thursday by 10am"</div>
+          </div>
+          <div class="arrowcol"><span>parse</span><span class="g">→</span><span>gate</span></div>
+          <div>
+            <div class="node parse">
+              <div class="m">Claude Haiku 4.5</div>
+              <div class="d">classify + extract, against this vendor's open orders</div>
+              <div class="schema">{ intent, order_ref, eta, confidence }</div>
+            </div>
+            <div class="outs" style="margin-top:14px;">
+              <div class="out apply">
+                <div class="cond">confidence ≥ 0.8 &amp; resolved order</div>
+                <div class="r">auto-applies — state pill flips on the board</div>
+              </div>
+              <div class="out review">
+                <div class="cond">anything less</div>
+                <div class="r">lands in the human review queue</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="gatefoot">
+          Even an auto-applied parse can only fire a <b>valid</b> transition — a hallucinated "delivered" on an
+          order still in <b>ordered</b> is rejected with a 409 and falls to review. With <b>no API key</b>, the
+          whole pipeline degrades <b>to the queue</b> rather than guessing.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- did / didnt -->
+  <section>
+    <div class="wrap">
+      <div class="sectitle">
+        <h2>Where the model earns its place — and where we refused to spend it</h2>
+        <p>The same judgment as the rules-based risk engine, applied inside the AI choice: match the tool to
+          the task.</p>
+      </div>
+      <div class="twocol">
+        <div class="panel did">
+          <div class="lab">AI, because rules can't represent it</div>
+          <ul>
+            <li><b>Open-vocabulary vendor prose</b> <span>— every new vendor is a new dialect; a model handles the long tail natively.</span></li>
+            <li><b>Order inference</b> <span>— resolving which open order an unreferenced reply is about.</span></li>
+            <li><b>Relative-time resolution</b> <span>— "Thursday by 10" → a real deadline the risk engine can act on.</span></li>
+          </ul>
+        </div>
+        <div class="panel didnt">
+          <div class="lab">Deterministic, because rules win</div>
+          <ul>
+            <li><b>Risk scoring</b> <span>— a rules engine, so every score is a sentence a case manager can argue with.</span></li>
+            <li><b>Reply-code addressing</b> <span>— a bare "7" routes to the right order by arithmetic, no inference.</span></li>
+            <li><b>Caregiver rating</b> <span>— a digit is a digit; regex, no model.</span></li>
+            <li><b>The magic-link tap</b> <span>— confidence 1.0, no model in the path of a state change.</span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- cost band -->
+  <section>
+    <div class="wrap">
+      <div class="band">
+        <h3>Model choice: deliberately small. Cost: measured, not estimated.</h3>
+        <p class="bsub">It runs on Haiku 4.5 because the task is extraction, not reasoning — a bigger model
+          adds latency and cost without adding accuracy here.</p>
+        <div class="statgrid">
+          <div class="st"><div class="n">~$0.001<span class="u">/msg</span></div><div class="l">~620 in / ~50 out tokens per parse</div></div>
+          <div class="st"><div class="n">$0.003–6<span class="u">/order</span></div><div class="l">end to end · 3–6 vendor messages</div></div>
+          <div class="st"><div class="n">~$5<span class="u">/mo</span></div><div class="l">at 1,000 orders — negligible vs one avoided failure</div></div>
+          <div class="st"><div class="n">6/6<span class="u"> · 1–2s</span></div><div class="l">test set after prompt tuning · latency per message</div></div>
+        </div>
+        <p class="measured">Numbers from our own harness — <code>npm run parse:test</code>. Model swappable via
+          <code>PARSE_MODEL</code> if production data ever justified a larger one.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- backtest honest -->
+  <section>
+    <div class="wrap">
+      <div class="sectitle">
+        <h2>The rules, backtested honestly</h2>
+      </div>
+      <div class="honest">
+        <div class="lab">On synthetic data — and we say so <span class="synth">Synthetic</span></div>
+        <p><code>npm run backtest</code> replays every seeded order tick by tick exactly as the watchdog would
+          have seen it — state rebuilt from the event ledger, a flag only counts if it fired <b>before</b> the
+          deadline. Against the shipped threshold of 70, the risk engine flagged <b>78% of late deliveries a
+          median 8.7 hours early</b>, with false alarms on <b>27% of on-time orders</b> (n=203). We keep the
+          false-alarm rate in the open — most of those flags were reasonable when they fired. This demonstrates
+          the <b>approach</b> — explainable rules over per-vendor × equipment × weekday history — not field
+          performance, because there is no public DME delivery-timing dataset. Re-run after reseeding: numbers
+          move with the seed date.</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="nextprev">
+      <a href="deliverable-a.html"><span>←</span> A · Working app</a>
+      <a class="next" href="deliverable-c.html">C · Differentiation <span>→</span></a>
+    </div>
+    <p class="src">DME coordination for hospice · BetterRX — Builder Day 2026. Every timing and cost figure is
+      measured from the test harness; delivery-timing data is synthetic and labeled synthetic.</p>
+  </div>
+</footer>
+
+</body>
+</html>
