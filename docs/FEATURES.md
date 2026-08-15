@@ -73,12 +73,11 @@ Real, tested code with no path to it from the UI. Either wire it up or don't cla
 
 | Thing | Evidence | Status |
 |---|---|---|
-| `POST /api/messages/send` — send any templated message | `sms.ts` `sendTemplate` | **No client caller** |
-| `POST /api/messages/reply` — inbound digit/keypress replies | `sms.ts` `handleReply` | **No client caller** |
+| `POST /api/messages/send` — send any templated message | `sms.ts` `sendTemplate` | **No client caller** — presenter escape hatch, curl only |
 
-`server/sms.ts` is 331 lines with **33 tests** — the largest single test file in the repo —
-and the UI does not call into it. Worth ten minutes from whoever wrote it to say whether
-that's a deliberate spare tyre or an integration that got missed.
+`POST /api/messages/reply` is **wired**: both phone simulators render the digit options of
+whatever question is still open (`components/QuickReplies.tsx`) and post them to the router,
+so a tapped digit applies at confidence 1.0 with no model call.
 
 ---
 
