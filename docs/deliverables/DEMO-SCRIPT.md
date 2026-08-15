@@ -479,9 +479,12 @@ one, so this is a stage direction, not a problem.
   **not** read the sentence out as though it's on the screen. `[FE PENDING: escalation reason in
   the row detail]` — `RowDetail` already fetches `detail.escalations` and never renders it
   (`RowDetail.tsx:15,36-37`); this is a render, not a feature.
-- **Timing, measured:** with `ACK_NAG_HOURS=4`, `ACK_ESCALATE_HOURS=0` and #1061's 5h backdate, the
-  nag goes out on the **first** tick (the boot tick, or ≤30s after the seed) and the escalation on
-  the **next** (≤60s) — roughly when 5a ends. Both broadcast over SSE (`messaging.ts:36`,
+- **Timing, measured 08-15 with NO env overrides:** the escalation is anchored to *placement*
+  (nag past 2h of silence, escalation past 4h total — `server/watchdog.ts`), so with #1061's 5h
+  backdate the nag goes out on the **first** tick (≤30s after the seed) and the escalation on the
+  **next** (≤60s) — roughly when 5a ends. Verified live: escalation open at ~60s, sentence verbatim.
+  `ACK_NAG_HOURS`/`ACK_ESCALATE_HOURS` in `.env` are tuning knobs, not demo requirements — leave
+  them unset. Both broadcast over SSE (`messaging.ts:36`,
   `statemachine.ts:86`), which is what makes beats 5 and 6 land without a refresh. #1060 is freshly
   placed and is never nagged. Beehive is nagged once and only once (matched by template,
   `watchdog.ts:46-53`). If you arrive early, pause on the nag and let the escalation appear live; if

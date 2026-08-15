@@ -91,7 +91,13 @@ export function tick(now = new Date()): void {
           // the same ask, so it must not put two live codes on one order.
           sendVendorQuestion(order.vendor_id, order.id, 'v_ack_nag', (digits) => ackNagText(order, digits))
         }
-      } else if (hoursSince(nagSentAt, now) > ACK_ESCALATE_HOURS) {
+      } else if (hoursSince(anchor, now) > ACK_NAG_HOURS + ACK_ESCALATE_HOURS) {
+        // Total-silence SLA, anchored to placement — which is what the escalation copy
+        // claims ("still unconfirmed Nh after placement"). Anchoring to the nag instead
+        // resets the vendor's clock whenever the nag goes out late (server just booted,
+        // order backdated): 5h of silence would wait another 2h just because the nag is
+        // fresh. The nag still always precedes the escalation — it went out on an earlier
+        // tick or this branch is unreachable.
         const h = Math.round(hoursSince(anchor, now))
         escalate(order.id, `No response to the automated check-in — order #${order.id} is still unconfirmed ${h}h after placement`)
       }
