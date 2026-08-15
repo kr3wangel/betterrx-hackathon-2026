@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { ChevronLeft } from 'lucide-react'
 import { api } from '../lib/api'
+import { expectOwn } from '../lib/expectedEvents'
 import type { Patient, PatientStatus } from '../../../shared/types'
 import { PersonaHeader } from '@/components/PersonaHeader'
 import { EmptyState } from '@/components/EmptyState'
@@ -11,6 +12,12 @@ import { Card, CardContent } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 
 type StatusChoice = Exclude<PatientStatus, 'active'>
+
+interface PatientStatusResult {
+  patient_id: number
+  status: PatientStatus
+  pickups_triggered: number[]
+}
 
 /** Respectful, plain-English framing for each status change the nurse can trigger. */
 const CHOICES: {
@@ -44,6 +51,15 @@ const CHOICES: {
   },
 ]
 
+/** The old copy asserted a pickup existed. Name the count instead — sometimes there isn't one. */
+function pickupLine(name: string, choice: StatusChoice, count: number): string {
+  if (count === 0) return `No rented equipment on file for ${name}, so there’s nothing to collect.`
+  const what = count === 1 ? 'One pickup is' : `${count} pickups are`
+  return choice === 'deceased'
+    ? `${what} on the driver’s list for ${name}. The family will be handled gently.`
+    : `${what} on the driver’s list for ${name}.`
+}
+
 export default function Nurse() {
   const navigate = useNavigate()
   const [patients, setPatients] = useState<Patient[]>([])
@@ -66,15 +82,25 @@ export default function Nurse() {
   async function apply(choice: StatusChoice) {
     if (!selected) return
     const patient = selected
+    // Narrowed to the pickups this tap fires, so a vendor accepting inside the window still speaks.
+    expectOwn([`patient:${patient.id}`], { types: ['pickup_triggered'] })
     try {
-      await api.post(`/api/patients/${patient.id}/status`, { status: choice })
+      const result = await api.post<PatientStatusResult>(`/api/patients/${patient.id}/status`, {
+        status: choice,
+      })
+      const pickups = result.pickups_triggered
       toast.success(
         choice === 'deceased' ? 'Recorded, with care' : 'Recorded — patient discharged',
         {
-          description:
-            choice === 'deceased'
-              ? `Pickup for ${patient.name}’s equipment is scheduled. The family will be handled gently.`
-              : `Pickup for ${patient.name}’s equipment is on the driver’s list.`,
+          description: pickupLine(patient.name, choice, pickups.length),
+          action:
+            pickups.length > 0
+              ? {
+                  label: 'See the pickups',
+                  onClick: () =>
+                    navigate('/driver', { state: { highlight: { orderIds: pickups, at: Date.now() } } }),
+                }
+              : undefined,
         },
       )
       setSelected(null)

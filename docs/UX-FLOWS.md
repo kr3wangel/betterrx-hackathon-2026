@@ -10,17 +10,28 @@ navigation affordance found in the code, not an inferred user journey. The searc
 grep -rnE "useNavigate|navigate\(|window\.location|<Link|<NavLink|href=" client/src/pages/ client/src/components/
 ```
 
-That returns **eight** navigation affordances in the entire application: four `navigate()` calls
-(`Order.tsx:122`, `Nurse.tsx:96`, `Reports.tsx:86`, and `App.tsx:74` — the role switch), two
-`<Link>`s (`Hospice.tsx:38` "+ New order", `PortalOrder.tsx:109` "see all"), and two new-tab
-anchors in the account menu. No full page loads anywhere. Everything else is the global nav bar. An
-earlier draft of this document drew vendor and driver arrows that were really *system events*, not
-navigation — those now live in §4, clearly separated.
+That returns **fifteen** navigation affordances in the entire application: seven `navigate()` calls
+inside pages (`Order.tsx:125` "Place another", `Order.tsx:132` the post-submit landing,
+`Nurse.tsx:101` and `Demo.tsx:92` "See the pickups", `Nurse.tsx:122` and `Reports.tsx:86`
+"View board", `Landing.tsx:29` the persona cards), plus `App.tsx:60` — the role switch; two
+`<Link>`s (`Hospice.tsx:64` "+ New order", `PortalOrder.tsx:109` "see all"); four new-tab anchors
+(two in the account menu, two in the landing footer); and `PhoneScreen.tsx:147`, the `Linkify`
+anchor that turns a texted magic link into a real one. No full page loads anywhere. Everything else
+is the global nav bar. An earlier draft of this document drew vendor and driver arrows that were
+really *system events*, not navigation — those now live in §4, clearly separated.
 
-**Last re-derived 2026-08-14, after the Board v8 rebuild.** That rebuild moved the EMR simulator to
-`/demo` and deleted the board's inline order form; the same day added `/o/:token`, the role-switch
-landing, and the account-menu phone links. Every count below was recounted against the code, not
-edited in place.
+**Three of those `navigate()` calls carry a payload**, which is new. `Order.tsx:132`,
+`Nurse.tsx:101` and `Demo.tsx:92` pass react-router location `state` of the shape
+`{ highlight: { orderIds, at } }`; the destination reads it once, rings those rows, scrolls the
+first into view, and immediately replaces the entry with `state: null` so a back-navigation can't
+re-fire it. Only `/hospice` and `/driver` read it. The `navigate(pathname, { replace: true })` that
+consumes it (`hooks/useHighlightHandoff.ts`) is bookkeeping, not an arrow — it changes nothing about
+where you are.
+
+**Last re-derived 2026-08-14, after the front door and action-handoff branch.** That branch made `/`
+a real page instead of a redirect, and gave three actions a destination instead of a dead end. The
+Board v8 rebuild before it moved the EMR simulator to `/demo` and deleted the board's inline order
+form. Every count below was recounted against the code, not edited in place.
 
 **Viewing:** mermaid renders on github.com natively; in VS Code use *Markdown Preview Mermaid
 Support* + `Cmd+Shift+V`. All diagrams here were rendered through `mermaid-cli` v9 and v10 before
@@ -33,8 +44,14 @@ Read with [FEATURES.md](FEATURES.md) and
 
 ## 1 · Every page, one line each
 
-**13 routes, 12 page components** (`VendorPortal` serves both `/vendor-portal` and `/portal/:token`),
-plus `/` which redirects to `/hospice`.
+**14 routes, 13 page components** (`VendorPortal` serves both `/vendor-portal` and `/portal/:token`).
+`/` used to be a `<Navigate to="/hospice">` *inside* the Shell; it is now a page of its own.
+
+### Front door — 1 page
+
+| Route | What the page is |
+|---|---|
+| `/` | The landing. Product name, the one-line promise, six persona cards, and the two simulated phones in the footer. Routed at the top level, **outside the Shell**: a front door that already shows the app's role-filtered nav bar isn't a door, it's the hallway. Clicking a card signs that role in and lands on `homeFor(roleId)` — the same code path as the account menu's role switch. `/demo` is deliberately not listed |
 
 ### Hospice staff — 4 pages
 
@@ -96,6 +113,10 @@ graph TD
   NAV["GLOBAL NAV BAR<br/>5 links, filtered by role - see section 5<br/>on every page inside the Shell"]
   ACCT["ACCOUNT MENU<br/>role switcher plus Simulated phones<br/>also on every Shell page"]
 
+  subgraph Front door - no chrome
+    LANDING["/<br/>the landing<br/>six persona cards"]
+  end
+
   subgraph Full Shell - hospice nav bar
     BOARD["/hospice<br/>the board"]
     ORDER["/order<br/>place an order"]
@@ -124,12 +145,20 @@ graph TD
   NAV --> REPORTS
   NAV --> DRIVER
 
-  BOARD ==>|"+ New order<br/>Hospice.tsx:38"| ORDER
-  ORDER ==>|"View board toast<br/>Order.tsx:122"| BOARD
-  NURSE ==>|"View board<br/>Nurse.tsx:96"| BOARD
+  LANDING ==>|"4 of 6 persona cards<br/>Landing.tsx:29"| BOARD
+  LANDING ==>|"Dispatcher, Driver cards"| DRIVER
+  LANDING ==>|"new tab"| CARE
+  LANDING ==>|"new tab"| VPHONE
+
+  BOARD ==>|"+ New order<br/>Hospice.tsx:64"| ORDER
+  ORDER ==>|"on submit, row rings<br/>Order.tsx:132"| BOARD
+  ORDER ==>|"Place another toast<br/>Order.tsx:125"| ORDER
+  NURSE ==>|"View board<br/>Nurse.tsx:122"| BOARD
+  NURSE ==>|"See the pickups toast<br/>Nurse.tsx:101"| DRIVER
+  DEMO ==>|"See the pickups toast<br/>Demo.tsx:92"| DRIVER
   REPORTS ==>|"View board<br/>Reports.tsx:86"| BOARD
 
-  ACCT ==>|"switch role<br/>App.tsx:74"| BOARD
+  ACCT ==>|"switch role<br/>App.tsx:60"| BOARD
   ACCT ==>|"new tab"| CARE
   ACCT ==>|"new tab"| VPHONE
 
@@ -144,12 +173,20 @@ graph TD
 Thick arrows are real in-app jumps. Thin arrows are the nav bar. Dashed arrows are external
 entry — a link texted to a vendor, or a URL the presenter types.
 
-Two of those thick arrows are new since the last pass. **The role switch navigates**: choosing a
-role in the account menu now lands you on that role's first nav surface, because filtering the nav
-while leaving you on a page the new role can't see was worse than not filtering. It goes to
-`/hospice` for four of the six roles and `/driver` for Dispatcher and Driver. **And the
-texted link is per-order**: `/o/:token` opens the one order the text was about, with a link onward
-to the vendor's full portal if they have other work open.
+**The role switch navigates**: choosing a role — in the account menu or on a landing card — lands
+you on that role's first nav surface, because filtering the nav while leaving you on a page the new
+role can't see was worse than not filtering. It goes to `/hospice` for four of the six roles and
+`/driver` for Dispatcher and Driver. Both doors call the same `homeFor(roleId)`
+(`client/src/lib/surfaces.ts`), derived from `surfaceLinks` rather than written down twice — two
+copies of the role-to-surface map would rot apart, and this document is the artifact that would go
+stale silently when they did. **And the texted link is per-order**: `/o/:token` opens the one order
+the text was about, with a link onward to the vendor's full portal if they have other work open.
+
+**Three arrows are new, and they are the same idea three times: an action now lands where its
+consequence is visible.** Placing an order goes to the board with the new row ringing; the nurse's
+"See the pickups" and the EMR simulator's go to `/driver` with the triggered jobs ringing. Before
+this, twelve mutating controls in the app produced no visible response at all, and of the ones that
+did speak, exactly one offered a route to what it had done.
 
 **Where this stands after the XS fix batch:**
 
@@ -183,34 +220,41 @@ each role *needs* to go, with the gap called out.
 
 ```mermaid
 graph LR
+  L["/<br/>landing card"]
   A["/order<br/>place an order"]
   B["/my-patients<br/>PROPOSED"]
   C["/hospice<br/>everyone's patients"]
-  A ==>|"View board toast"| C
-  A -->|"form resets<br/>place another"| A
+  L ==>|"Admissions Nurse card"| C
+  A ==>|"on submit, row rings"| C
+  A -->|"Place another toast<br/>form resets"| A
   A -.->|"proposed"| B
 ```
 
-**One page, and its only real exit lands her on the wrong screen.** The "View board" toast sends her
-to the case manager's board showing every patient in the hospice, not hers. `/my-patients` is the
-missing box.
+**Her one page now lands, and it still lands on the wrong screen.** Placing an order used to offer a
+"View board" toast she had to click; it now takes her there with her new row ringing, which is
+strictly better feedback — but that board is the case manager's, showing every patient in the
+hospice, not hers. `/my-patients` is still the missing box, and the landing card points at the same
+shared board.
 
 ### Case manager
 
 ```mermaid
 graph LR
+  L["/<br/>landing card"]
   A["/hospice<br/>the board"]
   B["/order"]
   C["/nurse"]
   D["/reports"]
+  L ==>|"Case Manager card"| A
   A ==>|"+ New order"| B
-  B ==>|"View board"| A
+  B ==>|"on submit, row rings"| A
   A -->|"nav bar only"| C
   A -->|"nav bar only"| D
 ```
 
-**The only well-connected role**, and the round trip is now genuinely round: the board's "+ New
-order" goes to `/order`, and placing one offers "View board" straight back.
+**The only well-connected role**, and the round trip is now genuinely round *without a click*: the
+board's "+ New order" goes to `/order`, and placing one returns to the board with the row it just
+created ringing coral and scrolled into view.
 
 **The inline order form on the board is gone** — the v8 rebuild deleted it, so `/order` is the only
 place an order is written. That closes the duplicate-form question in §8 by removing the duplicate
@@ -222,9 +266,11 @@ second form.
 
 ```mermaid
 graph LR
+  L["/<br/>landing card"]
   A["/reports"]
   B["/approvals<br/>PROPOSED"]
   C["/hospice"]
+  L ==>|"Director of Nursing card"| C
   A -->|"scroll to find<br/>the approvals card"| A
   A ==>|"View board"| C
   A -.->|"proposed"| B
@@ -237,16 +283,27 @@ screen and the daily task is the one you scroll to find. She now has a way back 
 
 ```mermaid
 graph LR
+  L["/<br/>landing card"]
   A["/nurse<br/>who changed?"]
   B["/nurse<br/>discharged / deceased"]
   C["/hospice<br/>the board"]
+  D["/driver<br/>the pickups that fired"]
+  L ==>|"Field Nurse card"| C
   A --> B
   B ==>|"View board"| C
+  B ==>|"See the pickups toast"| D
 ```
 
-**Two taps, and now a way to see what happened.** The screen fires the pickup trigger; the
-consequences land on the board. Until the XS batch she had no route there, so the most important
-thing she does in this app was also the thing she got no feedback on.
+**Two taps, and now a route to the exact thing the two taps caused.** The toast used to *assert*
+that pickups existed; it now names how many and offers "See the pickups", which goes to `/driver`
+with those jobs ringing. When nothing was on file it says so instead, rather than claiming a pickup
+that didn't happen. The most important thing she does in this app is finally one click from its
+proof.
+
+Note the landing card sends her to `/hospice`, not `/nurse` — `homeFor` returns the first
+`surfaceLinks` entry her role appears in, and Field Nurse is on Board before Nurse. That is the
+derivation working as designed, not a bug; if it should be `/nurse`, the fix is to reorder
+`surfaceLinks`, which moves the nav and the landing together.
 
 ---
 
@@ -293,10 +350,12 @@ grep -rn "useAuth" client/src --include="*.tsx" --include="*.ts" | grep -v "lib/
 # client/src/App.tsx:47   <- the dropdown itself, and nothing else
 ```
 
-**The nav now filters by role** (added in the XS batch). Each entry in `surfaceLinks` carries a
-`roles: RoleId[]`, and `Shell()` filters against the signed-in role:
+**The nav now filters by role** (added in the XS batch). Each entry in `surfaceLinks` — since the
+front-door branch, `client/src/lib/surfaces.ts` rather than a const in `App.tsx` — carries a
+`roles: RoleId[]`, and `Shell()` filters against the signed-in role. The "lands on" column is
+`homeFor(roleId)` from the same file, so the account menu and the six landing cards cannot disagree:
 
-| Role | Sees in the nav | Lands on when you switch to it |
+| Role | Sees in the nav | Lands on when you pick it |
 |---|---|---|
 | Case Manager | Board · New order · Nurse · Reports | `/hospice` |
 | Admissions Nurse | Board · New order | `/hospice` |
@@ -306,7 +365,7 @@ grep -rn "useAuth" client/src --include="*.tsx" --include="*.ts" | grep -v "lib/
 | Driver | Driver | `/driver` |
 | *signed out* | *everything* | *stays put* |
 
-**Switching role navigates** (`App.tsx:74`): you land on the first nav link that role can see, so
+**Switching role navigates** (`App.tsx:60`): you land on the first nav link that role can see, so
 you're never left staring at a page your new role can't reach from its own nav. Picking the role
 you're already in is a no-op. This makes the account menu the fastest way to move around the app
 during a demo — switch to Driver and you're on `/driver`, no second click.
@@ -403,7 +462,9 @@ the whole record of what changed:
 | Board v8 — three sections, five-slot rows, tap-open detail, swap dialog, review-queue dialog | `pages/Hospice.tsx`, `components/board/*`, `lib/board.ts` |
 | EMR simulator and send-a-text moved off the board to `/demo` | `pages/Demo.tsx` |
 | Account menu opens both phone simulators in a new tab | `App.tsx` `phoneLinks` |
-| Switching role lands on that role's first surface | `App.tsx:74` |
+| Switching role lands on that role's first surface | `App.tsx:60`, `lib/surfaces.ts` |
+| `/` is a real landing page outside the Shell, with six persona cards | `pages/Landing.tsx`, `lib/brand.ts` |
+| Actions land where their consequence is: order → board, pickups → driver, rows ring on arrival | `pages/Order.tsx`, `pages/Nurse.tsx`, `pages/Demo.tsx`, `hooks/useHighlightHandoff.ts` |
 | `/vendor` renamed "Dispatcher board" in its page header — and later retired from the nav | `App.tsx`, `pages/Vendor.tsx` |
 | `/vendor` and `/vendor-portal` off the nav; Dispatcher's nav anchor is Driver | `App.tsx` `surfaceLinks` |
 | Reply buttons removed; a typed digit routes like a structured one | `pages/*Phone.tsx`, `server/sms.ts` |

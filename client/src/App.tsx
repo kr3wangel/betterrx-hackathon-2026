@@ -1,9 +1,10 @@
 import type { ReactNode } from 'react'
-import { NavLink, Navigate, Route, Routes, useNavigate } from 'react-router-dom'
+import { NavLink, Route, Routes, useNavigate } from 'react-router-dom'
 import { Check, ChevronDown, ExternalLink, LogOut, Smartphone } from 'lucide-react'
 import { useEventStream } from './hooks/useEventStream'
 import { useEventNarration } from './hooks/useEventNarration'
 import { HighlightProvider } from './lib/highlight'
+import { homeFor, surfaceLinks } from './lib/surfaces'
 import { ROLES, useAuth, type RoleId } from './lib/auth'
 import {
   DropdownMenu,
@@ -29,22 +30,7 @@ import Nurse from './pages/Nurse'
 import Caregiver from './pages/Caregiver'
 import VendorPhone from './pages/VendorPhone'
 import Demo from './pages/Demo'
-
-// The persona surfaces of the DME module — the working tool.
-// Which roles see which surface in the nav. This filters the nav bar ONLY — routes stay
-// unguarded on purpose, so any screen is still reachable by URL if a demo goes sideways.
-const surfaceLinks: { to: string; label: string; roles: RoleId[] }[] = [
-  // Field Nurse gets the board because /nurse links to it — a nav that hides a page the
-  // page itself sends you to is worse than no filtering at all.
-  { to: '/hospice', label: 'Board', roles: ['case_manager', 'admissions_nurse', 'director_of_nursing', 'field_nurse'] },
-  { to: '/order', label: 'New order', roles: ['case_manager', 'admissions_nurse'] },
-  { to: '/nurse', label: 'Nurse', roles: ['case_manager', 'field_nurse'] },
-  // Dispatcher's own two links are retired (/vendor, /vendor-portal — both still routed, URL
-  // only), so it anchors on the other vendor-side surface. Not the board: that would put a
-  // hospice's whole patient list in a vendor employee's nav.
-  { to: '/driver', label: 'Driver', roles: ['dispatcher', 'driver'] },
-  { to: '/reports', label: 'Reports', roles: ['case_manager', 'director_of_nursing'] },
-]
+import Landing from './pages/Landing'
 
 // The two people this system texts who never log in. Their screens are full-screen phone
 // simulators, so they open in a new tab rather than replacing the hospice window you're
@@ -71,8 +57,7 @@ function AccountControl() {
   function chooseRole(id: RoleId) {
     if (role?.id === id) return
     signIn(id)
-    const home = surfaceLinks.find((l) => l.roles.includes(id))
-    if (home) navigate(home.to)
+    navigate(homeFor(id))
   }
 
   return (
@@ -142,6 +127,9 @@ function surfaceLinkClass({ isActive }: { isActive: boolean }) {
 export default function App() {
   return (
     <Routes>
+      {/* The front door, outside the shell: a landing that already shows the app's role-filtered
+          nav bar isn't a door, it's the hallway. */}
+      <Route path="/" element={<Landing />} />
       {/* Deliberately outside the app shell — each stands in for a real phone, so it gets no
           nav, no header, no site chrome. Off the surface nav; reached from the account menu
           (new tab) or by typing the URL. */}
@@ -259,7 +247,6 @@ function Shell() {
 
           <main className="mx-auto max-w-7xl px-5 py-8 md:px-8">
             <Routes>
-              <Route path="/" element={<Navigate to="/hospice" replace />} />
               <Route path="/hospice" element={<Hospice />} />
               <Route path="/order" element={<Order />} />
               <Route path="/nurse" element={<Nurse />} />

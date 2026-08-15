@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { api } from '../lib/api'
+import { expectOwn } from '../lib/expectedEvents'
 import { CATALOG, BED_CODE } from '../lib/domain'
 import type { CatalogItem } from '../lib/domain'
 import type { Order, Patient, Urgency, Vendor } from '../../../shared/types'
@@ -107,8 +108,10 @@ export default function Order() {
     e.preventDefault()
     if (!canSubmit || !item) return
     setSubmitting(true)
+    // The order id only comes back in the response, so the suppression key is the patient.
+    expectOwn([`patient:${Number(patientId)}`])
     try {
-      await api.post<Order>('/api/orders', {
+      const order = await api.post<Order>('/api/orders', {
         patient_id: Number(patientId),
         vendor_id: Number(vendorId),
         hcpcs_code: item.hcpcs_code,
@@ -119,13 +122,14 @@ export default function Order() {
       })
       toast.success('Order placed — vendor texted', {
         description: `${item.equipment_name} for ${patient?.name ?? 'the patient'} is on the board.`,
-        action: { label: 'View board', onClick: () => navigate('/hospice') },
+        action: { label: 'Place another', onClick: () => navigate('/order') },
       })
       // Reset for the next admission, keeping equipment/urgency and re-seeding the deadline.
       setPatientId('')
       setQuantity('1')
       setVendorId('')
       setNeededBy(deadlineFrom(urgency))
+      navigate('/hospice', { state: { highlight: { orderIds: [order.id], at: Date.now() } } })
     } catch {
       toast.error('Couldn’t place the order', {
         description: 'Something went wrong reaching the server. Try again.',

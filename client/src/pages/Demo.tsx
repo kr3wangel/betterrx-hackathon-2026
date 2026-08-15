@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { api } from '../lib/api'
+import { expectOwn } from '../lib/expectedEvents'
 import { useLive } from '../lib/useLive'
 import { STATE_LABEL } from '../lib/domain'
 import type { MessageTemplate, Order, Patient, PatientStatus } from '../../../shared/types'
@@ -63,20 +65,33 @@ export default function Demo() {
 }
 
 function EmrFeed({ patients }: { patients: Patient[] }) {
+  const navigate = useNavigate()
+
   async function setStatus(patient: Patient, status: Exclude<PatientStatus, 'active'>) {
+    // Narrowed to the pickups this fires, so a vendor accepting inside the window still speaks.
+    expectOwn([`patient:${patient.id}`], { types: ['pickup_triggered'] })
     try {
       const result = await api.post<PatientStatusResult>('/api/emr/patient-status', {
         patient_id: patient.id,
         status,
       })
-      const count = result.pickups_triggered.length
+      const pickups = result.pickups_triggered
+      const count = pickups.length
       toast.success(
         `EMR says ${patient.name} is ${PATIENT_STATUS_LABEL[status].toLowerCase()}`,
         {
           description:
             count === 0
               ? 'No delivered equipment on file, so no pickup was triggered.'
-              : `${count} pickup${count === 1 ? '' : 's'} triggered: order${count === 1 ? '' : 's'} ${result.pickups_triggered.map((id) => `#${id}`).join(', ')}.`,
+              : `${count} pickup${count === 1 ? '' : 's'} triggered: order${count === 1 ? '' : 's'} ${pickups.map((id) => `#${id}`).join(', ')}.`,
+          action:
+            count > 0
+              ? {
+                  label: 'See the pickups',
+                  onClick: () =>
+                    navigate('/driver', { state: { highlight: { orderIds: pickups, at: Date.now() } } }),
+                }
+              : undefined,
         },
       )
     } catch (err) {

@@ -12,19 +12,27 @@ truthful.
 **How to re-verify** (do this before the rubric audit, things move fast):
 
 ```bash
-grep -oE "routes\.(get|post)\('[^']+'" server/routes.ts | sort -u   # every endpoint (31)
-grep -oE 'path="[^"]*"' client/src/App.tsx | sort -u                # every screen (13)
-grep -n "roles:" client/src/App.tsx                                  # who sees which nav link
-npm run typecheck && npm test                                        # it all still holds
+grep -oE "routes\.(get|post)\('[^']+'" server/routes.ts | sort -u   # every endpoint (32)
+grep -oE 'path="[^"]*"' client/src/App.tsx | sort -u                # every screen (14, plus the catch-all)
+grep -n "roles:" client/src/lib/surfaces.ts                          # who sees which nav link
+npm run typecheck && npm test                                        # it all still holds (177)
 ```
 
-**Last verified against `main` on 2026-08-14**, after the role-filtered nav and `PortalShell`
-merge (`6696d8c`, `d331fb1`). Every count in this file was re-derived on that pass, not carried
-over.
+**Last verified against `main` on 2026-08-14**, after the live-narration, action-handoff and
+front-door branch. That branch made `/` a real page, moved `surfaceLinks` out of `App.tsx` into
+`client/src/lib/surfaces.ts` (so the third command above changed file), and added
+`tests/narration.test.ts`. Every count in this file was re-derived on that pass, not carried over —
+the endpoint count went 31 → 32 and the test count 150 → 177.
 
 ---
 
 ## 1 · Working — you can click it right now
+
+### The front door
+
+| Route | Chrome | What it does |
+|---|---|---|
+| `/` | none — outside the Shell | The landing. Product name, the one-line promise, and six persona cards. Clicking one signs that role in and lands on `homeFor(roleId)`, the same derivation the account menu's role switch uses (`client/src/lib/surfaces.ts`), so the two doors can't disagree. Footer carries the two simulated phones, new tab. `/demo` is deliberately not listed — it's a presenter prop, and the front door is the last place to contradict that. Was a `<Navigate to="/hospice">` inside the Shell until 08-14 |
 
 ### Surfaces in the nav
 
@@ -87,6 +95,9 @@ suppresses itself on real handsets.
 | EMR webhook | `pickups.ts` | Simulated patient-status events drive automatic pickup |
 | Reports | `reports.ts` | Vendor scorecards, calls avoided, pickup latency |
 | Live updates | `sse.ts` + `useEventStream` | One shared SSE stream app-wide |
+| Live event narration | `client/src/lib/narration.ts` + `hooks/useEventNarration.ts` | When something happens under you, the surface says so in a sentence. `risk_updated` and `family_notified` **never** narrate; your own click is suppressed for 6s so an action never toasts twice. Client-only, no server change. `?quiet=1` mutes it for the session |
+| Row acknowledgment | `client/src/lib/highlight.tsx` + `index.css` | A 1.6s coral ring on the row that changed. Shared by narration and by the action handoffs — one primitive, two callers. The client's first `prefers-reduced-motion` handling: the ring becomes a flat tint |
+| Action handoffs | `hooks/useHighlightHandoff.ts` + the call sites | Placing an order lands on the board with the new row ringing; the nurse's and the EMR's "See the pickups" land on `/driver` with the triggered jobs ringing. Carried as react-router location `state`, consumed once and dropped from history so a back-navigation can't re-fire it |
 | Synthetic world | `scripts/seed.ts` + `shared/catalog.ts` | CMS-grounded 12-code catalog, a simulated year, vendor stats **derived** from it |
 
 ---
@@ -219,18 +230,19 @@ $150/mo approval threshold, and every medication spend figure.
 
 ## 7 · Test coverage
 
-**14 files, 150 tests** (re-derived 08-14). Core logic is covered; UI and routes deliberately
+**15 files, 177 tests** (re-derived 08-14). Core logic is covered; UI and routes deliberately
 are not.
 
 | File | Tests | Covers |
 |---|---:|---|
-| `sms.test.ts` | 35 | SMS templates, reply handling, and quick-reply/route-table drift |
+| `sms.test.ts` | 36 | SMS templates, reply handling, and quick-reply/route-table drift |
+| `narration.test.ts` | 22 | Which events narrate and which never do, enrichment, own-action suppression, collapse |
 | `reports.test.ts` | 15 | Scorecards, calls avoided, latency |
+| `portal.test.ts` | 13 | Magic-link flows |
 | `condition.test.ts` | 12 | Caregiver rating parser, including the ambiguity cases |
 | `risk.test.ts` | 12 | Risk scoring and thresholds |
 | `messaging.test.ts` | 11 | Parse pipeline, confidence gate, decline handling |
 | `at-risk.test.ts` | 9 | Board selectors |
-| `portal.test.ts` | 9 | Magic-link flows |
 | `statemachine.test.ts` | 9 | Transition guards |
 | `silence.test.ts` | 8 | Silence ladder |
 | `evidence.test.ts` | 7 | Verified vs reported |
@@ -239,9 +251,16 @@ are not.
 | `pods.test.ts` | 6 | POD capture and conditions |
 | `sla.test.ts` | 5 | SLA defaults |
 
-**Not covered by any test:** the role filter, `PortalShell` routing, and every page component.
-That's a deliberate line — UI stays test-free — but it means the nav filtering is verified by
-clicking, not by CI.
+`narration.test.ts` is the one exception to "UI stays test-free", and only because the decision it
+guards is a pure function: `client/src/lib/narration.ts` imports nothing from React or `sonner`, so
+the node-environment runner can import it by relative path exactly the way `at-risk.test.ts` already
+imports `client/src/lib/atRisk`. The rule it protects — `risk_updated` never narrates — is the
+difference between a live board and a smoke alarm, because the watchdog fires that event per order
+every 30 seconds.
+
+**Not covered by any test:** the role filter, `homeFor()`, the landing page, `PortalShell` routing,
+the action handoffs, and every page component. That's a deliberate line — UI stays test-free — but
+it means the nav filtering and the handoffs are verified by clicking, not by CI.
 
 ---
 
