@@ -1,5 +1,7 @@
+import { useState } from 'react'
 import { NavLink, Navigate, Route, Routes } from 'react-router-dom'
 import { useEventStream } from './hooks/useEventStream'
+import { Button } from '@/components/ui/button'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { Toaster } from '@/components/ui/sonner'
 import { cn } from '@/lib/utils'
@@ -27,10 +29,42 @@ const surfaceLinks = [
 
 // The product-level nav: this app is the DME module inside BetterRX.
 const productTabs = [
-  { label: 'Pharmacy', active: false },
+  { label: 'PBM', active: false },
   { label: 'DME', active: true },
-  { label: 'Reports', active: false },
 ]
+
+// No auth backend in the demo — this is a self-contained toggle that shows both the
+// signed-in identity and the sign-out affordance a real shell would carry.
+function AccountControl() {
+  const [signedIn, setSignedIn] = useState(true)
+
+  if (!signedIn) {
+    return (
+      <Button size="sm" className="rounded-full" onClick={() => setSignedIn(true)}>
+        Sign in
+      </Button>
+    )
+  }
+
+  return (
+    <div className="flex items-center gap-2.5">
+      <span className="flex items-center gap-2">
+        <span className="grid size-7 place-items-center rounded-full bg-secondary text-[11px] font-bold text-secondary-foreground">
+          CM
+        </span>
+        <span className="hidden text-sm font-semibold text-foreground sm:inline">Case Manager</span>
+      </span>
+      <Button
+        variant="ghost"
+        size="sm"
+        className="rounded-full text-muted-foreground"
+        onClick={() => setSignedIn(false)}
+      >
+        Sign out
+      </Button>
+    </div>
+  )
+}
 
 function surfaceLinkClass({ isActive }: { isActive: boolean }) {
   return cn(
@@ -79,12 +113,15 @@ function Shell() {
                 </span>
               ))}
             </nav>
-            <span className="ml-auto flex items-center gap-2 text-xs font-medium text-muted-foreground">
-              <span
-                className={cn('h-2.5 w-2.5 rounded-full', connected ? 'bg-success' : 'bg-destructive')}
-              />
-              {connected ? 'Live' : 'Disconnected'}
-            </span>
+            <div className="ml-auto flex items-center gap-4">
+              <span className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                <span
+                  className={cn('h-2.5 w-2.5 rounded-full', connected ? 'bg-success' : 'bg-destructive')}
+                />
+                {connected ? 'Live' : 'Disconnected'}
+              </span>
+              <AccountControl />
+            </div>
           </div>
           {/* Surface (persona) nav for the DME module */}
           <div className="flex flex-wrap gap-1 border-t border-border px-5 py-2">
