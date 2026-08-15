@@ -73,6 +73,7 @@ export default function Order() {
   const [addingVendor, setAddingVendor] = useState(false)
   const [newVendorName, setNewVendorName] = useState('')
   const [newVendorPhone, setNewVendorPhone] = useState('')
+  const [newVendorAreas, setNewVendorAreas] = useState<string[]>([])
   const [savingVendor, setSavingVendor] = useState(false)
 
   useEffect(() => {
@@ -88,6 +89,7 @@ export default function Order() {
   }, [])
 
   const activePatients = useMemo(() => patients.filter((p) => p.status === 'active'), [patients])
+  const markets = useMemo(() => [...new Set(patients.map((p) => p.market))].sort(), [patients])
   const item = useMemo<CatalogItem | undefined>(() => CATALOG.find((c) => c.hcpcs_code === hcpcs), [hcpcs])
   const patient = useMemo(() => patients.find((p) => String(p.id) === patientId), [patients, patientId])
 
@@ -117,16 +119,19 @@ export default function Order() {
     if (!name || !phone || savingVendor) return
     setSavingVendor(true)
     try {
+      // The patient's market is always included — a new vendor that doesn't cover it would
+      // vanish from the market-filtered picker the moment it was added.
       const created = await api.post<VendorWithStats & { existed?: boolean }>('/api/vendors', {
         name,
         phone,
-        service_area: patient?.market ?? '',
+        service_area: [...new Set([patient?.market ?? '', ...newVendorAreas])].filter(Boolean).join(', '),
       })
       setVendors((prev) => (prev.some((v) => v.id === created.id) ? prev : [...prev, created]))
       setVendorId(String(created.id))
       setAddingVendor(false)
       setNewVendorName('')
       setNewVendorPhone('')
+      setNewVendorAreas([])
       toast.success(created.existed ? 'Already on file — selected' : `${created.name} added`, {
         description: created.existed
           ? 'That phone number belongs to a vendor you already work with.'
@@ -290,22 +295,54 @@ export default function Order() {
                 emptyMessage="No vendor matches"
               />
               {addingVendor && patient ? (
-                <div className="mt-2 flex flex-col gap-2 rounded-md border border-border bg-muted/40 p-3 sm:flex-row sm:items-center">
-                  <Input
-                    aria-label="New vendor name"
-                    placeholder="Vendor name"
-                    value={newVendorName}
-                    onChange={(e) => setNewVendorName(e.target.value)}
-                  />
-                  <Input
-                    aria-label="New vendor phone"
-                    type="tel"
-                    placeholder="Phone (SMS)"
-                    className="tabular-nums"
-                    value={newVendorPhone}
-                    onChange={(e) => setNewVendorPhone(e.target.value)}
-                  />
-                  <div className="flex shrink-0 gap-2">
+                <div className="mt-2 space-y-2.5 rounded-md border border-border bg-muted/40 p-3">
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <Input
+                      aria-label="New vendor name"
+                      placeholder="Vendor name"
+                      value={newVendorName}
+                      onChange={(e) => setNewVendorName(e.target.value)}
+                    />
+                    <Input
+                      aria-label="New vendor phone"
+                      type="tel"
+                      placeholder="Phone (SMS)"
+                      className="tabular-nums"
+                      value={newVendorPhone}
+                      onChange={(e) => setNewVendorPhone(e.target.value)}
+                    />
+                  </div>
+                  <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Service area">
+                    <span className="mr-1 text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground">
+                      Serves
+                    </span>
+                    {markets.map((m) => {
+                      const locked = m === patient.market
+                      const on = locked || newVendorAreas.includes(m)
+                      return (
+                        <button
+                          key={m}
+                          type="button"
+                          aria-pressed={on}
+                          disabled={locked}
+                          title={locked ? `${patient.name} lives here — always included` : undefined}
+                          onClick={() =>
+                            setNewVendorAreas((prev) => (on ? prev.filter((a) => a !== m) : [...prev, m]))
+                          }
+                          className={cn(
+                            'rounded-full border px-2.5 py-1 text-xs font-semibold transition-colors',
+                            on
+                              ? 'border-transparent bg-secondary text-secondary-foreground'
+                              : 'border-border bg-card text-muted-foreground hover:bg-muted',
+                            locked && 'cursor-default opacity-90',
+                          )}
+                        >
+                          {m}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <div className="flex justify-end gap-2">
                     <Button
                       type="button"
                       size="sm"
