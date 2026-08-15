@@ -59,6 +59,7 @@ export function BoardRow({ row, vendors, lead }: { row: Row; vendors: Vendor[]; 
 
   return (
     <div
+      data-order-ids={row.orders.map((o) => o.id).join(' ')}
       className={cn(
         'mb-2.5 rounded-[14px] bg-card px-5',
         lead ? 'py-4 text-[15px] shadow-[0_1px_4px_rgba(38,50,64,.08)]' : 'py-[15px] text-[14.5px] shadow-[0_1px_3px_rgba(38,50,64,.06)]',
@@ -100,7 +101,9 @@ export function BoardRow({ row, vendors, lead }: { row: Row; vendors: Vendor[]; 
       {open && single && <RowDetail order={single} vendor={vendors.find((v) => v.id === single.vendor_id)} />}
       {open && !single && <GroupLines orders={row.orders} vendors={vendors} />}
 
-      {single && swapping && <SwapVendorDialog order={single} open onOpenChange={setSwapping} />}
+      {single && swapping && (
+        <SwapVendorDialog order={single} who={row.who} open onOpenChange={setSwapping} />
+      )}
     </div>
   )
 }

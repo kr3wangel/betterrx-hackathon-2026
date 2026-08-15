@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { toast } from 'sonner'
 import { api } from '../lib/api'
 import { useLive } from '../lib/useLive'
 import { Badge, Button, Card } from '../components/ui'
@@ -88,6 +89,9 @@ function PhoneSimulator({ vendorId, vendorName, messages }: { vendorId: number; 
           try {
             await api.post('/api/messages/inbound', { vendor_id: vendorId, body: draft.trim() })
             setDraft('')
+          } catch {
+            // The parse result lands as a bubble badge here; only the failure needs saying.
+            toast.error("That didn't go through — give it another tap.")
           } finally {
             setSending(false)
           }

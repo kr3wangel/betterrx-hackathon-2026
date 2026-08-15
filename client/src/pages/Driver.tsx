@@ -12,6 +12,8 @@ import { SignaturePad } from '../components/SignaturePad'
 import { PhotoInput } from '../components/PhotoInput'
 import { PersonaHeader } from '@/components/PersonaHeader'
 import { useHighlight } from '../lib/highlight'
+import { useHighlightHandoff } from '../hooks/useHighlightHandoff'
+import { expectOwn } from '../lib/expectedEvents'
 import type { Order, OrderEvent, Patient, Pod, PodKind, Vendor } from '../../../shared/types'
 
 interface CompletedJob {
@@ -28,6 +30,8 @@ export default function Driver() {
   const { data: vendors } = useLive(() => api.get<Vendor[]>('/api/vendors'))
   const { data: jobs } = useLive(() => api.get<Order[]>(`/api/driver/jobs?vendor_id=${vendorId}`), [vendorId])
   const { data: patients } = useLive(() => api.get<Patient[]>('/api/patients'))
+
+  useHighlightHandoff()
 
   const patientById = useMemo(() => new Map((patients ?? []).map((p) => [p.id, p])), [patients])
 
@@ -98,12 +102,15 @@ function JobCard({
   const [submitting, setSubmitting] = useState(false)
   const [starting, setStarting] = useState(false)
   const isPickup = job.state === 'pickup_pending' || job.state === 'pickup_overdue'
-  const acked = useHighlight().isPulsing([job.id])
+  const { pulse, isPulsing } = useHighlight()
+  const acked = isPulsing([job.id])
 
   async function startDelivery() {
     setStarting(true)
+    expectOwn([`order:${job.id}`])
     try {
       await api.post(`/api/orders/${job.id}/events`, { type: 'out_for_delivery', actor: 'driver' })
+      pulse(job.id)
       // Deliberately no reset on success: the card only swaps to "Complete delivery" once the SSE
       // refetch lands, and re-enabling before then lets a second tap 409 on an in-transit order.
     } catch {
@@ -115,6 +122,7 @@ function JobCard({
   async function submitPod() {
     setSubmitting(true)
     const kind: PodKind = isPickup ? 'pickup' : 'delivery'
+    expectOwn([`order:${job.id}`])
     try {
       await api.post(`/api/orders/${job.id}/pod`, {
         kind,
@@ -132,13 +140,15 @@ function JobCard({
         pod: pods.at(-1),
         familyText: familyNotifiedText(events),
       })
+    } catch {
+      toast.error("That didn't go through — give it another tap.")
     } finally {
       setSubmitting(false)
     }
   }
 
   return (
-    <Card className={acked ? 'row-ack' : undefined}>
+    <Card data-order-ids={job.id} className={acked ? 'row-ack' : undefined}>
       <CardContent className="space-y-3 pt-6">
         <div className="flex items-start justify-between gap-3">
           <div>

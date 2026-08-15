@@ -213,7 +213,11 @@ export default function VendorPortal() {
         void act(
           order.id,
           null,
-          () => decline(order.id, reason),
+          () =>
+            decline(order.id, reason).catch((err) => {
+              setDeclined((d) => d.filter((id) => id !== order.id))
+              throw err
+            }),
           "Thanks for saying so — they're re-routing it now."
         )
       }}

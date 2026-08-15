@@ -1,5 +1,8 @@
+import { useState } from 'react'
+import { toast } from 'sonner'
 import { api } from '../../lib/api'
 import { fmt, useLive } from '../../lib/useLive'
+import { expectOwn } from '../../lib/expectedEvents'
 import { eventLabel, eventSourceNote } from '../../lib/domain'
 import { isPickup, plainItem } from '../../lib/board'
 import { mockEvidenceSource, isVerifiedEvidence } from '../../lib/mocks'
@@ -35,6 +38,21 @@ function ago(iso: string, now: Date): string {
 
 export function RowDetail({ order, vendor }: { order: Order; vendor?: Vendor }) {
   const { data: detail } = useLive(() => api.get<OrderDetail>(`/api/orders/${order.id}`), [order.id])
+  const [nudging, setNudging] = useState(false)
+
+  // No navigation: a nudge's consequence is on the vendor's phone, another persona's device.
+  async function nudge() {
+    setNudging(true)
+    expectOwn([`order:${order.id}`])
+    try {
+      await api.post('/api/messages/send', { order_id: order.id, template: 'v_pickup_request' })
+      toast.success(`Nudged ${vendor?.name ?? 'the vendor'} again`, { description: 'Sent to their phone.' })
+    } catch {
+      toast.error("That didn't go through — give it another tap.")
+    } finally {
+      setNudging(false)
+    }
+  }
 
   if (!detail) return <div className="px-1 py-3 text-sm text-muted-foreground">Opening…</div>
 
@@ -77,17 +95,8 @@ export function RowDetail({ order, vendor }: { order: Order; vendor?: Vendor }) 
         <div className="flex flex-wrap items-center gap-3 rounded-xl bg-muted px-4 py-3">
           <span className="font-display text-base font-bold tabular-nums tracking-tight">{vendor.phone}</span>
           <span className="text-muted-foreground">{vendor.contact_name}</span>
-          <Button
-            size="sm"
-            variant="outline"
-            className="ml-auto"
-            onClick={() =>
-              api
-                .post('/api/messages/send', { order_id: order.id, template: 'v_pickup_request' })
-                .catch(console.error)
-            }
-          >
-            Send another nudge
+          <Button size="sm" variant="outline" className="ml-auto" disabled={nudging} onClick={nudge}>
+            {nudging ? 'Sending…' : 'Send another nudge'}
           </Button>
         </div>
       )}

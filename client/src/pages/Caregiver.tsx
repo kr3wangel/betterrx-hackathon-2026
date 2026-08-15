@@ -119,6 +119,20 @@ function Thread({ household, picker }: { household: Household; picker: React.Rea
   const [sending, setSending] = useState(false)
   const [reply, setReply] = useState<SmsReplyResult | null>(null)
   const [legacy, setLegacy] = useState<CaregiverReplyResult | null>(null)
+  // No toast here: /caregiver is a household's phone and has no Toaster — a product chrome
+  // toast on it would break the fiction. Feedback stays inside the thread.
+  const [sendFailed, setSendFailed] = useState(false)
+  const [checkSent, setCheckSent] = useState<'sending' | 'sent' | 'failed' | null>(null)
+
+  async function sendConditionCheck(orderId: number) {
+    setCheckSent('sending')
+    try {
+      await api.post(`/api/orders/${orderId}/condition-check`, {})
+      setCheckSent('sent')
+    } catch {
+      setCheckSent('failed')
+    }
+  }
 
   // The one question a typed digit answers: the newest still open. Nothing is tappable —
   // a household on a real phone types "4" into the box like any other text.
@@ -141,6 +155,7 @@ function Thread({ household, picker }: { household: Household; picker: React.Rea
     const body = draft.trim()
     if (!body || sending) return
     setSending(true)
+    setSendFailed(false)
     try {
       if (openQuestion) {
         // Thread-aware: the server derives order and template from the question, and the
@@ -153,6 +168,8 @@ function Thread({ household, picker }: { household: Household; picker: React.Rea
         reloadReports()
       }
       setDraft('')
+    } catch {
+      setSendFailed(true)
     } finally {
       setSending(false)
     }
@@ -173,12 +190,19 @@ function Thread({ household, picker }: { household: Household; picker: React.Rea
         <ThreadEmpty>
           No messages yet.
           {!hasCheck && askableOrderId && (
-            <button
-              onClick={() => api.post(`/api/orders/${askableOrderId}/condition-check`, {})}
-              className="mt-3 block w-full rounded-full border border-slate-300 py-1.5 text-slate-600 hover:bg-slate-50"
-            >
-              Send the condition check
-            </button>
+            <>
+              <button
+                disabled={checkSent === 'sending' || checkSent === 'sent'}
+                onClick={() => sendConditionCheck(askableOrderId)}
+                className="mt-3 block w-full rounded-full border border-slate-300 py-1.5 text-slate-600 hover:bg-slate-50 disabled:opacity-60"
+              >
+                {checkSent === 'sending' ? 'Sending…' : 'Send the condition check'}
+              </button>
+              {checkSent === 'sent' && <div className="mt-1.5 text-[11px] text-slate-400">Sent</div>}
+              {checkSent === 'failed' && (
+                <div className="mt-1.5 text-[11px] text-red-600">Didn’t send — tap again</div>
+              )}
+            </>
           )}
         </ThreadEmpty>
       )}
@@ -219,6 +243,10 @@ function Thread({ household, picker }: { household: Household; picker: React.Rea
 
       {/* Until the SSE refetch brings the new row in, the receipt is the only feedback. */}
       {reply && !rows.some((m) => m.id === reply.message_id) && <ReplyReceipt result={reply} />}
+
+      {sendFailed && (
+        <div className="pt-1 text-right text-[11px] text-red-600">Didn’t send — try again</div>
+      )}
 
       {/* Delivery-receipt style status, so the consequence reads as part of the conversation. */}
       {legacy && (

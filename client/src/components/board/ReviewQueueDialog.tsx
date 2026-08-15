@@ -1,5 +1,8 @@
 import { useState } from 'react'
+import { toast } from 'sonner'
 import { api } from '../../lib/api'
+import { expectOwn } from '../../lib/expectedEvents'
+import { useHighlight } from '../../lib/highlight'
 import { intentLabel, REVIEW_STATUS_LABEL } from '../../lib/domain'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -35,7 +38,39 @@ export function ReviewQueueDialog({
 
 function ReviewItem({ message, orders }: { message: Message; orders: Order[] }) {
   const [orderId, setOrderId] = useState<string>(message.order_id ? String(message.order_id) : '')
+  const [busy, setBusy] = useState(false)
+  const { pulse } = useHighlight()
   const active = orders.filter((o) => o.vendor_id === message.vendor_id && !['picked_up', 'cancelled'].includes(o.state))
+
+  // The dialog stays open on purpose — there may be more replies waiting behind this one.
+  async function apply() {
+    const id = Number(orderId)
+    setBusy(true)
+    expectOwn([`order:${id}`])
+    try {
+      await api.post(`/api/messages/${message.id}/confirm`, { order_id: id })
+      toast.success(`Applied to order #${id}`, {
+        description: message.parsed ? intentLabel(message.parsed.intent) : undefined,
+      })
+      pulse(id)
+    } catch {
+      toast.error("That didn't go through — give it another tap.")
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function dismiss() {
+    setBusy(true)
+    try {
+      await api.post(`/api/messages/${message.id}/reject`)
+      toast.success('Dismissed')
+    } catch {
+      toast.error("That didn't go through — give it another tap.")
+    } finally {
+      setBusy(false)
+    }
+  }
 
   return (
     <div className="rounded-xl border border-border bg-accent p-3.5 text-sm">
@@ -62,14 +97,10 @@ function ReviewItem({ message, orders }: { message: Message; orders: Order[] }) 
             </option>
           ))}
         </select>
-        <Button
-          size="sm"
-          disabled={!message.parsed || !orderId}
-          onClick={() => api.post(`/api/messages/${message.id}/confirm`, { order_id: Number(orderId) })}
-        >
+        <Button size="sm" disabled={!message.parsed || !orderId || busy} onClick={apply}>
           Apply
         </Button>
-        <Button size="sm" variant="outline" onClick={() => api.post(`/api/messages/${message.id}/reject`)}>
+        <Button size="sm" variant="outline" disabled={busy} onClick={dismiss}>
           Dismiss
         </Button>
       </div>

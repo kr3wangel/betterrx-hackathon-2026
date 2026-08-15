@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../lib/api'
 import { fmt, useLive } from '../lib/useLive'
+import { useHighlightHandoff } from '../hooks/useHighlightHandoff'
 import { buildBoard } from '../lib/board'
 import type { BoardRow as Row } from '../lib/board'
 import { BoardRow, ColumnHeaders } from '../components/board/BoardRow'
@@ -21,6 +22,9 @@ export default function Hospice() {
   const [showLater, setShowLater] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
   const [showReview, setShowReview] = useState(false)
+  const [handoffIds, setHandoffIds] = useState<number[]>([])
+
+  useHighlightHandoff(useCallback((ids: number[]) => setHandoffIds(ids), []))
 
   const nameOf = useMemo(() => {
     const map = new Map((patients.data ?? []).map((p) => [p.id, p.name]))
@@ -32,6 +36,16 @@ export default function Hospice() {
     [orders.data, escalations.data, nameOf]
   )
   const queue = reviewQueue.data ?? []
+
+  // A handed-off row under the "show" collapse is a landing nobody can see, and the board may
+  // not have loaded when the handoff arrived — so reveal it whenever it turns up in there.
+  const handoffIsLater = useMemo(
+    () => board.later.rows.some((r) => r.orders.some((o) => handoffIds.includes(o.id))),
+    [board.later.rows, handoffIds]
+  )
+  useEffect(() => {
+    if (handoffIsLater) setShowLater(true)
+  }, [handoffIsLater])
 
   const loaded =
     orders.data !== null &&

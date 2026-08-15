@@ -109,6 +109,8 @@ function Thread({ vendor, picker }: { vendor: Vendor; picker: React.ReactNode })
   const [pending, setPending] = useState<null | 'digit' | 'prose'>(null)
   const sending = pending !== null
   const [reply, setReply] = useState<SmsReplyResult | null>(null)
+  // A phone simulator has no Toaster — a failure has to say so inside the thread.
+  const [sendFailed, setSendFailed] = useState(false)
 
   const thread = useMemo(() => messages ?? [], [messages])
 
@@ -133,10 +135,23 @@ function Thread({ vendor, picker }: { vendor: Vendor; picker: React.ReactNode })
           }),
         )
       } else {
-        await api.post('/api/messages/inbound', { vendor_id: vendor.id, body })
-        setReply(null)
+        // No question outstanding, so there's no reply shape to return — the parse outcome is
+        // on the stored row. Read it into the same receipt P2 gets, rather than waiting for SSE.
+        const stored = await api.post<Message>('/api/messages/inbound', { vendor_id: vendor.id, body })
+        setReply({
+          message_id: stored.id,
+          in_reply_to: null,
+          template: null,
+          digit: null,
+          outcome: stored.review_status === 'auto_applied' ? 'applied' : 'review',
+          prompt: null,
+          order: null,
+        })
       }
       setDraft('')
+      setSendFailed(false)
+    } catch {
+      setSendFailed(true)
     } finally {
       setPending(null)
     }
@@ -188,6 +203,8 @@ function Thread({ vendor, picker }: { vendor: Vendor; picker: React.ReactNode })
           <span className="opacity-70">{pending === 'prose' ? 'reading…' : 'sending…'}</span>
         </Bubble>
       )}
+
+      {sendFailed && <div className="pt-1 text-right text-[11px] text-red-600">Didn’t send — try again</div>}
     </PhoneScreen>
   )
 }

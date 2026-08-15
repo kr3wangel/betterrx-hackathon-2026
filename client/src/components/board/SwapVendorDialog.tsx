@@ -2,29 +2,39 @@ import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { api } from '../../lib/api'
 import { useLive } from '../../lib/useLive'
+import { expectOwn } from '../../lib/expectedEvents'
+import { useHighlight } from '../../lib/highlight'
 import { decisionLine } from '../../lib/board'
+import { firstName, shortEquipment } from '../../lib/narration'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import type { Order, VendorScorecard } from '../../../../shared/types'
 
 export function SwapVendorDialog({
   order,
+  who,
   open,
   onOpenChange,
 }: {
   order: Order
+  who: string
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
   const { data: cards } = useLive(() => api.get<VendorScorecard[]>('/api/reports/vendor-scorecards'))
   const [busy, setBusy] = useState<number | null>(null)
+  const { pulse } = useHighlight()
   const now = useMemo(() => new Date(), [])
   const alternatives = (cards ?? []).filter((c) => c.vendor.id !== order.vendor_id)
 
   const swap = async (vendorId: number, vendorName: string) => {
     setBusy(vendorId)
+    expectOwn([`order:${order.id}`])
     try {
       await api.post(`/api/orders/${order.id}/swap-vendor`, { vendor_id: vendorId })
-      toast.success(`Sent to ${vendorName} — they've been texted.`)
+      toast.success(`${firstName(who)}'s ${shortEquipment(order.equipment_name)} moved to ${vendorName}`, {
+        description: "They've been texted.",
+      })
+      pulse(order.id)
       onOpenChange(false)
     } catch {
       toast.error("That didn't go through — give it another tap.")

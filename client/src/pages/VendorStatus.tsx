@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
+import { toast } from 'sonner'
 import { Check, Truck, PackageCheck, Clock } from 'lucide-react'
 import { PersonaHeader } from '@/components/PersonaHeader'
 import { EmptyState } from '@/components/EmptyState'
@@ -10,7 +11,7 @@ import { Input } from '@/components/ui/input'
 import { usePortal } from '@/hooks/usePortal'
 import { api } from '@/lib/api'
 import { fmt } from '@/lib/useLive'
-import type { Order } from '../../../shared/types'
+import type { Order, OrderState } from '../../../shared/types'
 
 /**
  * VendorStatus — the no-login vendor status page (gallery screen 02, left).
@@ -78,16 +79,31 @@ function OrderRequestCard({
   const [showEta, setShowEta] = useState(false)
   const [etaValue, setEtaValue] = useState('')
   const [busy, setBusy] = useState(false)
+  const [pending, setPending] = useState<OrderState | null>(null)
+  const [declined, setDeclined] = useState(false)
 
-  const isNew = order.state === 'ordered'
-  const isAccepted = order.state === 'dispatched'
-  const isOnTruck = order.state === 'in_transit'
+  useEffect(() => {
+    setPending((p) => (p && order.state === p ? null : p))
+  }, [order.state])
 
-  async function run(fn: () => Promise<unknown>, closeEta = false) {
+  // Optimistic until the refetch lands, so a tap doesn't sit there looking ignored.
+  const state = pending ?? order.state
+  const isNew = state === 'ordered'
+  const isAccepted = state === 'dispatched'
+  const isOnTruck = state === 'in_transit'
+
+  // The VendorPortal.tsx act() pattern: optimistic state, one plain-English receipt, rollback
+  // and an error toast when it doesn't land. PortalShell mounts the Toaster this needs.
+  async function act(expected: OrderState | null, run: () => Promise<unknown>, done: string, closeEta = false) {
     setBusy(true)
+    if (expected) setPending(expected)
     try {
-      await fn()
+      await run()
+      toast.success(done)
       if (closeEta) setShowEta(false)
+    } catch {
+      setPending(null)
+      toast.error("That didn't go through — give it another tap.")
     } finally {
       setBusy(false)
     }
@@ -123,30 +139,51 @@ function OrderRequestCard({
               </p>
             )}
           </div>
-          <StatusPill state={order.state} />
+          <StatusPill state={state} />
         </div>
 
+        {declined && (
+          <p className="rounded-xl border border-border bg-coral-tint px-4 py-3 text-sm leading-relaxed text-[#8a4a2e]">
+            Thanks — the hospice is re-routing this one.
+          </p>
+        )}
+
         <div className="space-y-2.5">
-          {isNew && (
-            <Button size="lg" className="w-full" disabled={busy} onClick={() => run(() => onConfirm(order.id))}>
+          {isNew && !declined && (
+            <Button
+              size="lg"
+              className="w-full"
+              disabled={busy}
+              onClick={() =>
+                act('dispatched', () => onConfirm(order.id), 'Accepted — the hospice can see it.')
+              }
+            >
               <Check /> Accept this order
             </Button>
           )}
 
-          {(isAccepted || isNew) && (
+          {(isAccepted || isNew) && !declined && (
             <Button
               size="lg"
               variant="secondary"
               className="w-full"
               disabled={busy}
-              onClick={() => run(markOutForDelivery)}
+              onClick={() =>
+                act('in_transit', markOutForDelivery, "The hospice can see you're on the way.")
+              }
             >
               <Truck /> On the way
             </Button>
           )}
 
           {isOnTruck && (
-            <Button size="lg" variant="success" className="w-full" disabled={busy} onClick={() => run(markDelivered)}>
+            <Button
+              size="lg"
+              variant="success"
+              className="w-full"
+              disabled={busy}
+              onClick={() => act('delivered', markDelivered, 'Marked delivered — the hospice has it.')}
+            >
               <PackageCheck /> Delivered
             </Button>
           )}
@@ -166,7 +203,14 @@ function OrderRequestCard({
                 <Button
                   className="flex-1"
                   disabled={!etaValue || busy}
-                  onClick={() => run(() => onSetEta(order.id, new Date(etaValue).toISOString()), true)}
+                  onClick={() =>
+                    act(
+                      null,
+                      () => onSetEta(order.id, new Date(etaValue).toISOString()),
+                      'ETA sent to the hospice.',
+                      true
+                    )
+                  }
                 >
                   Save ETA
                 </Button>
@@ -174,14 +218,27 @@ function OrderRequestCard({
             </div>
           )}
 
-          <Button
-            variant="ghost"
-            className="w-full text-destructive hover:bg-destructive/10 hover:text-destructive"
-            disabled={busy}
-            onClick={() => run(() => onDecline(order.id))}
-          >
-            Can't do this one
-          </Button>
+          {!declined && (
+            <Button
+              variant="ghost"
+              className="w-full text-destructive hover:bg-destructive/10 hover:text-destructive"
+              disabled={busy}
+              onClick={() => {
+                setDeclined(true)
+                void act(
+                  null,
+                  () =>
+                    onDecline(order.id).catch((err) => {
+                      setDeclined(false)
+                      throw err
+                    }),
+                  "Thanks for saying so — they're re-routing it now."
+                )
+              }}
+            >
+              Can't do this one
+            </Button>
+          )}
         </div>
       </CardContent>
     </Card>
