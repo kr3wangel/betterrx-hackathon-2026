@@ -136,6 +136,7 @@ and FAQ §6 penalises manufactured precision.
 | Live inventory check | `INTEGRATION-SKETCH.md` | FAQ §9 says it won't exist in practice; designed as a hook with graceful fallback |
 | eRx / EMR integration | `INTEGRATION-SKETCH.md`, 305 lines | Diagram only, which is all Deliverable D asks for |
 | Server-side approval gate | `docs/UX-FLOWS.md` §6 | `pending_approval` state, persistence, and approval-latency reporting are specified but not built |
+| Trip batching + vendor-side question gate | `docs/SMS-BATCHING-SPEC.md` | One text per trip instead of per order (Ruth's two pickups = one message), volume-adaptive digests, and a one-open-question gate so a bare "1" can never be ambiguous on a real gateway. **Batches the asking, never the answering** — per-order events, clocks, and escalations untouched. The answer to "what happens when a vendor has twenty of these?" |
 | Real SMS gateway (Twilio) | `deliverables/ASSUMPTIONS.md` → *Simulated, not sent* | **Scoped and deliberately declined.** No dependency, no key, no webhook. The routing and the gate are what earn the AI row; a live carrier on conference wifi is a failure mode with no upside. Delivery is the only thing simulated — the magic links in the bubbles are real `/portal/<token>` URLs |
 
 ---
