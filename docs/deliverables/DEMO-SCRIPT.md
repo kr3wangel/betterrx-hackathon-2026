@@ -343,10 +343,14 @@ Now open tab 1.
   by 7am"* → Claude parses it → confidence ≥ 0.8 auto-applies → **Accepted ✓**. Needs
   `ANTHROPIC_API_KEY`. Say: *"a vendor who won't tap can just text back — same pipeline, one extra
   safety gate."*
-- `[FE PENDING: escalation reason on the board]` — the escalation *sentence* the watchdog writes is
-  never rendered anywhere in the UI; it only moves the row into **Needs you** and increments the
-  "open escalations" tile on `/reports`. The reasons you read at step 1 are `risk_reasons`, which is
-  a different field. Don't claim to be reading an alert.
+- ~~`[FE PENDING: escalation reason on the board]`~~ **RESOLVED — and in this scenario, resolved
+  by design, not by rendering.** `RowDetail` now renders open escalations as bold red lines
+  (`RowDetail.tsx:83-86,128-132`) — but it deliberately filters out any escalation that quotes a
+  current risk reason, because #1042's escalation *is* the risk reasons joined together and would
+  print the same sentences twice. **Verified live 08-15: #1042's row renders no escalation line**
+  — the reasons you read at step 1 are `risk_reasons`, same as before. Scenario 3's silence
+  escalation is worded differently and *does* render — see that scenario's notes. Nothing changes
+  in what you say at step 1.
 
 ---
 
@@ -503,17 +507,17 @@ the choice on stage.
 |---|---|---|---|
 | 5 | Tab 7 → picker → **Beehive DME Co · Marcus** | The order request for #1061 — and, after the first watchdog tick, an automatic second message: *"Order #1061 (Standard wheelchair) hasn't been confirmed — reply N to accept, N+1 if you can't fill it, or tap to accept or decline: …"* (the digits are the pair the nag's own body names — it reuses the original request's pair) | "Nobody tapped this one. So the software nagged them. The case manager didn't." |
 | 6 | Tab 1 | **Eleanor Vance's row jumps out of On the way and into `Needs you`**, on its own, live — the section header turns red and the row's pill is now a coral **`Swap vendor`** | "In the phone world, silence is ambiguous — did the fax go through? Here silence is a reading. An untapped link is exactly as loud as an unanswered text, and it reaches a human before the deadline does, not after." |
-| 7 | **Click that row open** | *"The vendor has not replied yet · nudged Xm ago"* — the nag is on the record, in the row, with a clock on it | "And the case manager's next move is already sitting on the row." *(gesture at the coral pill — the same one-action escape hatch from scenario 1)* |
+| 7 | **Click that row open** | In red, the watchdog's own sentence: *"No response to the automated check-in — order #1061 is still unconfirmed 5h after placement"* — above it, *"The vendor has not replied yet · nudged Xm ago"*: the nag is on the record, in the row, with a clock on it | **Read the red sentence off the screen, verbatim.** Then: "the software wrote that, and the case manager's next move is already sitting on the row." *(gesture at the coral pill — the same one-action escape hatch from scenario 1)* |
 
 **Read this before you rehearse:**
-- **The escalation sentence is not on screen.** The watchdog writes *"No response to the automated
-  check-in — order #1061 is still unconfirmed 5h after placement"*, it is verbatim and correct
-  (`watchdog.ts:92-95`), and it fires exactly once — but **no component renders escalation text**.
-  It moves the row into **Needs you** and bumps the "open escalations" tile on `/reports`, and that
-  is all. Narrate what beat 6 shows — *the row moved by itself* — and the nudge line at beat 7. Do
-  **not** read the sentence out as though it's on the screen. `[FE PENDING: escalation reason in
-  the row detail]` — `RowDetail` already fetches `detail.escalations` and never renders it
-  (`RowDetail.tsx:15,36-37`); this is a render, not a feature.
+- **The escalation sentence IS on screen now — read it off the row.** ~~`[FE PENDING: escalation
+  reason in the row detail]`~~ **DONE** — `RowDetail` renders open escalations as bold red lines,
+  deduped against the risk bullets (`RowDetail.tsx:83-86,128-132`). **Verified live 08-15:**
+  opening Eleanor's row shows *"No response to the automated check-in — order #1061 is still
+  unconfirmed 5h after placement"* in red above the two grey risk bullets. The sentence is
+  verbatim from the watchdog (`watchdog.ts:94-103`), fires exactly once, and beat 7 may now be
+  read directly off the screen — the strongest version of that beat. (Scenario 1's escalation
+  still renders nothing, deliberately: it quotes the risk reasons, which are already on the row.)
 - **Timing, measured 08-15 with NO env overrides:** the escalation is anchored to *placement*
   (nag past 2h of silence, escalation past 4h total — `server/watchdog.ts`), so with #1061's 5h
   backdate the nag goes out on the **first** tick (≤30s after the seed) and the escalation on the
