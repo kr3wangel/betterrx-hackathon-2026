@@ -23,7 +23,9 @@ plain words everywhere, one obvious next action, big touch targets) and `docs/DE
 
 ## P0 — will embarrass us in the demo
 
-### P0-1 · The board says "Nothing needs a person right now" before the data lands
+### ~~P0-1 · The board says "Nothing needs a person right now" before the data lands~~
+**FIXED (wave 1A, 2026-08-15):** board is now skeleton-gated until all queries resolve, before any empty-state copy renders.
+
 `client/src/pages/Hospice.tsx:14-18, 48-52, 69-73` · root cause `client/src/lib/useLive.ts:9`
 
 All five queries start at `data === null`, and the page coalesces every one of them to `[]`
@@ -41,7 +43,9 @@ as a bug on the one screen the judging weight sits on.
 exists, `components/ui/skeleton.tsx`) until `orders && patients && escalations` are all non-null;
 only then allow the empty copy. **Effort: S**
 
-### P0-2 · Any failed fetch leaves the same all-clear board up forever, with no error anywhere
+### ~~P0-2 · Any failed fetch leaves the same all-clear board up forever, with no error anywhere~~
+**FIXED (wave 1A, 2026-08-15):** `useLive` now exposes a `failed` flag; the board shows a "Can't reach the server" alert.
+
 `client/src/lib/useLive.ts:17, 21` — `.catch(console.error)`
 
 `useLive` swallows every error into the console and leaves `data` at `null`. Nine surfaces use it
@@ -57,7 +61,9 @@ strip ("Couldn't reach the server — retrying") on the pages that consume it. M
 add an `error` flag and let `Hospice`/`Reports` show it. **Effort: M** (S if only `Hospice` is
 wired).
 
-### P0-3 · The escalation sentence is fetched and never rendered
+### ~~P0-3 · The escalation sentence is fetched and never rendered~~
+**FIXED (wave 1A, 2026-08-15):** escalation reason now rendered in RowDetail, deduped against risk-reason duplicates.
+
 `client/src/components/board/RowDetail.tsx:15, 37` (declared in `OrderDetail.escalations`, consumed
 nowhere in the file)
 
@@ -74,7 +80,9 @@ into **Needs you** for a reason the screen never states. Known-open item (DEMO-S
 `detail.escalations.filter(e => e.status === 'open').map(e => <p className="text-destructive">{e.reason}</p>)`.
 **Effort: XS**
 
-### P0-4 · The calls-avoided breakdown doesn't add up to the calls-avoided number
+### ~~P0-4 · The calls-avoided breakdown doesn't add up to the calls-avoided number~~
+**FIXED (wave 1C, 2026-08-15):** breakdown now prints `household_confirmations` and sums to the hero.
+
 `client/src/pages/Reports.tsx:157-159`
 
 `server/reports.ts:96` computes `calls_avoided` as the sum of **all four** breakdown fields. The hero
@@ -91,7 +99,9 @@ aside).
 **Fix sketch:** append `· {summary.calls_avoided_breakdown.household_confirmations} household
 confirmations` to the same line. **Effort: XS**
 
-### P0-5 · Clicking the "URGENCY" caption silently marks the order STAT
+### ~~P0-5 · Clicking the "URGENCY" caption silently marks the order STAT~~
+**FIXED (wave 1B, 2026-08-15):** `Field` labels are now `htmlFor`-based; the URGENCY caption click is inert.
+
 `client/src/pages/Order.tsx:214-236` with `client/src/pages/Order.tsx:311-316`
 
 `Field` without an `htmlFor` wraps its caption, children **and** helper note in a single
@@ -109,7 +119,9 @@ click on static text.
 isn't a single labelable control — or simply give the Urgency field a `role="group"` +
 `aria-label="Urgency"` `<div>` instead of a `<label>`. **Effort: XS**
 
-### P0-6 · "Start delivery" can be double-fired and fails silently
+### ~~P0-6 · "Start delivery" can be double-fired and fails silently~~
+**FIXED (wave 1B, 2026-08-15):** pending/disabled state plus an error toast added.
+
 `client/src/pages/Driver.tsx:151-158`
 
 ```tsx
@@ -127,7 +139,9 @@ the button just… doesn't do anything, forever.
 and `.catch(() => toast.error("That didn't go through — tap again."))` — the page already imports
 nothing from sonner, so add the import. **Effort: S**
 
-### P0-7 · "Confirm delivery" is disabled with no explanation until you tap "Capture signature"
+### ~~P0-7 · "Confirm delivery" is disabled with no explanation until you tap "Capture signature"~~
+**FIXED (wave 1B, 2026-08-15):** auto-captures on draw-end; Clear emits null; the separate capture button is gone.
+
 `client/src/pages/Driver.tsx:189` + `client/src/components/SignaturePad.tsx:61`
 
 The POD confirm button is `disabled={!signature || submitting}`, and `signature` is only set by the
@@ -142,7 +156,9 @@ pickup — the exact beats where POD is the point.
 the button), or add a helper line under the disabled button: *"Draw a signature above, then tap
 Capture signature."* **Effort: S**
 
-### P0-8 · Swap vendor: no pending state, dialog closes optimistically, failure is invisible
+### ~~P0-8 · Swap vendor: no pending state, dialog closes optimistically, failure is invisible~~
+**FIXED (wave 1A, 2026-08-15):** now awaits the post, disables while pending, toasts on success/failure, and closes only on success.
+
 `client/src/components/board/SwapVendorDialog.tsx:32-35`
 
 ```tsx
@@ -161,7 +177,9 @@ is the SSE-driven repaint.
 they've been texted.')`, `toast.error(...)` on failure, and close only on success.
 **Effort: S**
 
-### P0-9 · The Dispatcher's "Portal" nav link is a permanent dead end
+### ~~P0-9 · The Dispatcher's "Portal" nav link is a permanent dead end~~
+**FIXED (wave 1C, 2026-08-15):** `/vendor-portal` and `/vendor` links retired from nav (routes remain typed-URL-only); Dispatcher nav now anchors to `/driver`.
+
 `client/src/App.tsx:43, 256` + `client/src/pages/VendorPortal.tsx:152-162`
 
 `surfaceLinks` gives the `dispatcher` role a **Portal** tab pointing at `/vendor-portal`. That route
@@ -247,7 +265,9 @@ nothing explains why the message didn't appear. This is the live-typing beat of 
 
 ### Micro-interaction / a11y
 
-**P1-11 · Board rows are clickable `<div>`s with no keyboard access**
+**~~P1-11 · Board rows are clickable `<div>`s with no keyboard access~~**
+**FIXED (wave 1A, 2026-08-15):** rows now `role="button" tabIndex={0}`, plus an `aria-live` count region.
+
 `client/src/components/board/BoardRow.tsx:52` and `:113-115` — both carry `cursor-pointer` and
 `onClick` but no `role`, no `tabIndex`, no `onKeyDown`, no focus style. The row-expand interaction
 (where `risk_reasons` and the whole detail live) is mouse-only, and the same is true of the grouped
@@ -262,7 +282,9 @@ and with no motion cue for a sighted user who looked away.
 *Fix:* wrap the "Needs you" `SectionTitle` + rows in `<div aria-live="polite" aria-atomic="false">`
 at `Hospice.tsx:46-55`. **Effort: XS**
 
-**P1-13 · `client/index.html` has no favicon**
+**~~P1-13 · `client/index.html` has no favicon~~**
+**FIXED (wave 1C, 2026-08-15):** inline SVG coral-pill favicon added, plus theme-color and description meta.
+
 `client/index.html:1-12` — `<title>BetterRX DME</title>` is set (good), but there is no
 `<link rel="icon">`. The browser requests `/favicon.ico`, 404s, and the demo tab shows the generic
 default globe next to a product that is otherwise carefully branded. There is also no
@@ -271,7 +293,9 @@ default globe next to a product that is otherwise carefully branded. There is al
 
 ### Content robustness
 
-**P1-14 · "1 are still waiting on a photo." — and a claim about zero deliveries**
+**~~P1-14 · "1 are still waiting on a photo." — and a claim about zero deliveries~~**
+**FIXED (wave 1A, 2026-08-15):** pluralized, plus a zero-completions branch added.
+
 `client/src/pages/Hospice.tsx:91-97` — the sentence is
 `` `${completions - withPod} are still waiting on a photo.` `` with no singular form. Separately, when
 `completions === 0` the equality branch wins and the board asserts *"Every delivery had a photo and a
@@ -299,7 +323,9 @@ exactly this (`lib/domain.ts:95-109`) and is used correctly by `Vendor.tsx:71` a
 
 ### Layout / responsive
 
-**P1-18 · Long patient names have nothing to stop them from blowing out the board grid**
+**~~P1-18 · Long patient names have nothing to stop them from blowing out the board grid~~**
+**FIXED (wave 1A, 2026-08-15):** grid template now uses `minmax(0,…)` tracks and the who/item spans truncate.
+
 `client/src/components/board/BoardRow.tsx:15, 54` — `ROW_GRID` is
 `sm:grid-cols-[1.2fr_.9fr_1.1fr_1fr_160px]`. At the 640px breakpoint the "Who" column resolves to
 roughly 96px of the ~560px inner card width, and the name span has **no `truncate` and no `min-w-0`**
@@ -341,7 +367,9 @@ grey-blue chat on a coral-and-navy brand.
 *Fix:* migrate `Vendor.tsx` to `ui/card`, `ui/button`, `ui/badge` + `PhoneScreen`'s `Bubble`, then
 delete `components/ui.tsx` (it would then have no importers). **Effort: M**
 
-**P1-22 · Cost-approval decisions are theatre and don't say so**
+**~~P1-22 · Cost-approval decisions are theatre and don't say so~~**
+**FIXED (wave 1C, 2026-08-15):** card now labeled synthetic, with "Design preview — decisions aren't saved yet."
+
 `client/src/pages/Reports.tsx:460-535` — `decide()` writes to component state only; the row then
 renders **Approved · by S. Reyes, DON** with no persistence and no API call. Navigating away and back
 resets it. Nothing on screen marks it as a mock, while the two panels above it are meticulously
@@ -500,25 +528,25 @@ silent-failure default (P0-2) is listed once but affects nine surfaces.
 
 ## (b) Top ten by value-per-effort — ready to hand to a fix agent
 
-- [ ] **1.** `pages/Reports.tsx:157-159` — append `household_confirmations` to the calls-avoided
+- [x] **1.** `pages/Reports.tsx:157-159` — append `household_confirmations` to the calls-avoided
       breakdown so the three printed numbers actually sum to the hero. *(P0-4, XS)*
-- [ ] **2.** `components/board/RowDetail.tsx:37` — render `detail.escalations` (open ones, `.reason`)
+- [x] **2.** `components/board/RowDetail.tsx:37` — render `detail.escalations` (open ones, `.reason`)
       above the risk-reason list. *(P0-3, XS)*
-- [ ] **3.** `pages/Order.tsx:311-316` — stop `Field` wrapping non-labelable children in a `<label>`,
+- [x] **3.** `pages/Order.tsx:311-316` — stop `Field` wrapping non-labelable children in a `<label>`,
       so clicking the "URGENCY" caption no longer marks the order STAT. *(P0-5, XS)*
-- [ ] **4.** `App.tsx:43,256` — remove the Dispatcher's tokenless `/vendor-portal` nav link + route
+- [x] **4.** `App.tsx:43,256` — remove the Dispatcher's tokenless `/vendor-portal` nav link + route
       (or redirect it to a real token). *(P0-9, XS)*
-- [ ] **5.** `pages/Hospice.tsx:48-73` — gate the "Nothing needs a person right now." / "Nothing in
+- [x] **5.** `pages/Hospice.tsx:48-73` — gate the "Nothing needs a person right now." / "Nothing in
       motion." copy on data actually having loaded; show skeleton rows until then. *(P0-1, S)*
-- [ ] **6.** `components/board/SwapVendorDialog.tsx:32-35` — await the swap, disable the option while
+- [x] **6.** `components/board/SwapVendorDialog.tsx:32-35` — await the swap, disable the option while
       in flight, toast success/failure, close on success only. *(P0-8, S)*
-- [ ] **7.** `pages/Driver.tsx:151-158` — add pending + disabled + error toast to "Start delivery";
+- [x] **7.** `pages/Driver.tsx:151-158` — add pending + disabled + error toast to "Start delivery";
       and `:189` add the missing "capture your signature first" hint. *(P0-6 / P0-7, S)*
 - [ ] **8.** `pages/VendorPhone.tsx:57` — use `intentLabel()` instead of `intent.replace(/_/g,' ')`;
       `pages/Reports.tsx:306` — use `byCode(...).equipment_name` instead of the raw HCPCS code.
       *(P1-16 / P1-15, XS)*
-- [ ] **9.** `client/index.html` — add an inline SVG data-URI favicon (coral pill). *(P1-13, XS)*
-- [ ] **10.** `pages/Hospice.tsx:91-97` — fix "1 are still waiting on a photo." and add a zero-
+- [x] **9.** `client/index.html` — add an inline SVG data-URI favicon (coral pill). *(P1-13, XS)*
+- [x] **10.** `pages/Hospice.tsx:91-97` — fix "1 are still waiting on a photo." and add a zero-
       completions branch so the board stops claiming proof for deliveries that don't exist.
       *(P1-14, XS)*
 
