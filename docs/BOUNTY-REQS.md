@@ -35,7 +35,7 @@ The sponsor's own framing, verbatim, because it is our strategy said back to us:
 | V2 | Serialized equipment inventory: what's in stock, what's out, what's overdue for pickup | **DESIGNED / PARTIAL** | Overdue-for-pickup: BUILT per order (`pickup_overdue` watchdog clock anchored to the trigger). Stock/serialized units: deliberately not built — FAQ §9 itself says live inventory won't exist for these vendors in practice; `INTEGRATION-SKETCH.md` designs it as a hook with graceful fallback, and `FEATURES.md` §3 records the decision. |
 | V3 | Delivery and pickup status with proof-of-capture (signature, photo, timestamp) | **BUILT — and extended** | POD on both flows: photo, signature, timestamp, plus a per-item condition attestation. The extension is the evidence ladder: **verified vs vendor-reported vs family-confirmed**, enforced on every badge, with a "delivered without proof" escalation and the trust-gap panel quantifying the difference per vendor. |
 | V4 | SLA and contract terms per hospice client, tracked against actual performance | **PARTIAL** | Tracked-against-actual: BUILT — SLA defaults, due/late clocks on the portal, and the contract-leverage panel (verified vs claimed on-time, interventions per order, responsiveness) computed live from the ledger: literally the renewal-negotiation numbers. **Per-hospice-client terms: missing** — the demo is single-hospice, and there is no contract entity holding negotiated terms. |
-| V5 | Resupply cadence for consumables (CPAP supplies, wound care) tied to payer-approved timelines | **MISSING** | Nothing. The catalog has CPAP as durable equipment, not consumables; no cadence model, no payer timelines. Say so plainly if asked — it's a real product area we did not touch. |
+| V5 | Resupply cadence for consumables (CPAP supplies, wound care) tied to payer-approved timelines | **BUILT (scoped)** | Shipped 08-15: consumables in the catalog (CPAP mask/filters, alginate wound dressing — the requirement's own examples), each carrying its **Medicare replacement schedule** as `resupply_days` (90d mask, 30d filters/dressing). The scheduler is a watchdog rule on the same state machine (`server/resupply.ts`, vitest-covered): once a delivered consumable's payer window elapses, the next order **places itself** — actor `system`, ledger stamped *"auto-resupply · payer cadence, no model"*, vendor texted like any order, exactly one successor ever, and **never for a deceased or discharged patient**. Honest scope: cadence figures are fee-schedule approximations pending a PUF re-pull, and there is no payer adjudication/authorization tracking — the cadence is the timeline, not a claims engine. |
 | V6 | Billing trigger tied to delivery completion. DME claim denial rates run 15 to 25 percent, largely from documentation gaps | **DESIGNED — and our evidence system is the foundation** | No billing event is built. But the requirement's own diagnosis — *denials come from documentation gaps* — is what the evidence ladder already solves: a **verified** delivery is a photo, a signature, a timestamp, and a condition attestation on an append-only ledger, i.e. the claim-ready documentation packet, captured at the door as a side effect of the driver's normal flow. The billing trigger is one event listener on `delivered`+POD. This is a pitch line, not a gap apology. |
 | V7 | Vendor recruitment and onboarding. Since BetterRX has no vendor network today, a path to identify, invite, and activate local and regional DME vendors from a cold start | **BUILT — this is the centerpiece** | The whole adoption ladder, every rung clickable: the hospice types a phone number from its own rolodex (**"add a vendor by phone" on `/order`**, `POST /api/vendors` — idempotent on number, service area picked per market) → the vendor's first contact is a text with a magic link (*the first order IS the invite*) → no login, no app, no password → rotating reply pairs make plain SMS fully workable → the portal is *what's already waiting behind the link*, not something adopted. Scenario 3's Timpanogos (zero history, zero contact) is this requirement performed live. The landline/IVR rung (`IVR-SIM-SPEC.md`) covers the vendors who can't even receive SMS — designed, said plainly. |
 
@@ -66,8 +66,10 @@ The sponsor's own framing, verbatim, because it is our strategy said back to us:
    ledger and trip model are the substrate; the missing piece is a data model no cold-start
    vendor could feed on day one anyway (FAQ §9's own point about inventory). Designed as hooks,
    declined for the weekend, said out loud.
-4. **V5 resupply cadence** — the one clean miss. If asked: "real, not touched — it's a recurring-
-   order scheduler on the same state machine; nothing about the architecture fights it."
+4. ~~**V5 resupply cadence** — the one clean miss.~~ **DONE 08-15** — the prediction ("it's a
+   recurring-order scheduler on the same state machine") turned out to be literally the
+   implementation: `server/resupply.ts`, one watchdog rule, vitest-covered, consumables in the
+   catalog with Medicare replacement schedules.
 
 **Rehearsal checklist, not builds:**
 5. ~~**H6**~~ **DONE (build side)** — responsive audit run, real gaps fixed (order form, vendor
@@ -80,8 +82,9 @@ The sponsor's own framing, verbatim, because it is our strategy said back to us:
 Hospice side: **6 BUILT · 0 PARTIAL · 0 MISSING** — table stakes held (H2's discharge-readiness
 rollup and H6's responsive pass both landed 2026-08-15; H2's discharge-date field stays derived and
 H6's physical-tablet walk is a rehearsal item, both said out loud in their rows).
-Vendor side: **2 BUILT (V3, V7 — the two the sponsor weights hardest) · 2 PARTIAL · 2 DESIGNED ·
-1 MISSING** — and the sponsor's own sentence says the vendor side is where originality is judged:
+Vendor side: **3 BUILT (V3, V7 — the two the sponsor weights hardest — and V5's scoped resupply
+scheduler) · 2 PARTIAL · 2 DESIGNED · 0 MISSING** — and the sponsor's own sentence says the
+vendor side is where originality is judged:
 V7 (cold-start onboarding) is our centerpiece and V3 (proof-of-capture) is where we went furthest
 past the requirement. The misses cluster exactly where the FAQ itself said real-world data won't
 exist (inventory, capacity) — cite that, don't apologize for it.

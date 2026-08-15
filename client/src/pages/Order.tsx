@@ -513,6 +513,12 @@ function ThisOrder({
           Rented equipment — tracked through pickup and return, so a late return can’t cost the hospice.
         </p>
       )}
+      {item?.resupply_days && (
+        <p className="mt-3 border-t border-[#f3ddd2] pt-3 text-xs text-muted-foreground">
+          Consumable — the payer covers a refill every {item.resupply_days} days. Once this order is
+          delivered, the next one places itself when that window opens. Nobody has to remember.
+        </p>
+      )}
     </aside>
   )
 }

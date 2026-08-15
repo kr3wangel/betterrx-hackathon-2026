@@ -184,7 +184,11 @@ const PATIENTS = [
 ]
 
 /** CMS national beneficiary counts as demand weights — oxygen and CPAP dominate, as they do in reality. */
-const MIX = CATALOG.flatMap((c) => Array(Math.max(1, Math.round(c.national_benes / 25_000))).fill(c.hcpcs_code) as string[])
+// Consumables (resupply_days) stay out of history: a year of delivered consumables would
+// all be past their payer window at boot, and the watchdog would auto-reorder every one.
+const MIX = CATALOG.filter((c) => !c.resupply_days).flatMap(
+  (c) => Array(Math.max(1, Math.round(c.national_benes / 25_000))).fill(c.hcpcs_code) as string[],
+)
 
 const VENDOR_BY_MARKET: Record<string, number[]> = {
   'Salt Lake City': [1, 2],
