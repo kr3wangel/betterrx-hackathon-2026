@@ -231,8 +231,8 @@ $150/mo approval threshold, and every medication spend figure.
 
 ## 7 · Test coverage
 
-**15 files, 194 tests** (re-derived 08-15, after rotating reply codes + narration). Core logic is
-covered; UI and routes deliberately are not.
+**15 files, 199 tests** (re-derived 08-15 by running the suite, after rotating reply codes +
+narration). Core logic is covered; UI and routes deliberately are not.
 
 | File | Tests | Covers |
 |---|---:|---|
