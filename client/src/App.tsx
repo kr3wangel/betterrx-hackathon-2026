@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { NavLink, Navigate, Route, Routes } from 'react-router-dom'
-import { Check, ChevronDown, LogOut } from 'lucide-react'
+import { Check, ChevronDown, ExternalLink, LogOut, Smartphone } from 'lucide-react'
 import { useEventStream } from './hooks/useEventStream'
 import { ROLES, useAuth, type RoleId } from './lib/auth'
 import {
@@ -8,6 +8,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuLink,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
@@ -38,6 +39,14 @@ const surfaceLinks: { to: string; label: string; roles: RoleId[] }[] = [
   { to: '/driver', label: 'Driver', roles: ['driver'] },
   { to: '/vendor-portal', label: 'Portal', roles: ['dispatcher'] },
   { to: '/reports', label: 'Reports', roles: ['case_manager', 'director_of_nursing'] },
+]
+
+// The two people this system texts who never log in. Their screens are full-screen phone
+// simulators, so they open in a new tab rather than replacing the hospice window you're
+// presenting from — the point of the demo is watching both screens react at once.
+const phoneLinks = [
+  { to: '/vendor-phone', label: "DME vendor's phone", note: 'Order requests, ETA checks' },
+  { to: '/caregiver', label: "Caregiver's phone", note: 'Condition check, reply 1–5' },
 ]
 
 // The product-level nav: this app is the DME module inside BetterRX.
@@ -78,6 +87,23 @@ function AccountControl() {
             {role?.id === r.id && <Check className="ml-auto size-4 text-primary" />}
           </DropdownMenuItem>
         ))}
+        <DropdownMenuSeparator />
+        {/* Not roles — these two have no account here, which is the whole design. Kept in
+            this menu anyway because it's the one control that's on every screen. */}
+        <DropdownMenuLabel>Simulated phones</DropdownMenuLabel>
+        {phoneLinks.map((p) => (
+          <DropdownMenuLink key={p.to} href={p.to} target="_blank" rel="noopener noreferrer">
+            <span className="grid size-6 shrink-0 place-items-center rounded-full bg-muted text-muted-foreground">
+              <Smartphone className="size-3.5" />
+            </span>
+            <span className="min-w-0">
+              <span className="block font-medium leading-tight">{p.label}</span>
+              <span className="block text-xs text-muted-foreground">{p.note}</span>
+            </span>
+            <ExternalLink className="ml-auto size-3.5 shrink-0 text-muted-foreground" />
+          </DropdownMenuLink>
+        ))}
+
         {role && (
           <>
             <DropdownMenuSeparator />
@@ -101,8 +127,9 @@ function surfaceLinkClass({ isActive }: { isActive: boolean }) {
 export default function App() {
   return (
     <Routes>
-      {/* Unlisted, and deliberately outside the app shell — it stands in for a real phone,
-          so it gets no nav, no header, no site chrome. Reachable only by typing the URL. */}
+      {/* Deliberately outside the app shell — each stands in for a real phone, so it gets no
+          nav, no header, no site chrome. Off the surface nav; reached from the account menu
+          (new tab) or by typing the URL. */}
       <Route path="/caregiver" element={<Caregiver />} />
       <Route path="/vendor-phone" element={<VendorPhone />} />
       {/* Token links arrive by text, from someone who works for the vendor and has no

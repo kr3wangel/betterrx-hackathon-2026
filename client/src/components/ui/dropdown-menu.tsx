@@ -83,6 +83,10 @@ export function DropdownMenuContent({
   )
 }
 
+// Item hover/active track the Select's accent treatment (coral tint).
+const itemClass =
+  'flex w-full items-center gap-2.5 rounded-sm px-2 py-2 text-left text-sm text-foreground outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent'
+
 // A row that fires an action and closes the menu. `active` marks the current selection.
 export function DropdownMenuItem({
   className,
@@ -100,16 +104,31 @@ export function DropdownMenuItem({
         onClick?.(e)
         setOpen(false)
       }}
-      className={cn(
-        // Item hover/active track the Select's accent treatment (coral tint).
-        'flex w-full items-center gap-2.5 rounded-sm px-2 py-2 text-left text-sm text-foreground outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent',
-        active && 'bg-accent',
-        className
-      )}
+      className={cn(itemClass, active && 'bg-accent', className)}
       {...props}
     >
       {children}
     </button>
+  )
+}
+
+// The same row rendered as a real anchor, for menu entries that go somewhere instead of
+// doing something. A button + window.open() would look identical and lose cmd-click,
+// middle-click and "copy link" — which is exactly how you want to open a demo prop.
+export function DropdownMenuLink({ className, children, onClick, ...props }: ComponentProps<'a'>) {
+  const { setOpen } = useDropdown()
+  return (
+    <a
+      role="menuitem"
+      onClick={(e) => {
+        onClick?.(e)
+        setOpen(false)
+      }}
+      className={cn(itemClass, className)}
+      {...props}
+    >
+      {children}
+    </a>
   )
 }
 

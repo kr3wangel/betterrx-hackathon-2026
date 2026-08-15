@@ -45,14 +45,14 @@ Read with [FEATURES.md](FEATURES.md) and
 | `/vendor-portal` | Same component, no token — the demo entry |
 | `/status/:token` | Read-only vendor status view |
 | `/vendor` | Dispatcher board + in-page phone simulator |
-| `/vendor-phone` | Full-screen SMS simulator, shows parse intent + confidence |
+| `/vendor-phone` | Full-screen SMS simulator, shows parse intent + confidence. Account menu → Simulated phones, new tab |
 
 ### Field & household — 2 pages
 
 | Route | What the page is |
 |---|---|
 | `/driver` | Phone-sized. Today's stops, POD capture: photo, signature, condition checklist |
-| `/caregiver` | Family's phone. Condition check arrives, reply 1-5 |
+| `/caregiver` | Family's phone. Condition check arrives, reply 1-5. Account menu → Simulated phones, new tab |
 
 ### Proposed — 2 more
 
@@ -70,9 +70,15 @@ Read with [FEATURES.md](FEATURES.md) and
 token links a vendor opens from a text. `/caregiver` and `/vendor-phone` get no chrome at all,
 because they stand in for real handsets.
 
+The two handsets are **off the surface nav but not unreachable**: the account dropdown carries a
+"Simulated phones" section under the role list that opens each one in a new tab. They aren't roles
+— neither the vendor nor the family has an account here — but the account control is the one
+element on every Shell page, and the demo needs the board and a handset open side by side.
+
 ```mermaid
 graph TD
-  NAV["GLOBAL NAV BAR<br/>7 links, on every page inside the Shell<br/>identical for every role"]
+  NAV["GLOBAL NAV BAR<br/>7 links, filtered by role - see section 5<br/>on every page inside the Shell"]
+  ACCT["ACCOUNT MENU<br/>role switcher plus Simulated phones<br/>also on every Shell page"]
 
   subgraph Full Shell - hospice nav bar
     BOARD["/hospice<br/>the board"]
@@ -109,12 +115,13 @@ graph TD
 
   SMS["SMS link to vendor"] -.-> PORTAL
   SMS -.-> VSTATUS
-  TYPED["typed URL, demo only"] -.-> CARE
-  TYPED -.-> VPHONE
+  ACCT ==>|"new tab"| CARE
+  ACCT ==>|"new tab"| VPHONE
 ```
 
-Thick arrows are the only two real in-app jumps. Thin arrows are the nav bar. Dashed arrows are
-external entry — a texted link or a URL typed by the presenter.
+Thick arrows are real in-app jumps: four `navigate()` calls between hospice pages, plus the two
+account-menu links that open a handset in a new tab. Thin arrows are the nav bar. Dashed arrows
+are external entry — a link texted to a vendor.
 
 **Where this stands after the XS fix batch:**
 
@@ -133,8 +140,9 @@ external entry — a texted link or a URL typed by the presenter.
 
 ## 3 · Where each user can actually go
 
-Roles now exist in the app — see §5 — so "can go" still means the same seven links for everyone.
-These diagrams show where each role *needs* to go, with the gap called out.
+Roles exist and the nav filters by them — see §5 for the link-by-role table. What roles do *not* do
+is guard routes, so "can go" is still "can reach by URL" for everyone. These diagrams show where
+each role *needs* to go, with the gap called out.
 
 ### Admissions nurse
 
@@ -346,5 +354,7 @@ and the audit trail doesn't.
 2. **Can the case manager approve** under a lower second threshold? Currently modelled DON-only.
 3. **Is $150/mo right?** Real in code, unvalidated against any hospice.
 4. **Two order forms** — `/order` and the inline card on `/hospice`. They should share a component.
-5. **`/vendor` vs `/vendor-phone`** — pre-existing naming collision, FEATURES.md §8.1. The demo
-   driver needs to know which to open.
+5. **`/vendor` vs `/vendor-phone`** — pre-existing naming collision, FEATURES.md §8.2. The demo
+   driver needs to know which to open, and both names are now on screen together: the Dispatcher's
+   nav says "Vendor phone" (`/vendor`) while the account menu says "DME vendor's phone"
+   (`/vendor-phone`). Renaming the nav link to "Dispatcher board" is the one-line fix.

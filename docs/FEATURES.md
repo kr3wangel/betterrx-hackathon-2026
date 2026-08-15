@@ -45,14 +45,21 @@ phone / Portal; Driver sees Driver; **signed out sees everything**. Routes are d
 guarded — hiding a link never blocks a URL, so no screen becomes unreachable mid-demo. Full map in
 [UX-FLOWS.md](UX-FLOWS.md).
 
-### Unlisted routes — demo props and magic links
+### Off the surface nav — demo props and magic links
 
-| Route | Chrome | What it does |
-|---|---|---|
-| `/caregiver` | none | The family's phone. Full-screen SMS simulator: condition check arrives, reply 1–5 or free text, outcome shown as a delivery receipt |
-| `/vendor-phone` | none | The dispatcher's phone. **Two reply paths on one screen:** tap a quick reply (deterministic route table, no model) or type prose (Claude, showing intent, confidence, and applied / sent-to-a-person) |
-| `/portal/:token` | `PortalShell` | Magic-link vendor portal — confirm, set ETA, decline. No account |
-| `/status/:token` | `PortalShell` | Vendor status view, read-only |
+| Route | Chrome | Reached by | What it does |
+|---|---|---|---|
+| `/caregiver` | none | Account menu → Simulated phones (new tab), or typed URL | The family's phone. Full-screen SMS simulator: condition check arrives, reply 1–5 or free text, outcome shown as a delivery receipt |
+| `/vendor-phone` | none | Account menu → Simulated phones (new tab), or typed URL | The dispatcher's phone. **Two reply paths on one screen:** tap a quick reply (deterministic route table, no model) or type prose (Claude, showing intent, confidence, and applied / sent-to-a-person) |
+| `/portal/:token` | `PortalShell` | A texted magic link | Magic-link vendor portal — confirm, set ETA, decline. No account |
+| `/status/:token` | `PortalShell` | A texted magic link | Vendor status view, read-only |
+
+**The two phone simulators are in the account dropdown**, under a "Simulated phones" heading below
+the role list, as real `target="_blank"` anchors (`DropdownMenuLink`). They open in a new tab on
+purpose: the demo is watching the hospice board and a handset react to each other, which needs two
+windows. They sit in the account menu rather than the surface nav because neither the vendor nor
+the family has an account here — that is the design, not an oversight — and because the account
+menu is the one control present on every Shell page.
 
 Three chrome levels, not two: the full Shell carries the hospice nav; **`PortalShell` carries only
 the betterRX mark and the live indicator**, so a vendor opening a texted link never sees our
@@ -240,7 +247,10 @@ clicking, not by CI.
    nothing gates dispatch. Either wire it or make sure nobody clicks Approve on stage as if it
    blocks an order.
 2. **`/vendor` is labelled "Vendor phone" in the nav and `/vendor-phone` also exists.** Two
-   things, nearly one name. Pick which one the demo drives.
+   things, nearly one name. Pick which one the demo drives. **Sharper as of 08-14:** the account
+   menu now offers "DME vendor's phone" (`/vendor-phone`) while the Dispatcher's nav still says
+   "Vendor phone" (`/vendor`), so both names are on screen at once. Cheapest fix is renaming the
+   nav link to "Dispatcher board", which is what `/vendor` actually is.
 3. ~~`sms.ts` has no UI path.~~ **Closed 08-14 — the reply half is wired.** `VendorPhone` now shows
    quick-reply buttons on the most recent unanswered question, POSTing to `/api/messages/reply`.
    The vendor phone now carries **both** paths on one screen, which is the AI argument made
