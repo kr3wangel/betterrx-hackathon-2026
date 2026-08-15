@@ -71,6 +71,11 @@ CREATE TABLE IF NOT EXISTS messages (
   reply_slot INTEGER,
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
+CREATE TABLE IF NOT EXISTS message_orders (
+  message_id INTEGER NOT NULL REFERENCES messages(id),
+  order_id INTEGER NOT NULL REFERENCES orders(id),
+  PRIMARY KEY (message_id, order_id)
+);
 CREATE TABLE IF NOT EXISTS escalations (
   id INTEGER PRIMARY KEY,
   order_id INTEGER NOT NULL,

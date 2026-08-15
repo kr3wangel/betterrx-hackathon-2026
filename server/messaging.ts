@@ -245,6 +245,13 @@ export function pickupRequestText(order: Order, patientArea: string | undefined,
   return `Pickup needed for order #${order.id} (${order.equipment_name})${where}. Reply ${yes} if you can get it today, ${no} to give us a window: ${orderLink(order.id)}`
 }
 
+export function pickupGroupText(orders: Order[], patientArea: string | undefined, [yes, no]: SlotDigits): string {
+  const where = patientArea ? `, area ${patientArea}` : ''
+  const items = orders.map((o) => o.equipment_name.split(',')[0].toLowerCase()).join(', ')
+  const all = orders.length === 2 ? 'both' : `all ${orders.length}`
+  return `Pickup needed — ${orders.length} items from one home (${items})${where}. Family is present — please schedule promptly. Reply ${yes} if you can get ${all} today, ${no} to give us a window: ${portalLink(orders[0].vendor_id)}`
+}
+
 export function ackNagText(order: Order, [yes, no]: SlotDigits): string {
   return `Order #${order.id} (${order.equipment_name}) hasn't been confirmed — reply ${yes} to accept, ${no} if you can't fill it, or tap to accept or decline: ${orderLink(order.id)}`
 }

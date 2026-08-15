@@ -319,7 +319,18 @@ Stated as invariants so a future implementer can't trade them away:
 - **Marking digest orders "seen/acknowledged"** on link tap. Opening a list is not a commitment;
   inferring anything from it would be exactly the evidence inflation §7.3 forbids.
 
-## 10 · Open questions (decide at build time, not now)
+## 10 · Open questions — RESOLVED at build time (team approved the build 08-15; decisions below)
+
+> **Build decisions (Angel + team, 08-15, recorded in `docs/SMS-BATCHING-PLAN.md`):**
+> **§10.4 → no burst trigger, no `v_pickup_digest`.** Tier 2 makes the five pairs count *stops*,
+> and the shipped exhaustion digest already fires whenever a burst outruns the pairs — each
+> refused `sendVendorQuestion()` attempts it, under the existing 4h rate limit. Exhaustion
+> subsumes burst; one digest, one body, one rate limit, no race.
+> **§10.1 → moot for pickups** (the ack-nag ladder targets `ordered`; pickup accountability is
+> the per-order `pickup_overdue` clock, untouched). **§10.2 → silent** (the rate limit is the
+> refresh policy). **§10.5 → no** (cross-intent rule stands). Group link = the vendor portal
+> link. Group anchor = first order id on the message row; `message_orders` carries the manifest.
+> Partial failure: skip-and-record, never abort the trip. Driver stop view (§6) stays unbuilt.
 
 1. Should a tier-3 digest absorb pending `v_ack_nag`s for the same vendor into one "…and 2 orders
    still need a yes/no" line, or do nags stay separate messages? (Lean: absorb — same

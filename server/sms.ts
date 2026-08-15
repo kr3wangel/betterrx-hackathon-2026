@@ -12,6 +12,7 @@ import {
   householdGate,
   orderRequestText,
   pickedUpThanksText,
+  pickupGroupText,
   pickupNoticeText,
   pickupRequestText,
   sendToFamily,
@@ -137,6 +138,8 @@ const VENDOR_BODY: Record<VendorQuestion, (order: Order, area: string, digits: S
   v_ack_nag: (order, _area, digits) => ackNagText(order, digits),
   v_eta_check: (order, _area, digits) => etaCheckText(order, digits),
   v_pickup_request: (order, area, digits) => pickupRequestText(order, area, digits),
+  // Degenerate single-order rendering; the real group send builds the manifest in pickups.ts.
+  v_pickup_group: (order, area, digits) => pickupGroupText([order], area, digits),
 }
 
 const FAMILY_BODY: Record<Exclude<FamilyTemplate, 'f_condition_check'>, (order: Order) => string> = {

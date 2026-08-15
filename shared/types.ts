@@ -152,6 +152,8 @@ export type VendorTemplate =
   | 'v_ack_nag'
   | 'v_eta_check'
   | 'v_pickup_request'
+  /** One question for a whole stop: N items, one household, one pair. Manifest in message_orders. */
+  | 'v_pickup_group'
   /** Overflow: sent instead of a question once all five reply pairs are in use. Carries no digits. */
   | 'v_backlog_digest'
 
@@ -200,6 +202,8 @@ export interface SmsReplyResult {
   outcome: 'applied' | 'prompt' | 'review' | 'unmapped' | 'clarify'
   prompt: string | null
   order: Order | null
+  /** Set when the answered question covered a trip: every order the reply applied to. */
+  group_order_ids?: number[]
 }
 
 export interface Escalation {
