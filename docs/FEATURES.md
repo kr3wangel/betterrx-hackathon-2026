@@ -81,7 +81,7 @@ suppresses itself on real handsets.
 | Rotating reply codes | `slots.ts` + `shared/slots.ts` | **Five open questions per vendor, each owning a digit pair** — (1,2) (3,4) (5,6) (7,8) (9,0), odd = affirmative. Each message states its own pair, so a question buried five texts back is still answerable, in any order, days apart. A follow-up reuses its order's pair rather than spending a new one. Sixth question → one rate-limited digest with a portal link, never a recycled code |
 | Caregiver condition parsing | `condition.ts` | **Deterministic regex, no model.** A digit is a digit |
 | Household messaging | `messaging.ts` | `sendToFamily` with a gate — silent after a death, one open question at a time |
-| Magic-link tokens | `portal.ts` | Vendor access with no account |
+| Magic-link tokens | `portal.ts` | Vendor access with no account. `portalOrders()` lists only what the vendor still owes something on — unaccepted, in flight, awaiting pickup — not their delivered history (that was 39 of Beehive's 45 rows) |
 | Roles / mock login | `client/src/lib/auth.tsx` | 6 roles, `AuthProvider`, `useAuth()`, localStorage-backed. **Client-side only** — see §2 |
 | SLA defaults | `sla.ts` | Same-day urgent, 24h routine, stated as an assumption per FAQ §7 |
 | Proof of delivery | `pods.ts` | Photo, signature, timestamp, plus condition attestation |
