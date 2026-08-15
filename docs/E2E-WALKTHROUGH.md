@@ -315,3 +315,174 @@ killing the pulses, and no role's nav can reach the retired vendor pages. Fix (a
 says "every delivery had a photo" out loud, decide (c-1) and (c-4) over coffee, and spend the
 rehearsal budget on the script rather than the code — (b-1) through (b-8) are the only things
 standing between this and a clean click-for-click run.**
+
+---
+---
+
+# Trip batching spot-verify — 2026-08-15
+
+**Verdict: the tier-2 trip batching works, end to end, through the real app. One death → ONE vendor
+text naming both items → one digit → both orders commit, with `group reply · no model` on both
+ledgers and evidence still capped at vendor-reported. Both regression edges hold: a single-item
+vendor still gets the single `v_pickup_request`, and a sixth stop still produces exactly one
+`v_backlog_digest` behind five live pairs. Nothing is broken. Two things need a decision before
+rehearsal, and neither is a batching bug: (T-1) the board's pickup pill never moves when the vendor
+commits, because a pickup affirmative deliberately writes no ETA and the pill reads `eta_at` — so
+Ruth's grouped row still says `0 of 2 moving` after the vendor said yes; and (T-2) the DEMO-SCRIPT's
+recorded "no mention of the family" tone note is no longer true of the text a presenter opens on
+stage, because the spec-prescribed group body says "Family is present — please schedule promptly."**
+
+Run on **2026-08-15** against worktree branch `worktree-agent-a47fa964a2e0901b3` at `e309656`
+("Merge trip-batching server…") with local `main` merged in. Authority for the beats:
+`docs/SMS-BATCHING-PLAN.md` task 2B. **No source file was modified — this document is the only
+thing written.**
+
+## How this was run
+
+| | |
+|---|---|
+| API | `DB_PATH=<scratch>/e2e.db PORT=3111 npx tsx server/index.ts` |
+| Client | `npm run build` → `client/dist`, served by a ~30-line static+proxy node server on **:5199** (proxies `/api/*` to :3111). Every UI beat below is the **built client**. |
+| Browser | headless Chrome 151 over CDP on :9333 (plain node, built-in `WebSocket`, no new deps) — real `click()`, real `Input.dispatchMouseEvent` for the signature canvas, `Fetch.requestPaused` to hold the inbound POST so the in-flight bubble could be read |
+| Seeds | `DB_PATH=<scratch>/e2e.db npx tsx scripts/seed.ts scenario2` (re-seeded between the group walk, the narration walk and the click-for-click walk) |
+| Gates | `npm run typecheck` clean · `vite build client` clean · `npm test` **224/224** |
+
+**The shared dev server on `:3001` / `:5173` and `data/app.db` were never touched** — verified with
+`lsof` before and after. Scratch DB, Chrome profile and driver scripts lived in the session
+scratchpad and are deleted.
+
+## Beat table
+
+| # | Beat | Result | Evidence |
+|---|---|---|---|
+| 1 | Seed scenario2, nurse-taps Ruth (patient 5) deceased | **pass** | `POST /api/patients/5/status` `{"status":"deceased"}` + `X-Role: field_nurse` → `{"pickups_triggered":[1050,1051]}`. Both orders carry `pickup_triggered` with `payload {patient_status:'deceased', source:'nurse'}` and `actor_role: field_nurse`. |
+| 2 | Vendor thread: exactly ONE new outbound | **pass** | Wasatch's thread went 77 → 78 rows. The one new row is `[296] v_pickup_group`, `reply_slot = 1`. `liveQuestions(1)` = **1** — one pair consumed for two orders. |
+| 2a | Body shape | **pass** | `Pickup needed — 2 items from one home (hospital bed, oxygen concentrator), area Ogden. Family is present — please schedule promptly. Reply 1 if you can get both today, 2 to give us a window: localhost:5173/portal/0ba1ed9f8fc6b1e9a57f` — names both items, count agrees, "both" for N=2, reply pair (1,2), **portal** link not `/o/`. |
+| 2b | Manifest + slot storage | **pass** | `SELECT * FROM message_orders` → `296\|1050`, `296\|1051`. `messages.reply_slot = 1` is the pair's **base digit** (`SLOT_BASES`), not an index — matches `allocateSlot()` returning a base. |
+| 3 | `/vendor-phone` renders the group bubble | **pass** | Built client, Wasatch selected by default (`Wasatch Medical Supply · Dana`); the full group body renders as a received bubble. |
+| 3a | Typing `1` shows **"sending…"**, not "reading…" | **pass** | Held the `POST /api/messages/inbound` with `Fetch.requestPaused`; page text during flight: `{"sending": true, "reading": false}` — the digit path, no model. |
+| 3b | Receipt copy | **pass** | `1 · Yes — the whole stop — applied to 2 orders · no model needed`. Label from `VENDOR_LABELS.v_pickup_group[0]`, count from `group_order_ids.length`. |
+| 4 | Board reflects the commitment on both orders | **partial — see T-1** | Both orders moved `delivered → pickup_pending` and both got `eta_set` with `payload {eta_iso: null, source: 'group reply'}`. The grouped row renders (`Ruth Nakamura · Pickup · 2 items · — · 0 of 2 moving`) but the **pill does not change** when the vendor commits. |
+| 4a | Timeline shows the group event | **pass** | Both sub-rows, expanded: `Aug 15, 9:11 AM ETA set · group reply · no model` (from `domain.ts:103`). |
+| 4b | Evidence stays vendor-reported | **pass** | Both timelines label the group event **`Reported`**; **no `Verified` badge anywhere** on either row. `delivery_verified` / `pickup_verified` / `family_confirmed` all still `false` after the group affirmative. |
+| 5 | Driver completes each pickup individually | **pass** | `/driver` showed **2 separate PICK UP cards** for Ruth. Drove both through the real UI (Complete pickup → signature canvas via `Input.dispatchMouseEvent` → Confirm pickup). Queue went 2 stops → 1 stop → 0. |
+| 5a | Per-item POD → per-item verified | **pass** | Two `pods` rows: `1050\|pickup\|…1050-pickup-signature_path.png` and `1051\|pickup\|…1051-pickup-signature_path.png`. Both orders `state: picked_up`, `pickup_verified: true`. |
+| 5b | Family thread got ONE pickup notice | **pass** | `messages` where `recipient_type='family' AND patient_id=5`: exactly one `f_pickup_notice` (`[298]`, order 1050 — the anchor). See T-3 for the *closing* texts. |
+| 5c | Post-death silence holds for the condition channel | **pass** | `POST /api/messages/send {order_id:1050, template:'f_delivery_confirm'}` → `409 "patient deceased — this channel stays silent"`. Re-firing `f_pickup_notice` → `409 "already sent for this order"`. `f_condition_check` never fires on a pickup (`routes.ts:167` guards on `kind !== 'pickup'`). |
+| 6a | Single-item patient still gets the single template | **pass** | Gerald Okafor (p11) has 9 delivered with Wasatch and **1** with Beehive. One tap → Wasatch got `[302] v_pickup_group` ("9 items from one home… all 9", portal link); Beehive got `[301] v_pickup_request` (`Pickup needed for order #2018 … Reply 1 if you can get it today` with an **`/o/`** link). Per-vendor grouping is correct in the same transaction. |
+| 6b | Six stops → 5 questions + exactly one digest | **pass** | Marked p11, p2, p6, p8, p9, p10 deceased back to back. Wasatch's live questions climbed 1→2→3→4→5 then **stopped at 5** (slots 1,3,5,7,9, all `v_pickup_group`). The sixth stop produced `[312] v_backlog_digest` — *"You have 41 open orders and the reply codes above are all in use. Open them all here: …/portal/…"*. **One** digest row, no new template. Pins the §10.4 resolution. |
+| 6c | Narration during the group apply | **pass (describes as designed)** | See T-4 — 2 order events in one burst produce 2 collapsed narrations (one per order id), then the rate limiter folds the second into the overflow toast. |
+| 7 | DEMO-SCRIPT scenario 2 still walks click-for-click | **pass, with 3 stale lines** | Full walk done in the built client; see below. |
+
+## Beat 7 — the click-for-click walk
+
+Every control the script names exists and produces the promised screen. Verbatim from the built
+client:
+
+- **Step 1** `/nurse` → *"Who has a change to report?"* → Ruth → *"What changed for Ruth Nakamura?"*
+  with *Went home / discharged* and *Passed away* → *"Confirm Ruth Nakamura has passed away / We'll
+  schedule the equipment pickup with care and a note for the family. Take your time — this is the
+  only step you need to do."* → **Confirm, with care** → toast *"Recorded, with care — 2 pickups are
+  on the driver's list for Ruth Nakamura. The family will be handled gently."* with a **See the
+  pickups** action. Matches the script word for word.
+- **Step 2** board: `On the way · 1` → `Ruth Nakamura · — · Pickup · 2 items · 0 of 2 moving`.
+  Exactly the string the script promises.
+- **Steps 3–4** `/driver`: two PICK UP cards, each carrying *"The family is grieving. Call ahead, be
+  brief and kind."*; after Confirm pickup the green card renders the **Family notified** panel
+  quoting *"Your hospice team: the equipment has been picked up. There's nothing else you need to
+  do. We're thinking of your family."*
+
+### Stale script lines the docs agent should catch
+
+**S-1 · `DEMO-SCRIPT.md:345` (scenario 2, step 2) — the load-bearing one.** *"Two pickup texts land
+in Wasatch's thread, each with a magic link"* is now **false**: exactly **one** text lands, template
+`v_pickup_group`, carrying the **vendor portal** link (`/portal/<token>`), not two per-order `/o/`
+links. A script narrating two texts while the phone shows one is the stage failure the plan's cut
+order explicitly refuses to accept.
+
+**S-2 · `DEMO-SCRIPT.md:371-373` — `[QUIRK] pickup-text tone` is out of date.** It records the
+pickup request as *"Reply 1 if you can get it today, 2 to give us a window"* **"with no mention of
+the family. Safe to open Wasatch's thread on stage."** The text a presenter now opens for Ruth is
+the group body, which says *"Family is present — please schedule promptly"* and *"if you can get
+**both** today"*. The single-order template is unchanged and still family-free — only scenario 2's
+text changed. Note this is **spec-conformant**, not a code slip: `SMS-BATCHING-SPEC.md:115`
+prescribes the "Family is present" line. So it is a *doc conflict to settle*, not a bug to fix —
+Angel's call whether the spec line or the recorded tone decision wins.
+
+**S-3 · `DEMO-SCRIPT.md:360` reads as two texts.** *"'Two pickups' is now literally two: the trigger
+returns `pickups_triggered: [1050, 1051]`"* is still **true** (two pickups, two board rows, two
+driver cards), but sitting next to S-1 it will be read as two *texts*. It needs an explicit "two
+pickups, one text" clause.
+
+**S-4 · opportunity, not staleness.** Scenario 2 has **no vendor-reply beat**, so the tier-2 payoff
+— one digit fanning out to two orders with `applied to 2 orders · no model needed` on the phone and
+`group reply · no model` on both ledgers — is currently never shown on stage. It is the strongest
+15 seconds the batching work bought. Worth a step 2b.
+
+## Punch list
+
+**T-1 · The board's pickup pill never moves when a vendor commits.** `statePill()`
+(`client/src/lib/board.ts:118-121`) reads a pickup's commitment off `order.eta_at`. The pickup
+affirmative — group *and* single — deliberately writes `eta: null` (spec §5 anti-gaming), and
+`applyEvent` only writes `eta_at` when `payload.eta_iso` is truthy
+(`server/statemachine.ts:52-54`). Measured both ways:
+
+- Ruth's #1050/#1051 have `eta_at = null` **before and after** the group affirmative → the grouped
+  row stays `0 of 2 moving`, both sub-rows stay `Waiting on vendor`, even though the vendor just
+  said yes to the whole stop.
+- The single path only *looks* right by accident: Gerald's #2018 shows `Confirmed ✓` after its
+  single affirmative because a **stale `eta_at` of 2026-08-07** (a past date, left over from the
+  delivery leg) survived on the row. The pill was never about the pickup commitment.
+
+**Pre-existing, not a batching regression** — the group path inherits the single path's behaviour
+exactly. But tier 2 puts it on the demo orders, which have no stale ETA to hide behind. The
+commitment *is* visible one click down (`ETA set · group reply · no model`); it is only the pill
+that is mute. Angel's call: leave it and don't narrate a pill change, or make `statePill` read the
+latest `eta_set` event rather than `eta_at`.
+
+**T-2 · See S-2** — the group body reintroduces a family mention the demo script recorded as
+removed. Spec-conformant; a doc conflict, not a bug.
+
+**T-3 · The trip is batched outbound but not on the way back.** One `f_pickup_notice` goes to the
+household for the whole trip (correct, and the anchor-only send is what makes it one). But each POD
+still fires its own `f_picked_up_thanks` — Ruth's household got **two identical** closing texts
+(`[299]` order 1051, `[300]` order 1050) for one truck visit. Out of scope for the tier-2 plan
+(which is vendor-outbound only), and the second text is harmless rather than wrong, but it is the
+obvious next batching seam and a judge asking "did the family get one text or three?" has a point.
+
+**T-4 · Narration during a group apply — what actually happens** (asked to describe, not judge).
+`collapseNarrations()` groups by **order id**, so two `eta_set` events on two different orders never
+collapse into one toast. On the hospice board during the group affirmative, the observed toasts
+were:
+
+1. `Wasatch Medical Supply set an ETA for Ruth's hospital bed`
+2. `1 more update on the board`
+
+The second order's toast was folded into the overflow toast by the rate limiter in
+`useEventNarration.ts:60-79` (two toasts from the nurse tap were still inside the rate window), not
+by the collapse rule. So: **two order events in one burst = two narrations, one of which will
+usually surface as the overflow line** on a busy board. Cosmetic note: the copy says *"set an ETA"*
+while `order.eta_at` is null, so no time is ever appended (`narration.ts:191-192`), and the board
+pill simultaneously says `Waiting on vendor` — same root cause as T-1.
+
+**T-5 · Group body doesn't dedupe the manifest.** Gerald's 9-item group rendered
+`(cpap device, portable oxygen system, walker, portable oxygen system, oxygen concentrator, portable
+oxygen system, portable oxygen system, cpap device, cpap device)` — **372 characters**, with
+"portable oxygen system" listed four times. Irrelevant to the demo (scenario 2 is 2 items) and
+harmless to routing, but a real 9-stop text would read badly and cost three SMS segments. A
+`3 × portable oxygen system` roll-up would fix it. Not urgent.
+
+**T-6 · Demo hygiene, unrelated to batching.** The driver PODs recorded `actor_role: case_manager`,
+because the browser's `betterrx.role` localStorage default is `case_manager` and `/driver` doesn't
+switch it. If the ledger's role attribution gets pointed at on stage, sign in as **Driver** first.
+
+## Verdict
+
+**Trip batching is real and it walks. One nurse tap on Ruth produces one vendor text that names both
+items and owns one reply pair; one digit commits both orders with `group reply · no model` on each
+ledger and no evidence promotion anywhere; the driver still closes each item individually with its
+own POD and its own `pickup_verified`; the household hears about the trip once. The single-item
+template and the five-pair exhaustion digest both survived unchanged. `npm test` 224/224,
+`typecheck` and `build` clean. Nothing here blocks a rehearsal — but fix `DEMO-SCRIPT.md:345` before
+anyone says "two texts" in front of a phone showing one (S-1), settle the family-line conflict
+(S-2/T-2), and decide whether the board pill should move when a vendor commits to a pickup (T-1).**
