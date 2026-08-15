@@ -176,9 +176,9 @@ export default function Order() {
               />
             </Field>
 
-            <Field label="Equipment">
+            <Field label="Equipment" htmlFor="order-equipment">
               <Select value={hcpcs} onValueChange={setHcpcs}>
-                <SelectTrigger>
+                <SelectTrigger id="order-equipment">
                   <SelectValue placeholder="Choose equipment…" />
                 </SelectTrigger>
                 <SelectContent>
@@ -193,8 +193,9 @@ export default function Order() {
             </Field>
 
             <div className="grid grid-cols-2 gap-4">
-              <Field label="Quantity">
+              <Field label="Quantity" htmlFor="order-quantity">
                 <Input
+                  id="order-quantity"
                   type="number"
                   min={1}
                   className="tabular-nums"
@@ -202,8 +203,9 @@ export default function Order() {
                   onChange={(e) => setQuantity(e.target.value)}
                 />
               </Field>
-              <Field label="Needed by" hint="set by urgency">
+              <Field label="Needed by" hint="set by urgency" htmlFor="order-needed-by">
                 <Input
+                  id="order-needed-by"
                   type="datetime-local"
                   value={neededBy}
                   onChange={(e) => setNeededBy(e.target.value)}
@@ -211,8 +213,8 @@ export default function Order() {
               </Field>
             </div>
 
-            <Field label="Urgency" note={urgencyNote(urgency, neededBy)}>
-              <div className="flex gap-2">
+            <Field label="Urgency" note={urgencyNote(urgency, neededBy)} captionId="order-urgency-label">
+              <div className="flex gap-2" role="group" aria-labelledby="order-urgency-label">
                 {URGENCY_OPTIONS.map((o) => (
                   <button
                     key={o.value}
@@ -279,40 +281,33 @@ function Field({
   hint,
   note,
   htmlFor,
+  captionId,
   children,
 }: {
   label: string
   hint?: string
   note?: string
   htmlFor?: string
+  captionId?: string
   children: React.ReactNode
 }) {
   const caption = (
-    <span className="mb-2 flex items-baseline justify-between text-xs font-bold uppercase tracking-[0.1em] text-muted-foreground">
+    <span
+      id={captionId}
+      className="mb-2 flex items-baseline justify-between text-xs font-bold uppercase tracking-[0.1em] text-muted-foreground"
+    >
       {label}
       {hint && <span className="font-medium normal-case tracking-normal text-faint">{hint}</span>}
     </span>
   )
-  const body = (
-    <>
-      {children}
-      {note && <span className="mt-2 block text-xs text-muted-foreground">{note}</span>}
-    </>
-  )
-  // A wrapping <label> re-forwards option clicks to the combobox input and reopens the list.
-  if (htmlFor) {
-    return (
-      <div className="block">
-        <label htmlFor={htmlFor}>{caption}</label>
-        {body}
-      </div>
-    )
-  }
+  // Never wrap the children in the <label>: it would forward caption and note clicks to the first
+  // labelable descendant — a combobox reopen, or on Urgency an actual STAT pick with a new deadline.
   return (
-    <label className="block">
-      {caption}
-      {body}
-    </label>
+    <div className="block">
+      {htmlFor ? <label htmlFor={htmlFor}>{caption}</label> : caption}
+      {children}
+      {note && <p className="mt-2 text-xs text-muted-foreground">{note}</p>}
+    </div>
   )
 }
 
