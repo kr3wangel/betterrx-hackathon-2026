@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { NavLink, Navigate, Route, Routes } from 'react-router-dom'
+import { Check, ChevronDown, LogOut } from 'lucide-react'
 import { useEventStream } from './hooks/useEventStream'
+import { ROLES, useAuth } from './lib/auth'
 import { Button } from '@/components/ui/button'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { Toaster } from '@/components/ui/sonner'
@@ -33,35 +35,78 @@ const productTabs = [
   { label: 'DME', active: true },
 ]
 
-// No auth backend in the demo — this is a self-contained toggle that shows both the
-// signed-in identity and the sign-out affordance a real shell would carry.
+// Mock login: sign in as any role, switch role, or sign out. Backed by the auth
+// context so the rest of the app can branch on the current role.
 function AccountControl() {
-  const [signedIn, setSignedIn] = useState(true)
-
-  if (!signedIn) {
-    return (
-      <Button size="sm" className="rounded-full" onClick={() => setSignedIn(true)}>
-        Sign in
-      </Button>
-    )
-  }
+  const { role, signIn, signOut } = useAuth()
+  const [open, setOpen] = useState(false)
 
   return (
-    <div className="flex items-center gap-2.5">
-      <span className="flex items-center gap-2">
-        <span className="grid size-7 place-items-center rounded-full bg-secondary text-[11px] font-bold text-secondary-foreground">
-          CM
-        </span>
-        <span className="hidden text-sm font-semibold text-foreground sm:inline">Case Manager</span>
-      </span>
-      <Button
-        variant="ghost"
-        size="sm"
-        className="rounded-full text-muted-foreground"
-        onClick={() => setSignedIn(false)}
-      >
-        Sign out
-      </Button>
+    <div className="relative">
+      {role ? (
+        <button
+          onClick={() => setOpen((o) => !o)}
+          className="flex items-center gap-2 rounded-full py-1 pl-1 pr-2 transition-colors hover:bg-muted"
+        >
+          <span className="grid size-7 place-items-center rounded-full bg-secondary text-[11px] font-bold text-secondary-foreground">
+            {role.initials}
+          </span>
+          <span className="hidden text-sm font-semibold text-foreground sm:inline">{role.label}</span>
+          <ChevronDown className="size-4 text-muted-foreground" />
+        </button>
+      ) : (
+        <Button size="sm" className="rounded-full" onClick={() => setOpen((o) => !o)}>
+          Sign in <ChevronDown className="size-4" />
+        </Button>
+      )}
+
+      {open && (
+        <>
+          <button
+            className="fixed inset-0 z-40 cursor-default"
+            aria-label="Close menu"
+            onClick={() => setOpen(false)}
+          />
+          <div className="absolute right-0 z-50 mt-2 w-60 rounded-xl border border-border bg-card p-1.5 shadow-lg">
+            <div className="px-2.5 py-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              {role ? 'Switch role' : 'Sign in as'}
+            </div>
+            {ROLES.map((r) => (
+              <button
+                key={r.id}
+                onClick={() => {
+                  signIn(r.id)
+                  setOpen(false)
+                }}
+                className={cn(
+                  'flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm transition-colors hover:bg-muted',
+                  role?.id === r.id && 'bg-muted'
+                )}
+              >
+                <span className="grid size-6 place-items-center rounded-full bg-secondary text-[10px] font-bold text-secondary-foreground">
+                  {r.initials}
+                </span>
+                <span className="font-medium text-foreground">{r.label}</span>
+                {role?.id === r.id && <Check className="ml-auto size-4 text-primary" />}
+              </button>
+            ))}
+            {role && (
+              <>
+                <div className="my-1 h-px bg-border" />
+                <button
+                  onClick={() => {
+                    signOut()
+                    setOpen(false)
+                  }}
+                  className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm text-muted-foreground transition-colors hover:bg-muted"
+                >
+                  <LogOut className="size-4" /> Sign out
+                </button>
+              </>
+            )}
+          </div>
+        </>
+      )}
     </div>
   )
 }
