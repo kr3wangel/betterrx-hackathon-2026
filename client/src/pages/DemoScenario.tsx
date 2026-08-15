@@ -3,7 +3,7 @@ import { ArrowLeft } from 'lucide-react'
 import { EmptyState } from '@/components/EmptyState'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { DemoSeedBlock, StageSilence, StopLink, useDemoLinks, type DemoLink, type Stop } from './Demo'
+import { StageSilence, StopLink, useDemoLinks, type DemoLink, type Stop } from './Demo'
 
 interface Beat {
   n: string
@@ -401,7 +401,6 @@ export default function DemoScenario() {
           <CardTitle>The beats</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <DemoSeedBlock fallbackSeed={page.seed} />
           {n === '3' && <StageSilence />}
           <BeatList beats={page.beats} links={links} />
         </CardContent>

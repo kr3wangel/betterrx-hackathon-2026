@@ -210,27 +210,14 @@ function ScenarioCard({ scenario, links }: { scenario: Scenario; links: DemoLink
 
 export const DEMO_SEED_COMMAND = 'npm run db:reset && npm run seed demo'
 
-export function DemoSeedBlock({ fallbackSeed }: { fallbackSeed?: string }) {
+export function DemoSeedBlock() {
   return (
     <div className="space-y-2">
       <SeedCommand command={DEMO_SEED_COMMAND} />
       <p className="text-xs text-muted-foreground">
-        One seed for the whole demo — all three scenarios are staged at once, on different
-        patients, so nothing is reseeded between them. Scenario 3’s silence beat is the one
-        exception: its clock starts when you tap “Stage the silence”.
-      </p>
-      <p className="text-xs text-muted-foreground">
-        Fallback: isolated seeds, for rehearsing one scenario on its own —{' '}
-        {fallbackSeed ? (
-          <code className="font-mono">npm run db:reset &amp;&amp; npm run seed {fallbackSeed}</code>
-        ) : (
-          <>
-            <code className="font-mono">npm run seed scenario1</code> ·{' '}
-            <code className="font-mono">scenario2</code> ·{' '}
-            <code className="font-mono">scenario3</code>
-          </>
-        )}
-        .
+        One-time setup — run once (with the dev server restarted after), then hard-refresh every
+        tab. All three scenarios are staged at once on different patients; nothing is reseeded
+        between them. Scenario 3’s silence clock starts when you tap “Stage the silence”.
       </p>
     </div>
   )
