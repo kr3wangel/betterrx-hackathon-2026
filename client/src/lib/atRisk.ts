@@ -34,6 +34,30 @@ export function isNeedsAttention(order: Order, now: Date = new Date()): boolean 
 
 const DEADLINE_WINDOW_HOURS = 24
 
+export const LIVE_STATES: Order['state'][] = [
+  'ordered',
+  'dispatched',
+  'in_transit',
+  'pickup_pending',
+  'pickup_overdue',
+]
+
+export function isLive(order: Order): boolean {
+  return LIVE_STATES.includes(order.state)
+}
+
+/**
+ * The board's "Needs you" section. Narrower than isNeedsAttention on purpose: a deadline
+ * merely being near is not by itself a reason to interrupt someone, so a nearby-deadline
+ * order stays in "On the way" until risk or an escalation actually says otherwise.
+ */
+export function isNeedsYou(order: Order, escalatedOrderIds: ReadonlySet<number>): boolean {
+  if (!isLive(order)) return false
+  if (escalatedOrderIds.has(order.id)) return true
+  if ((order.risk_score ?? 0) >= RISK_THRESHOLD) return true
+  return order.state === 'pickup_overdue'
+}
+
 // Higher = more urgent. Overdue outranks everything, then risk score, then deadline nearness.
 function attentionRank(order: Order, now: Date): number {
   let rank = order.risk_score ?? 0
