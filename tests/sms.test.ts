@@ -23,7 +23,8 @@ import {
   type ReplyAction,
 } from '../server/sms'
 import { portalOrders } from '../server/portal'
-import { SLOT_BASES, slotDigits, type SlotDigits } from '../server/slots'
+import { setPatientStatus } from '../server/pickups'
+import { SLOT_BASES, liveQuestions, slotDigits, type SlotDigits } from '../server/slots'
 import { applyEvent } from '../server/statemachine'
 import { getOrder, rowToMessage } from '../server/store'
 import { tick } from '../server/watchdog'
@@ -123,6 +124,15 @@ describe('reply route table integrity', () => {
       expect(pair, template).toHaveLength(2)
       expect(['apply', 'escalate'], template).toContain(pair![0].kind)
     }
+  })
+
+  // A trip question is a two-position ask like any other — the fan-out is in the action,
+  // never in the addressing. eta stays null for the same anti-gaming reason as the single
+  // pickup route, and one gamed digit here would hold a whole trip out of overdue.
+  it('routes a trip question with a null eta and a plural window prompt', () => {
+    const pair = VENDOR_ROUTES.v_pickup_group!
+    expect(pair[0]).toMatchObject({ kind: 'apply', intent: 'pickup_scheduled', eta: null })
+    expect(pair[1]).toMatchObject({ kind: 'prompt', text: 'When can you collect them? Text back a day and time.' })
   })
 })
 
@@ -728,6 +738,124 @@ describe('rotating reply codes', () => {
 
     expect(result.outcome).toBe('prompt')
     expect(result.prompt).toMatch(/when do you expect/i)
+  })
+})
+
+// We batch the asking, never the answering. One digit against a two-item stop is one
+// physical decision, so it legitimately writes two per-order commitments — and evidence
+// still has to arrive item by item.
+describe('trip batching replies', () => {
+  function stop(): { bed: number; oxygen: number; questionId: number } {
+    const bed = seedOrder({ state: 'delivered' })
+    const oxygen = seedOrder({
+      state: 'delivered',
+      equipment_name: 'Oxygen concentrator, portable',
+      hcpcs_code: 'E1390',
+    })
+    setPatientStatus(1, 'deceased', 'nurse')
+    return { bed, oxygen, questionId: messages().find((m) => m.template === 'v_pickup_group')!.id }
+  }
+
+  it('fans one digit out to every item, with group provenance and no eta', async () => {
+    const { bed, oxygen, questionId } = stop()
+
+    const result = await handleVendorInbound(1, '1')
+
+    expect(result.outcome).toBe('applied')
+    expect(result.group_order_ids).toEqual([bed, oxygen])
+    for (const id of [bed, oxygen]) {
+      const scheduled = events(id).filter((e) => e.type === 'eta_set')
+      expect(scheduled, `order ${id}`).toHaveLength(1)
+      expect(scheduled[0].actor).toBe('vendor')
+      expect(JSON.parse(scheduled[0].payload!)).toMatchObject({ source: 'group reply' })
+      expect(getOrder(id)!.eta_at).toBeNull()
+    }
+  })
+
+  // The household hears about the visit, not the manifest.
+  it('tells the household once, not once per item, and retires one pair', async () => {
+    const { questionId } = stop()
+
+    await handleVendorInbound(1, '1')
+
+    expect(messages().filter((m) => m.template === 'f_pickup_notice')).toHaveLength(1)
+    expect(liveQuestions(1)).toHaveLength(0)
+    expect(messages().find((m) => m.id === questionId)!.answered_at).not.toBeNull()
+  })
+
+  // "Yes to both" when one is already collected must not abort the trip: the rest apply and
+  // the skip is written down where the hospice reads it.
+  it('skips an item whose state refuses the transition and records it', async () => {
+    const { bed, oxygen } = stop()
+    applyEvent(oxygen, 'picked_up', {}, 'vendor')
+
+    const result = await handleVendorInbound(1, '1')
+
+    expect(result.outcome).toBe('applied')
+    expect(result.group_order_ids).toEqual([bed])
+    expect(events(bed).some((e) => e.type === 'eta_set')).toBe(true)
+    expect(events(oxygen).some((e) => e.type === 'eta_set')).toBe(false)
+    const inbound = messages().find((m) => m.direction === 'in')!
+    expect(inbound.parsed!.notes).toContain(`#${oxygen}`)
+    expect(inbound.parsed!.notes).toMatch(/not applied/i)
+  })
+
+  // Commitments cascade down a trip; evidence never does.
+  it('leaves the evidence ladder exactly where it was', async () => {
+    const { bed, oxygen } = stop()
+    db.prepare("INSERT INTO pods (order_id, kind) VALUES (?, 'delivery')").run(bed)
+
+    await handleVendorInbound(1, '1')
+
+    expect(getOrder(bed)!.delivery_verified).toBe(true)
+    expect(getOrder(oxygen)!.delivery_verified).toBe(false)
+    expect(getOrder(bed)!.pickup_verified).toBe(false)
+    expect(getOrder(oxygen)!.pickup_verified).toBe(false)
+  })
+
+  it('asks for one window for the whole stop and applies nothing', async () => {
+    const { bed, oxygen } = stop()
+
+    const result = await handleVendorInbound(1, '2')
+
+    expect(result.outcome).toBe('prompt')
+    expect(result.prompt).toBe('When can you collect them? Text back a day and time.')
+    expect(events(bed).some((e) => e.type === 'eta_set')).toBe(false)
+    expect(events(oxygen).some((e) => e.type === 'eta_set')).toBe(false)
+  })
+
+  // sendTemplate() can fire this template by hand for one order, which writes no manifest.
+  // The anchor is the whole trip in that case, and the reply must still apply.
+  it('falls back to the anchor when the question carries no manifest', async () => {
+    const id = seedOrder({ state: 'delivered' })
+    applyEvent(id, 'pickup_triggered', { patient_status: 'deceased', source: 'nurse' }, 'hospice')
+    sendTemplate(id, 'v_pickup_group')
+
+    const result = await handleVendorInbound(1, '1')
+
+    expect(result.outcome).toBe('applied')
+    expect(result.group_order_ids).toEqual([id])
+    expect(events(id).filter((e) => e.type === 'eta_set')).toHaveLength(1)
+  })
+
+  // §10.4: batching makes the five pairs count stops rather than orders, and the shipped
+  // exhaustion digest is still the only overflow message — no burst trigger, no new digest.
+  it('spends one pair per stop and falls back to the existing digest past five', () => {
+    for (let patientId = 3; patientId <= 8; patientId++) {
+      db.prepare(
+        "INSERT INTO patients (id, name, market, caregiver_name, caregiver_phone, contact_ok) VALUES (?, 'Stop Patient', 'SLC', 'Kin', '801-555-0303', 1)",
+      ).run(patientId)
+      seedOrder({ patient_id: patientId, state: 'delivered' })
+      seedOrder({ patient_id: patientId, state: 'delivered', equipment_name: 'Walker, folding' })
+      setPatientStatus(patientId, 'deceased', 'nurse')
+    }
+
+    const live = liveQuestions(1)
+    expect(live).toHaveLength(SLOT_BASES.length)
+    expect(live.every((q) => q.template === 'v_pickup_group')).toBe(true)
+    const digests = messages().filter((m) => m.template === 'v_backlog_digest')
+    expect(digests).toHaveLength(1)
+    expect(digests[0].reply_slot).toBeNull()
   })
 })
 

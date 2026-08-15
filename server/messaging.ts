@@ -28,13 +28,21 @@ interface OutboundRow {
   replySlot?: number | null
 }
 
-function insertMessage(row: OutboundRow): number {
-  const result = db
-    .prepare(
-      "INSERT INTO messages (order_id, vendor_id, direction, body, recipient_type, patient_id, template, reply_slot) VALUES (?, ?, 'out', ?, ?, ?, ?, ?)",
-    )
-    .run(row.orderId, row.vendorId, row.body, row.recipientType, row.patientId, row.template, row.replySlot ?? null)
-  const id = Number(result.lastInsertRowid)
+function insertMessage(row: OutboundRow, manifest?: number[]): number {
+  const write = db.transaction(() => {
+    const result = db
+      .prepare(
+        "INSERT INTO messages (order_id, vendor_id, direction, body, recipient_type, patient_id, template, reply_slot) VALUES (?, ?, 'out', ?, ?, ?, ?, ?)",
+      )
+      .run(row.orderId, row.vendorId, row.body, row.recipientType, row.patientId, row.template, row.replySlot ?? null)
+    const id = Number(result.lastInsertRowid)
+    // A manifest that outlived a failed message insert would fan a reply out to orders
+    // nobody was ever asked about, so the join rows land in the message's own transaction.
+    const link = db.prepare('INSERT OR IGNORE INTO message_orders (message_id, order_id) VALUES (?, ?)')
+    for (const orderId of manifest ?? []) link.run(id, orderId)
+    return id
+  })
+  const id = write()
   broadcast({ type: 'message', message_id: id, vendor_id: row.vendorId, direction: 'out' })
   return id
 }
@@ -65,12 +73,16 @@ export interface SentQuestion {
  * every 30 seconds, so a question that couldn't go out now simply goes out once a pair
  * frees up. What the vendor gets in the meantime is one digest, not silence — and never
  * a question whose digits belong to something else.
+ *
+ * `groupOrderIds` is the trip manifest: a question about a whole stop still owns one pair
+ * and anchors to `orderId`, and the reply fans out over these ids.
  */
 export function sendVendorQuestion(
   vendorId: number,
   orderId: number | null,
   template: VendorTemplate,
   render: (digits: SlotDigits) => string,
+  groupOrderIds?: number[],
 ): SentQuestion | null {
   const slot = allocateSlot(vendorId, orderId)
   if (slot === null) {
@@ -78,15 +90,18 @@ export function sendVendorQuestion(
     return null
   }
   const digits = slotDigits(slot)
-  const messageId = insertMessage({
-    orderId,
-    vendorId,
-    patientId: null,
-    recipientType: 'vendor',
-    template,
-    body: render(digits),
-    replySlot: slot,
-  })
+  const messageId = insertMessage(
+    {
+      orderId,
+      vendorId,
+      patientId: null,
+      recipientType: 'vendor',
+      template,
+      body: render(digits),
+      replySlot: slot,
+    },
+    groupOrderIds,
+  )
   return { message_id: messageId, digits }
 }
 

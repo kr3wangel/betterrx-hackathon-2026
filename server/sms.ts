@@ -11,6 +11,7 @@ import {
   handleInbound,
   householdGate,
   orderRequestText,
+  INTENT_EVENT,
   pickedUpThanksText,
   pickupGroupText,
   pickupNoticeText,
@@ -95,6 +96,18 @@ export const VENDOR_ROUTES: Partial<Record<VendorTemplate, readonly [ReplyAction
       notes: 'Vendor says they can collect it today',
     },
     { kind: 'prompt', text: 'When can you collect it? Text back a day and time.' },
+  ],
+  // One question for a whole stop. The fan-out lives in the action, not the addressing:
+  // routeDigit resolves this pair exactly as it does a single order's, then applies the
+  // commitment to every order on the manifest.
+  v_pickup_group: [
+    {
+      kind: 'apply',
+      intent: 'pickup_scheduled',
+      eta: null,
+      notes: 'Vendor says they can collect the whole stop today',
+    },
+    { kind: 'prompt', text: 'When can you collect them? Text back a day and time.' },
   ],
 }
 
@@ -256,6 +269,57 @@ function result(
   }
 }
 
+/** The trip a question covers. Falls back to the anchor, so a manifest-less row still routes. */
+function manifest(question: Message): number[] {
+  const rows = db
+    .prepare('SELECT order_id FROM message_orders WHERE message_id = ? ORDER BY order_id')
+    .all(question.id) as { order_id: number }[]
+  if (rows.length) return rows.map((r) => r.order_id)
+  return question.order_id ? [question.order_id] : []
+}
+
+/**
+ * One digit, N commitments — and one household told once.
+ *
+ * An order whose state can't take the transition is skipped and named in the notes rather
+ * than aborting the trip: "yes to both" when the bed was already collected is still a true
+ * answer about the concentrator, and throwing here would discard it along with the pair.
+ */
+function applyGroup(question: Message, digit: string, action: Extract<ReplyAction, { kind: 'apply' }>): SmsReplyResult {
+  const applied: number[] = []
+  const skipped: string[] = []
+  for (const orderId of manifest(question)) {
+    const order = getOrder(orderId)
+    if (!order) {
+      skipped.push(`#${orderId} (missing)`)
+      continue
+    }
+    try {
+      applyEvent(orderId, INTENT_EVENT[action.intent]!, { eta_iso: null, source: 'group reply' }, 'vendor')
+      applied.push(orderId)
+    } catch {
+      skipped.push(`#${orderId} (${order.state})`)
+    }
+  }
+
+  const parsed: ParsedMessage = {
+    order_ref: question.order_id ? String(question.order_id) : null,
+    intent: action.intent,
+    eta_iso: null,
+    notes: `${action.notes} (replied ${digit})${skipped.length ? ` — not applied to ${skipped.join(', ')}` : ''}`,
+    confidence: 1,
+  }
+  const messageId = recordInbound(question, digit, parsed, applied.length ? 'auto_applied' : 'needs_review', true)
+
+  const anchor = applied.length ? getOrder(applied[0]) : null
+  if (anchor) sendToFamily(anchor.patient_id, anchor.id, pickupNoticeText('today'), 'f_pickup_notice')
+
+  return {
+    ...result(question, messageId, digit, applied.length ? 'applied' : 'review'),
+    group_order_ids: applied,
+  }
+}
+
 function routeDigit(question: Message, digit: string): SmsReplyResult {
   const order = question.order_id ? getOrder(question.order_id) : null
   const template = question.direction === 'out' ? question.template : null
@@ -270,6 +334,7 @@ function routeDigit(question: Message, digit: string): SmsReplyResult {
 
   switch (action.kind) {
     case 'apply': {
+      if (template === 'v_pickup_group') return applyGroup(question, digit, action)
       const parsed: ParsedMessage = {
         order_ref: String(order.id),
         intent: action.intent,
