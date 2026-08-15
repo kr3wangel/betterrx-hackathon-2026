@@ -33,7 +33,7 @@ over.
 | `/hospice` | Board | Case-manager board. Orders by state, risk flags with reasons, escalation bar with acknowledge, AI-parse review queue (confirm / reject), vendor swap, inline new-order form, EMR simulator (discharge / deceased) |
 | `/order` | New order | Place an order. SLA defaults applied by urgency — same-day for urgent, 24h routine |
 | `/nurse` | Nurse | Nurse-in-the-field status change. Death or discharge fires the pickup trigger directly, ahead of EMR propagation |
-| `/vendor` | Vendor phone | Dispatcher board plus an in-page phone simulator — free-text reply, watch it parse |
+| `/vendor` | Dispatcher board | Dispatcher board plus an in-page phone simulator — free-text reply, watch it parse |
 | `/driver` | Driver | Phone-sized. Today's deliveries and pickups, POD capture: photo, signature, and a condition attestation |
 | `/vendor-portal` | Portal | No-login vendor portal — the internal demo entry, no token |
 | `/reports` | Reports | Vendor scorecards, condition stats, calls-avoided counter, pickup latency, DME spend, cost-threshold approvals |
@@ -246,11 +246,11 @@ clicking, not by CI.
 1. **Cost approvals look real and aren't.** `decide()` is local state; nothing persists and
    nothing gates dispatch. Either wire it or make sure nobody clicks Approve on stage as if it
    blocks an order.
-2. **`/vendor` is labelled "Vendor phone" in the nav and `/vendor-phone` also exists.** Two
-   things, nearly one name. Pick which one the demo drives. **Sharper as of 08-14:** the account
-   menu now offers "DME vendor's phone" (`/vendor-phone`) while the Dispatcher's nav still says
-   "Vendor phone" (`/vendor`), so both names are on screen at once. Cheapest fix is renaming the
-   nav link to "Dispatcher board", which is what `/vendor` actually is.
+2. ~~**`/vendor` is labelled "Vendor phone" in the nav and `/vendor-phone` also exists.**~~
+   **Closed 08-14.** `/vendor` is now "Dispatcher board" in both the nav link and the page's own
+   `PersonaHeader`, which is what it actually is: a dispatcher's order board that happens to carry
+   an in-page thread. "Vendor phone" now means exactly one thing — `/vendor-phone`, named "DME
+   vendor's phone" in the account menu. Nothing about the routes changed, only the labels.
 3. ~~`sms.ts` has no UI path.~~ **Closed 08-14 — the reply half is wired.** `VendorPhone` now shows
    quick-reply buttons on the most recent unanswered question, POSTing to `/api/messages/reply`.
    The vendor phone now carries **both** paths on one screen, which is the AI argument made

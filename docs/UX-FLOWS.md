@@ -263,7 +263,7 @@ grep -rn "useAuth" client/src --include="*.tsx" --include="*.ts" | grep -v "lib/
 | Admissions Nurse | Board · New order |
 | Field Nurse | Board · Nurse |
 | Director of Nursing | Board · Reports |
-| Dispatcher | Vendor phone · Portal |
+| Dispatcher | Dispatcher board · Portal |
 | Driver | Driver |
 | *signed out* | *everything* |
 
@@ -354,7 +354,6 @@ and the audit trail doesn't.
 2. **Can the case manager approve** under a lower second threshold? Currently modelled DON-only.
 3. **Is $150/mo right?** Real in code, unvalidated against any hospice.
 4. **Two order forms** — `/order` and the inline card on `/hospice`. They should share a component.
-5. **`/vendor` vs `/vendor-phone`** — pre-existing naming collision, FEATURES.md §8.2. The demo
-   driver needs to know which to open, and both names are now on screen together: the Dispatcher's
-   nav says "Vendor phone" (`/vendor`) while the account menu says "DME vendor's phone"
-   (`/vendor-phone`). Renaming the nav link to "Dispatcher board" is the one-line fix.
+5. ~~**`/vendor` vs `/vendor-phone`**~~ — **resolved.** `/vendor` is now "Dispatcher board" in the
+   nav and in its own page header; "Vendor phone" now unambiguously means `/vendor-phone`, which
+   the account menu opens as "DME vendor's phone". FEATURES.md §8.2.
