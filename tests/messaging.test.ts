@@ -3,6 +3,7 @@ import { db } from '../server/db'
 import { applyParsed, handleInbound, orderRequestText, pickupRequestText } from '../server/messaging'
 import { extractJson } from '../server/llm'
 import { reportSummary } from '../server/reports'
+import { resolveOrderToken } from '../server/portal'
 import { getOrder } from '../server/store'
 import { seedFixtures, seedOrder } from './helpers'
 import type { ParsedMessage } from '../shared/types'
@@ -133,7 +134,10 @@ describe('outbound templates', () => {
     expect(text).toContain(`#${id}`)
     expect(text).toContain('Hospital bed')
     expect(text).toMatch(/reply 1 if you can get it today, 2 to give us a window/i)
-    expect(text).toContain('/portal/')
+    // The order's own link, not the vendor's: a pickup text about #id must open #id.
+    const token = text.match(/\/o\/(\w+)/)?.[1]
+    expect(token, 'no order link in the text').toBeTruthy()
+    expect(resolveOrderToken(token!)?.id).toBe(id)
     expect(text.toLowerCase()).not.toContain('family')
     expect(text).not.toContain('Test Patient')
   })
