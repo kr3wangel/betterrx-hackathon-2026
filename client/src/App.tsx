@@ -35,7 +35,9 @@ const surfaceLinks: { to: string; label: string; roles: RoleId[] }[] = [
   { to: '/hospice', label: 'Board', roles: ['case_manager', 'admissions_nurse', 'director_of_nursing', 'field_nurse'] },
   { to: '/order', label: 'New order', roles: ['case_manager', 'admissions_nurse'] },
   { to: '/nurse', label: 'Nurse', roles: ['case_manager', 'field_nurse'] },
-  { to: '/vendor', label: 'Vendor phone', roles: ['dispatcher'] },
+  // "Dispatcher board", not "Vendor phone": /vendor-phone is a different page, and the
+  // account menu now names it, so two near-identical labels were on screen at once.
+  { to: '/vendor', label: 'Dispatcher board', roles: ['dispatcher'] },
   { to: '/driver', label: 'Driver', roles: ['driver'] },
   { to: '/vendor-portal', label: 'Portal', roles: ['dispatcher'] },
   { to: '/reports', label: 'Reports', roles: ['case_manager', 'director_of_nursing'] },

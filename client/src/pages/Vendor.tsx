@@ -20,7 +20,7 @@ export default function VendorPage() {
 
   return (
     <div className="space-y-4">
-      <PersonaHeader persona="Dispatcher" title="Vendor phone" />
+      <PersonaHeader persona="Dispatcher" title="Dispatcher board" />
       <div className="flex items-center gap-3">
         <select
           className="rounded-md border border-slate-300 px-2 py-1.5 text-sm"
