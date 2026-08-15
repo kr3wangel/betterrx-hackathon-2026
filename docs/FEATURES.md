@@ -50,7 +50,7 @@ guarded — hiding a link never blocks a URL, so no screen becomes unreachable m
 | Route | Chrome | Reached by | What it does |
 |---|---|---|---|
 | `/caregiver` | none | Account menu → Simulated phones (new tab), or typed URL | The family's phone. Full-screen SMS simulator: condition check arrives, reply 1–5 or free text, outcome shown as a delivery receipt |
-| `/vendor-phone` | none | Account menu → Simulated phones (new tab), or typed URL | The dispatcher's phone. **Two reply paths on one screen:** tap a quick reply (deterministic route table, no model) or type prose (Claude, showing intent, confidence, and applied / sent-to-a-person) |
+| `/vendor-phone` | none | Account menu → Simulated phones (new tab), or typed URL | The dispatcher's phone. **Two reply paths in one text box:** type a bare digit against an open question (deterministic route table, no model) or type prose (Claude, showing intent, confidence, and applied / sent-to-a-person). No buttons — SMS has none |
 | `/portal/:token` | `PortalShell` | A texted magic link | Magic-link vendor portal — confirm, set ETA, decline. No account |
 | `/status/:token` | `PortalShell` | A texted magic link | Vendor status view, read-only |
 
@@ -251,16 +251,23 @@ clicking, not by CI.
    `PersonaHeader`, which is what it actually is: a dispatcher's order board that happens to carry
    an in-page thread. "Vendor phone" now means exactly one thing — `/vendor-phone`, named "DME
    vendor's phone" in the account menu. Nothing about the routes changed, only the labels.
-3. ~~`sms.ts` has no UI path.~~ **Closed 08-14 — the reply half is wired.** `VendorPhone` now shows
-   quick-reply buttons on the most recent unanswered question, POSTing to `/api/messages/reply`.
-   The vendor phone now carries **both** paths on one screen, which is the AI argument made
-   visible rather than asserted: a tap is deterministic (route table, no model, nothing to review),
-   typed prose goes to Claude behind the 0.8 gate with the review queue underneath. `sendTemplate`
-   remains unreached — see §2.
+3. ~~`sms.ts` has no UI path.~~ **Closed 08-14 — the reply half is wired.** Both phones POST to
+   `/api/messages/reply` against the newest open question, so the vendor phone carries **both**
+   paths in one text box. That is the AI argument made visible rather than asserted: a bare digit
+   is deterministic (route table, no model, nothing to review), typed prose goes to Claude behind
+   the 0.8 gate with the review queue underneath. `sendTemplate` remains unreached — see §2.
 
-   **Demo note:** the buttons only appear when the newest message in the thread is an unanswered
-   question. If a rehearsal ends with the thread on an answered question, the phone shows no
-   buttons and that is correct behaviour, not a bug — re-seed and the request lands fresh.
+   **The buttons were removed the same day they shipped.** They looked wrong, and they were: a
+   real iPhone or Android renders an SMS as text, with nothing tappable in it. Both phones are
+   now type-only, and `handleReply` treats a bare `[1-9]` in the body exactly like a structured
+   `digit` — which is also what a gateway does, since "1" arrives as text with nothing marking
+   it as a digit. Without that server change, deleting the buttons would have quietly routed
+   every typed "1" to Claude. Covered by *a typed digit routes like a structured one* in
+   `tests/sms.test.ts`.
+
+   **Demo note:** typing a digit only resolves deterministically while a question is open. If a
+   rehearsal ends with every question answered, a typed "1" is just prose to the parser — that is
+   correct behaviour, not a bug. Re-seed and the request lands fresh.
 4. **Six roles in the switcher, three in the pitch.** Dispatcher, Driver and Field Nurse are
    selectable. Decide whether we present six personas or three plus supporting cast.
 5. **Re-seed on demo morning.** Demo orders are `now + N hours`, so a database seeded the

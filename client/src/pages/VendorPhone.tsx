@@ -2,7 +2,7 @@ import { Fragment, useMemo, useState } from 'react'
 import { api } from '../lib/api'
 import { useLive } from '../lib/useLive'
 import { Bubble, Linkify, PhoneScreen, ThreadEmpty } from '../components/PhoneScreen'
-import { QuickReplies, ReplyReceipt, answeredQuestion, digitLabel, isOpenQuestion } from '../components/QuickReplies'
+import { ReplyReceipt, answeredQuestion, digitLabel, isOpenQuestion } from '../components/QuickReplies'
 import type { Message, SmsReplyResult, Vendor } from '../../../shared/types'
 
 /**
@@ -17,9 +17,11 @@ import type { Message, SmsReplyResult, Vendor } from '../../../shared/types'
  * "bed's on the truck, prob 3ish" — so that gets a model, with a confidence gate and a
  * human review queue underneath. A caregiver types a digit, so that gets a regex.
  *
- * Two doors to the same room: free text goes to POST /api/messages/inbound and the parse
- * gate; a tapped digit goes to POST /api/messages/reply and the template routing table,
- * where it costs no model call at all.
+ * There are no reply buttons here, and there shouldn't be: this stands in for SMS on a
+ * real handset, which has none. Everything is typed into the one box. What splits the two
+ * paths is the *content* — a bare digit against an open question resolves through the
+ * template routing table for no model call, anything else goes to the parse gate — and
+ * the split is decided by the server (handleReply), never by this screen.
  */
 
 const INTENT_TONE: Record<string, string> = {
@@ -102,27 +104,41 @@ function Thread({ vendor, picker }: { vendor: Vendor; picker: React.ReactNode })
   // texts can never surface in a vendor's thread.
   const { data: messages } = useLive(() => api.get<Message[]>(`/api/messages?vendor_id=${vendor.id}`))
   const [draft, setDraft] = useState('')
-  const [sending, setSending] = useState(false)
+  // Which path is in flight, not just whether one is: a digit never reaches a model, so it
+  // must not say "reading…". This is the only place that distinction is visible live.
+  const [pending, setPending] = useState<null | 'digit' | 'prose'>(null)
+  const sending = pending !== null
   const [reply, setReply] = useState<SmsReplyResult | null>(null)
 
   const thread = useMemo(() => messages ?? [], [messages])
 
-  // Only the newest unanswered question is tappable. A pickup burst can leave three
-  // requests open at once, and buttons under every one of them is not what a phone looks
-  // like — nor what SMS can do: a bare "1" arrives with no reference to which question it
-  // answers, so the server resolves it against the most recent one (SMS-SIM-SPEC §10).
-  // Older questions stay answerable, by their own magic link, which is what it's for.
-  const openQuestionId = useMemo(() => [...thread].reverse().find(isOpenQuestion)?.id ?? null, [thread])
+  // There are no reply buttons, because SMS has none — a vendor on a real handset types
+  // "1" into the box like any other text. This is the question that "1" answers: the
+  // newest one still open, which is how the digit is disambiguated (SMS-SIM-SPEC §10).
+  const openQuestion = useMemo(() => [...thread].reverse().find(isOpenQuestion) ?? null, [thread])
 
   async function send() {
-    if (!draft.trim() || sending) return
-    setSending(true)
+    const body = draft.trim()
+    if (!body || sending) return
+    setPending(openQuestion && /^[1-9]$/.test(body) ? 'digit' : 'prose')
     try {
-      await api.post('/api/messages/inbound', { vendor_id: vendor.id, body: draft.trim() })
+      // Thread-aware when there's a question outstanding: the server sees which one, so a
+      // typed "1" resolves through REPLY_ROUTES with no model. The server decides digit vs
+      // prose — the phone only reports what was typed and which thread it landed in.
+      if (openQuestion) {
+        setReply(
+          await api.post<SmsReplyResult>('/api/messages/reply', {
+            reply_to_message_id: openQuestion.id,
+            body,
+          }),
+        )
+      } else {
+        await api.post('/api/messages/inbound', { vendor_id: vendor.id, body })
+        setReply(null)
+      }
       setDraft('')
-      setReply(null)
     } finally {
-      setSending(false)
+      setPending(null)
     }
   }
 
@@ -159,7 +175,6 @@ function Thread({ vendor, picker }: { vendor: Vendor; picker: React.ReactNode })
             >
               <Linkify text={m.body} />
             </Bubble>
-            {m.id === openQuestionId && <QuickReplies message={m} onResult={setReply} />}
             {mine && reply?.message_id === m.id && <ReplyReceipt result={reply} />}
           </Fragment>
         )
@@ -170,7 +185,7 @@ function Thread({ vendor, picker }: { vendor: Vendor; picker: React.ReactNode })
 
       {sending && (
         <Bubble side="sent">
-          <span className="opacity-70">reading…</span>
+          <span className="opacity-70">{pending === 'prose' ? 'reading…' : 'sending…'}</span>
         </Bubble>
       )}
     </PhoneScreen>

@@ -10,9 +10,17 @@ review queue. This is the same shape as the keypress table in `docs/IVR-SIM-SPEC
 the same reason: **at a known lifecycle moment, a digit has exactly one meaning, so no model needs to
 read it.**
 
-Build is **simulation-only**: real message rows rendered as threads in a phone emulator, with
-tappable quick-reply buttons that POST real inbound messages. No telephony provider. The magic links
-in the bubbles are genuine `/portal/<token>` URLs — nothing about them is faked.
+Build is **simulation-only**: real message rows rendered as threads in a phone emulator that POST
+real inbound messages. No telephony provider. The magic links in the bubbles are genuine
+`/portal/<token>` URLs — nothing about them is faked.
+
+> **Amended 08-14 — the quick-reply buttons are gone.** This spec assumes tappable digit buttons
+> throughout (§10 especially). They were built, and removed the same day: a real iPhone or Android
+> renders an SMS as plain text with nothing tappable in it, so buttons made the emulator *less*
+> faithful, not more. Everything the spec says about `template × digit` routing still holds —
+> `handleReply` now treats a bare `[1-9]` typed into the box exactly like a structured `digit`,
+> which is what a gateway does anyway, since "1" arrives as text with nothing marking it as a
+> digit. Read "tap 1" below as "type 1"; the routing table is unchanged.
 
 **Scope note:** the emulator UI is owned by another dev and already built. This spec covers the
 backend — schema, templates, the routing table, triggers — plus the integration contract the

@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { db } from '../server/db'
-import { QUICK_REPLIES } from '../shared/replies'
 import {
   ackNagText,
   applyParsed,
@@ -482,24 +481,42 @@ describe('silence ladder nag detection', () => {
   })
 })
 
-// The quick-reply buttons on the vendor's phone are a client-side table; the routing they
-// depend on is a server-side one. A button offering a digit the server can't route returns
-// outcome 'unmapped' and lands in the review queue instead of applying — which reads on
-// stage as the product being broken, not as a missing case. Keep them honest here.
-describe('quick replies match the reply routes', () => {
-  it('every offered digit resolves to a real action', () => {
-    for (const [template, replies] of Object.entries(QUICK_REPLIES)) {
-      const routes = REPLY_ROUTES[template as MessageTemplate]
-      expect(routes, `no REPLY_ROUTES entry for ${template}`).toBeTruthy()
-      for (const { digit } of replies ?? []) {
-        expect(routes?.[digit], `${template} offers "${digit}" with no route`).toBeTruthy()
-      }
-    }
+// A gateway delivers "1" as text like any other message — nothing arrives tagged as a
+// digit. If a typed digit did not route like a structured one, the deterministic path
+// would exist only for callers who already knew to send {digit}, and a vendor typing 1 on
+// a real handset would reach a model instead of the routing table.
+describe('a typed digit routes like a structured one', () => {
+  it('body "1" accepts the order with no model in the loop', async () => {
+    const id = seedOrder()
+    const questionId = sendVendorQuestion(id, 'v_order_request', orderRequestText(getOrder(id)!, 'SLC'))
+
+    const result = await handleReply({ reply_to_message_id: questionId, body: '1' })
+
+    expect(result.outcome).toBe('applied')
+    expect(result.digit).toBe('1')
+    expect(getOrder(id)!.state).toBe('dispatched')
+
+    const inbound = messages(id).find((m) => m.direction === 'in')!
+    expect(inbound.confidence).toBe(1)
+    expect(inbound.review_status).toBe('auto_applied')
   })
 
-  it('every offered template is one the vendor actually receives', () => {
-    for (const template of Object.keys(QUICK_REPLIES)) {
-      expect(template.startsWith('v_'), `${template} is not a vendor template`).toBe(true)
-    }
+  it('leaves anything longer than a bare digit to the parse path', async () => {
+    const id = seedOrder()
+    const questionId = sendVendorQuestion(id, 'v_order_request')
+
+    const result = await handleReply({ reply_to_message_id: questionId, body: '1 but running late' })
+
+    expect(result.digit).toBeNull()
+    expect(result.outcome).toBe('review')
+  })
+
+  it('sends a typed digit with no route to a person rather than guessing', async () => {
+    const id = seedOrder()
+    const questionId = sendVendorQuestion(id, 'v_order_request')
+
+    const result = await handleReply({ reply_to_message_id: questionId, body: '9' })
+
+    expect(result.outcome).toBe('unmapped')
   })
 })
