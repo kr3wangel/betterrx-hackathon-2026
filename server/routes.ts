@@ -75,6 +75,31 @@ routes.get('/vendors', (_req, res) => {
   res.json(withStats)
 })
 
+// The rolodex rung of the adoption ladder: a hospice adds a vendor it already knows by
+// phone number. No invite is sent here — the first order placed with them IS the invite
+// (v_order_request carries the magic link). Idempotent on phone so a re-typed number
+// selects the existing vendor instead of forking a duplicate.
+routes.post('/vendors', (req, res) => {
+  const name = String(req.body.name ?? '').trim()
+  const phone = String(req.body.phone ?? '').trim()
+  const serviceArea = String(req.body.service_area ?? '').trim()
+  if (!name || !phone) return res.status(400).json({ error: 'name and phone are required' })
+
+  const existing = db.prepare('SELECT * FROM vendors WHERE phone = ?').get(phone) as Vendor | undefined
+  if (existing) {
+    const { r } = db
+      .prepare('SELECT AVG(on_time_rate) AS r FROM vendor_stats WHERE vendor_id = ?')
+      .get(existing.id) as { r: number | null }
+    return res.status(200).json({ ...existing, avg_on_time_rate: r, existed: true })
+  }
+
+  const result = db
+    .prepare("INSERT INTO vendors (name, phone, channel, service_area) VALUES (?, ?, 'sms', ?)")
+    .run(name, phone, serviceArea)
+  const vendor = db.prepare('SELECT * FROM vendors WHERE id = ?').get(Number(result.lastInsertRowid)) as Vendor
+  res.status(201).json({ ...vendor, avg_on_time_rate: null })
+})
+
 routes.post('/orders', (req, res) => {
   const { patient_id, vendor_id, hcpcs_code, equipment_name, quantity, urgency, target_at } = req.body
   const resolvedUrgency = urgency ?? 'routine'

@@ -10,12 +10,10 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { intentLabel, REVIEW_STATUS_LABEL } from '../lib/domain'
 import type { Message, Order, Patient, Vendor } from '../../../shared/types'
-
-const SELECT_CLASS =
-  'h-11 rounded-md border border-input bg-card px-3 text-sm text-foreground shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background'
 
 export default function VendorPage() {
   const [vendorId, setVendorId] = useState(1)
@@ -38,18 +36,21 @@ export default function VendorPage() {
         <label className="sr-only" htmlFor="vendor-picker">
           Vendor
         </label>
-        <select
-          id="vendor-picker"
-          className={SELECT_CLASS}
-          value={vendor?.id ?? vendorId}
-          onChange={(e) => setVendorId(Number(e.target.value))}
+        <Select
+          value={String(vendor?.id ?? vendorId)}
+          onValueChange={(v) => setVendorId(Number(v))}
         >
-          {(vendors ?? []).map((v) => (
-            <option key={v.id} value={v.id}>
-              {v.name}
-            </option>
-          ))}
-        </select>
+          <SelectTrigger id="vendor-picker" className="w-auto min-w-[12rem]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {(vendors ?? []).map((v) => (
+              <SelectItem key={v.id} value={String(v.id)}>
+                {v.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         {vendor && (
           <span className="text-sm text-muted-foreground">
             {vendor.service_area} · {vendor.phone}

@@ -3,6 +3,7 @@ import { ExternalLink, Smartphone } from 'lucide-react'
 import { APP_NAME, APP_PROMISE } from '../lib/brand'
 import { homeFor } from '../lib/surfaces'
 import { ROLES, useAuth, type RoleId } from '../lib/auth'
+import { BrandMark } from '../components/BrandMark'
 
 // One plain-English line per persona. Not a job title restated — what they came here to do.
 const PERSONA_LINE: Record<RoleId, string> = {
@@ -32,9 +33,7 @@ export default function Landing() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <div className="mx-auto max-w-3xl px-5 py-16 md:py-24">
-        <span className="inline-block rounded-full bg-primary px-3 py-1 font-display text-sm font-extrabold tracking-tight text-primary-foreground">
-          betterRX
-        </span>
+        <BrandMark className="text-base" />
         <h1 className="mt-5 font-display text-4xl font-extrabold tracking-tight text-foreground sm:text-5xl">
           {APP_NAME}
         </h1>

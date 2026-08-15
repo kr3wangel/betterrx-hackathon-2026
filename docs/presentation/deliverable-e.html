@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>E · Example scenarios — BetterRX DME</title>
+<style>
+  :root {
+    --ground: #F7F5F3; --surface: #FFFFFF; --ink: #263240; --muted: #5C6B75; --faint: #93A0AA;
+    --border: #EBE7E3; --coral: #E27B5E; --coral-deep: #D2694C; --coral-tint: #FBEFEA;
+    --navy: #2C3A49; --green: #3E9C6B; --green-tint: #E9F3ED; --amber: #9A7B2E; --amber-tint: #FBF4E2;
+    --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --mono: ui-monospace, "SF Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+    --shadow: 0 1px 2px rgba(38,50,64,.04), 0 14px 34px -20px rgba(38,50,64,.20);
+    --shadow-lift: 0 1px 2px rgba(38,50,64,.05), 0 30px 66px -30px rgba(38,50,64,.34);
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { margin: 0; background: var(--ground); color: var(--ink); font-family: var(--sans); line-height: 1.55; -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 0 26px; }
+  a { color: inherit; }
+  h1, h2, h3, h4 { margin: 0; font-weight: 800; letter-spacing: -0.025em; line-height: 1.05; }
+
+  .topbar { position: sticky; top: 0; z-index: 50; background: rgba(247,245,243,.86); backdrop-filter: saturate(140%) blur(10px); -webkit-backdrop-filter: saturate(140%) blur(10px); border-bottom: 1px solid var(--border); }
+  .topbar .wrap { display: flex; align-items: center; gap: 16px; height: 60px; }
+  .pill { background: var(--coral); color: #fff; font-weight: 800; padding: 6px 13px; border-radius: 999px; font-size: 14px; white-space: nowrap; text-decoration: none; }
+  .pill .rx { opacity: .78; }
+  .letternav { display: flex; gap: 4px; margin-left: auto; }
+  .letternav a { display: flex; align-items: baseline; gap: 8px; text-decoration: none; padding: 7px 12px; border-radius: 10px; color: var(--faint); font-weight: 700; font-size: 13px; transition: color .18s ease, background .18s ease; }
+  .letternav a .ltr { font-size: 13px; font-weight: 800; }
+  .letternav a .txt { font-weight: 600; }
+  .letternav a:hover { color: var(--ink); background: rgba(226,123,94,.08); }
+  .letternav a.on { color: var(--coral-deep); background: var(--coral-tint); }
+  .letternav a:focus-visible { outline: 2px solid var(--coral); outline-offset: 2px; }
+
+  header.masthead { padding: 52px 0 8px; }
+  .del-badge { display: inline-flex; align-items: center; gap: 10px; margin-bottom: 20px; }
+  .del-badge .lt { width: 34px; height: 34px; border-radius: 10px; background: var(--navy); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 17px; }
+  .del-badge .of { font-size: 12px; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; color: var(--faint); }
+  header.masthead h1 { font-size: clamp(30px, 5.2vw, 56px); max-width: 20ch; }
+  header.masthead h1 .hl { color: var(--coral); }
+  .lede { margin: 22px 0 0; font-size: clamp(17px, 2.2vw, 21px); color: var(--muted); max-width: 60ch; }
+  .lede b { color: var(--ink); font-weight: 700; }
+
+  section { padding: 30px 0; }
+  section.first { padding-top: 40px; }
+
+  .scenario { background: var(--surface); border: 1px solid var(--border); border-radius: 24px; box-shadow: var(--shadow-lift); padding: 30px 32px; }
+  .scenario + .scenario { margin-top: 22px; }
+  .sc-top { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .sc-num { width: 40px; height: 40px; border-radius: 12px; background: var(--coral); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 800; flex: none; }
+  .sc-top h2 { font-size: clamp(20px,2.6vw,25px); }
+  .sc-type { margin-left: auto; font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--coral-deep); background: var(--coral-tint); padding: 6px 12px; border-radius: 999px; }
+  .setup { color: var(--muted); font-size: 15.5px; margin: 14px 0 22px; max-width: 74ch; }
+  .setup b { color: var(--ink); font-weight: 600; }
+
+  .track { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; position: relative; }
+  .beat { position: relative; padding: 0 16px; }
+  .beat:first-child { padding-left: 0; }
+  .beat:last-child { padding-right: 0; }
+  .beat .dot { width: 13px; height: 13px; border-radius: 50%; background: var(--coral); border: 3px solid var(--surface); box-shadow: 0 0 0 1px var(--border); position: relative; z-index: 2; margin-bottom: 14px; }
+  .beat::after { content: ""; position: absolute; top: 5px; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, var(--border), #E8CFC5); z-index: 1; }
+  .beat:first-child::after { left: 6px; }
+  .beat:last-child::after { right: calc(100% - 7px); background: var(--border); }
+  .beat .s { font-size: 10.5px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--coral); margin-bottom: 6px; }
+  .beat p { margin: 0; font-size: 13px; color: var(--ink); line-height: 1.45; }
+  .beat p b { font-weight: 700; }
+
+  .outcome { margin-top: 24px; display: flex; align-items: center; gap: 14px; background: var(--coral-tint); border-radius: 16px; padding: 16px 20px; }
+  .outcome.calm { background: var(--green-tint); }
+  .outcome .big { font-size: 26px; line-height: 1; }
+  .outcome p { margin: 0; font-size: 14.5px; font-weight: 600; color: var(--coral-deep); }
+  .outcome.calm p { color: #2f7a53; }
+
+  .maps { margin-top: 14px; font-size: 13px; color: var(--faint); display: flex; align-items: center; gap: 8px; }
+  .maps b { color: var(--muted); font-weight: 700; }
+
+  footer { padding: 40px 0 60px; color: var(--faint); font-size: 12.5px; }
+  footer .nextprev { display: flex; justify-content: space-between; gap: 12px; padding: 22px 0 26px; border-top: 1px solid var(--border); margin-bottom: 20px; }
+  footer .nextprev a { text-decoration: none; font-weight: 700; font-size: 14px; color: var(--ink); display: inline-flex; align-items: center; gap: 8px; }
+  footer .nextprev a.next { color: var(--coral-deep); margin-left: auto; }
+  footer .nextprev a:hover { color: var(--coral); }
+  footer .src { color: var(--muted); max-width: 80ch; }
+
+  @media (max-width: 860px) {
+    .letternav a .txt { display: none; }
+    .letternav a { padding: 8px 10px; }
+    .track { grid-template-columns: 1fr; gap: 16px; }
+    .beat { padding: 0 0 0 24px; }
+    .beat::after { top: 6px; bottom: -16px; left: 6px; right: auto; width: 3px; height: auto; background: var(--border); }
+    .beat:last-child::after { display: none; }
+    .sc-type { margin-left: 0; }
+  }
+  @media (prefers-reduced-motion: reduce) { .letternav a { transition: none; } }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="wrap">
+    <a class="pill" href="deliverables-v1.html">better<span class="rx">RX</span></a>
+    <nav class="letternav" aria-label="Deliverables">
+      <a href="deliverable-a.html"><span class="ltr">A</span><span class="txt">Working app</span></a>
+      <a href="deliverable-b.html"><span class="ltr">B</span><span class="txt">AI approach</span></a>
+      <a href="deliverable-c.html"><span class="ltr">C</span><span class="txt">Differentiation</span></a>
+      <a href="integration-pitch-v1.html"><span class="ltr">D</span><span class="txt">Integration</span></a>
+      <a href="deliverable-e.html" class="on"><span class="ltr">E</span><span class="txt">Scenarios</span></a>
+    </nav>
+  </div>
+</div>
+
+<header class="masthead">
+  <div class="wrap">
+    <div class="del-badge">
+      <span class="lt">E</span>
+      <span class="of">Deliverable E · Example scenarios</span>
+    </div>
+    <h1>Three real situations this changes — <span class="hl">each one runs in the demo</span>.</h1>
+    <p class="lede">Discharge readiness, a post-death pickup, and a service failure caught before the family
+      ever notices. <b>The measure is the phone call a human never had to make.</b></p>
+  </div>
+</header>
+
+<main>
+  <section class="first">
+    <div class="wrap">
+      <div class="scenario">
+        <div class="sc-top">
+          <span class="sc-num">1</span>
+          <h2>Margaret's bed is there before she is</h2>
+          <span class="sc-type">Discharge readiness</span>
+        </div>
+        <p class="setup">Margaret Osei, 71, comes home to die at home. The hospital bed has to be in the living
+          room the night before — and the hospice owns none of the bed, the truck, or the driver. <b>They'll
+          get the daughter's phone call either way.</b></p>
+        <div class="track">
+          <div class="beat"><div class="dot"></div><div class="s">Risk fires</div><p>The board flags the order <b>before the deadline</b>, naming the vendor's weak weekday in a sentence.</p></div>
+          <div class="beat"><div class="dot"></div><div class="s">Swap</div><p>One click <b>re-sends to a stronger vendor</b> and clears the flag.</p></div>
+          <div class="beat"><div class="dot"></div><div class="s">Confirm</div><p>The new vendor taps the magic link — <b>accept, no login, no model</b>.</p></div>
+          <div class="beat"><div class="dot"></div><div class="s">Proof</div><p>Driver captures photo + signature — a <b>✓ Verified</b> delivery, not a claim.</p></div>
+        </div>
+        <div class="outcome calm"><span class="big">🛏️</span><p>The discharge stops being hostage to vendor opacity — caught while there was still time to act.</p></div>
+        <div class="maps"><b>Replaces the call:</b> "Did you get my fax? Are you actually coming?"</div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="scenario">
+        <div class="sc-top">
+          <span class="sc-num">2</span>
+          <h2>One death, one text, one trip</h2>
+          <span class="sc-type">Post-death pickup</span>
+        </div>
+        <p class="setup">Ruth passes at home with two machines in the house. Today someone has to remember to
+          call the vendor — or a hospital bed sits in a grieving family's home for days. <b>Their own discovery
+          has a death that never reached the vendor in time.</b></p>
+        <div class="track">
+          <div class="beat"><div class="dot"></div><div class="s">Nurse taps</div><p>"Passed away" at the bedside — the <b>primary trigger</b>, ahead of any EMR feed.</p></div>
+          <div class="beat"><div class="dot"></div><div class="s">Auto-schedule</div><p>Both delivered orders flip to pickup on their own — <b>no one dials anyone</b>.</p></div>
+          <div class="beat"><div class="dot"></div><div class="s">One text</div><p>The vendor gets <b>one</b> pickup text for both items — reply one digit. We batch the asking, never the answering.</p></div>
+          <div class="beat"><div class="dot"></div><div class="s">One notice</div><p>The household gets <b>one</b> notice, not one per item.</p></div>
+        </div>
+        <div class="outcome calm"><span class="big">🕊️</span><p>Per-order clocks, escalations and proofs stay intact — there is no "trip" object hiding the detail.</p></div>
+        <div class="maps"><b>Replaces the call:</b> the widow phoning about the bed still in the living room.</div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="scenario">
+        <div class="sc-top">
+          <span class="sc-num">3</span>
+          <h2>The vendor who never taps</h2>
+          <span class="sc-type">Service-failure prevention · cold start</span>
+        </div>
+        <p class="setup">A brand-new vendor, entered from the hospice's own rolodex — no account, no
+          onboarding. Two outcomes, both handled: the one who replies in prose, and the one who goes silent.</p>
+        <div class="track">
+          <div class="beat"><div class="dot"></div><div class="s">5a · taps</div><p>Types a plain-English reply in the phone sim; <b>Claude parses it</b> and the board flips live.</p></div>
+          <div class="beat"><div class="dot"></div><div class="s">5a · low confidence</div><p>Ambiguous prose lands in the <b>review queue</b> instead of moving the order.</p></div>
+          <div class="beat"><div class="dot"></div><div class="s">5b · silence</div><p>No tap near the deadline → an automated <b>nag</b>, once, never repeated.</p></div>
+          <div class="beat"><div class="dot"></div><div class="s">5b · escalation</div><p>Still nothing → a case-worker escalation <b>naming the hours</b>. Silence became data.</p></div>
+        </div>
+        <div class="outcome"><span class="big">🔔</span><p>The failure everyone else learns about at the front door, caught before the family notices.</p></div>
+        <div class="maps"><b>Never cut from the demo:</b> the silence variant (5b) is the differentiator.</div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="nextprev">
+      <a href="integration-pitch-v1.html"><span>←</span> D · Integration</a>
+      <a class="next" href="deliverables-v1.html">All deliverables <span>→</span></a>
+    </div>
+    <p class="src">DME coordination for hospice · BetterRX — Builder Day 2026. Re-seed right before each
+      scenario — demo deadlines are relative to now, so a stale seed makes the board look broken.</p>
+  </div>
+</footer>
+
+</body>
+</html>

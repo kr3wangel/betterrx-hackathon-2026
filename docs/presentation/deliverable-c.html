@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>C · Differentiation — BetterRX DME</title>
+<style>
+  :root {
+    --ground: #F7F5F3; --surface: #FFFFFF; --ink: #263240; --muted: #5C6B75; --faint: #93A0AA;
+    --border: #EBE7E3; --coral: #E27B5E; --coral-deep: #D2694C; --coral-tint: #FBEFEA;
+    --navy: #2C3A49; --green: #3E9C6B; --green-tint: #E9F3ED; --amber: #9A7B2E; --amber-tint: #FBF4E2;
+    --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --mono: ui-monospace, "SF Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+    --shadow: 0 1px 2px rgba(38,50,64,.04), 0 14px 34px -20px rgba(38,50,64,.20);
+    --shadow-lift: 0 1px 2px rgba(38,50,64,.05), 0 30px 66px -30px rgba(38,50,64,.34);
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { margin: 0; background: var(--ground); color: var(--ink); font-family: var(--sans); line-height: 1.55; -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 0 26px; }
+  a { color: inherit; }
+  h1, h2, h3, h4 { margin: 0; font-weight: 800; letter-spacing: -0.025em; line-height: 1.05; }
+  .eyebrow { color: var(--coral); text-transform: uppercase; font-weight: 800; letter-spacing: 0.15em; font-size: 12px; }
+
+  .topbar { position: sticky; top: 0; z-index: 50; background: rgba(247,245,243,.86); backdrop-filter: saturate(140%) blur(10px); -webkit-backdrop-filter: saturate(140%) blur(10px); border-bottom: 1px solid var(--border); }
+  .topbar .wrap { display: flex; align-items: center; gap: 16px; height: 60px; }
+  .pill { background: var(--coral); color: #fff; font-weight: 800; padding: 6px 13px; border-radius: 999px; font-size: 14px; white-space: nowrap; text-decoration: none; }
+  .pill .rx { opacity: .78; }
+  .letternav { display: flex; gap: 4px; margin-left: auto; }
+  .letternav a { display: flex; align-items: baseline; gap: 8px; text-decoration: none; padding: 7px 12px; border-radius: 10px; color: var(--faint); font-weight: 700; font-size: 13px; transition: color .18s ease, background .18s ease; }
+  .letternav a .ltr { font-size: 13px; font-weight: 800; }
+  .letternav a .txt { font-weight: 600; }
+  .letternav a:hover { color: var(--ink); background: rgba(226,123,94,.08); }
+  .letternav a.on { color: var(--coral-deep); background: var(--coral-tint); }
+  .letternav a:focus-visible { outline: 2px solid var(--coral); outline-offset: 2px; }
+
+  header.masthead { padding: 52px 0 8px; }
+  .del-badge { display: inline-flex; align-items: center; gap: 10px; margin-bottom: 20px; }
+  .del-badge .lt { width: 34px; height: 34px; border-radius: 10px; background: var(--navy); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 17px; }
+  .del-badge .of { font-size: 12px; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; color: var(--faint); }
+  header.masthead h1 { font-size: clamp(30px, 5.2vw, 56px); max-width: 19ch; }
+  header.masthead h1 .hl { color: var(--coral); }
+  .lede { margin: 22px 0 0; font-size: clamp(17px, 2.2vw, 21px); color: var(--muted); max-width: 62ch; }
+  .lede b { color: var(--ink); font-weight: 700; }
+
+  section { padding: 42px 0; }
+  .sectitle { max-width: 54ch; margin: 0 0 26px; }
+  .sectitle h2 { font-size: clamp(22px, 3.3vw, 31px); }
+  .sectitle p { margin: 12px 0 0; color: var(--muted); font-size: 16px; }
+
+  /* ===== SIGNATURE: ABOVE / THE LINE / BELOW ===== */
+  .linefig { background: var(--surface); border: 1px solid var(--border); border-radius: 26px; box-shadow: var(--shadow-lift); overflow: hidden; }
+  .above { padding: 28px 28px 30px; }
+  .above .cap { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; }
+  .above .cap .k { font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--coral-deep); }
+  .above .cap .k2 { font-size: 13px; color: var(--muted); font-weight: 600; }
+  .chips { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .chip2 { border: 1px solid var(--border); border-radius: 14px; padding: 15px 16px; background: var(--surface); box-shadow: var(--shadow); }
+  .chip2 h4 { font-size: 14px; margin-bottom: 5px; }
+  .chip2 p { margin: 0; font-size: 12px; color: var(--muted); line-height: 1.45; }
+  .chip2.feat { grid-column: span 2; background: var(--coral-tint); border-color: #F1CFC2; }
+  .chip2.feat h4 { color: var(--coral-deep); }
+  .chip2.feat .tagx { display: inline-block; font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: #fff; background: var(--coral); padding: 2px 8px; border-radius: 999px; margin-bottom: 7px; }
+  .chip2.feat p { color: #92503b; }
+
+  .theline { position: relative; background: var(--navy); color: #fff; padding: 16px 28px; text-align: center; }
+  .theline .lab { font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: #E8A98F; }
+  .theline .body { font-size: 14px; color: #DCE3E9; margin-top: 4px; }
+  .theline .body b { color: #fff; }
+
+  .below { padding: 24px 28px 28px; background: #FBFAF9; }
+  .below .cap { font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); margin-bottom: 12px; }
+  .below .world { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .below .w { font-size: 12.5px; color: var(--muted); padding-left: 22px; position: relative; line-height: 1.45; }
+  .below .w::before { content: "☎"; position: absolute; left: 0; color: var(--faint); }
+
+  /* comparison table */
+  .tblwrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 18px; box-shadow: var(--shadow); background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; min-width: 680px; font-size: 13.5px; }
+  thead th { text-align: left; font-size: 11px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; color: var(--faint); padding: 15px 18px; border-bottom: 1px solid var(--border); background: #FCFBFA; }
+  thead th.built { color: var(--coral-deep); }
+  tbody td { padding: 14px 18px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody td.was { color: var(--faint); }
+  tbody td.mid { color: var(--muted); }
+  tbody td.built { color: var(--ink); }
+  tbody td.built b { font-weight: 700; }
+
+  .callout { display: flex; gap: 16px; align-items: center; background: var(--navy); color: #fff; border-radius: 22px; padding: 30px 34px; }
+  .callout .big { font-size: 30px; line-height: 1; }
+  .callout p { margin: 0; font-size: clamp(16px,2vw,19px); color: #DCE3E9; }
+  .callout p b { color: #fff; font-weight: 700; }
+  .callout p .hl { color: var(--coral); font-weight: 800; }
+
+  footer { padding: 34px 0 60px; color: var(--faint); font-size: 12.5px; }
+  footer .nextprev { display: flex; justify-content: space-between; gap: 12px; padding: 22px 0 26px; border-top: 1px solid var(--border); margin-bottom: 20px; }
+  footer .nextprev a { text-decoration: none; font-weight: 700; font-size: 14px; color: var(--ink); display: inline-flex; align-items: center; gap: 8px; }
+  footer .nextprev a.next { color: var(--coral-deep); margin-left: auto; }
+  footer .nextprev a:hover { color: var(--coral); }
+  footer .src { color: var(--muted); max-width: 80ch; }
+
+  @media (max-width: 860px) {
+    .letternav a .txt { display: none; }
+    .letternav a { padding: 8px 10px; }
+    .chips, .below .world { grid-template-columns: 1fr; }
+    .chip2.feat { grid-column: span 1; }
+  }
+  @media (prefers-reduced-motion: reduce) { .letternav a { transition: none; } }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="wrap">
+    <a class="pill" href="deliverables-v1.html">better<span class="rx">RX</span></a>
+    <nav class="letternav" aria-label="Deliverables">
+      <a href="deliverable-a.html"><span class="ltr">A</span><span class="txt">Working app</span></a>
+      <a href="deliverable-b.html"><span class="ltr">B</span><span class="txt">AI approach</span></a>
+      <a href="deliverable-c.html" class="on"><span class="ltr">C</span><span class="txt">Differentiation</span></a>
+      <a href="integration-pitch-v1.html"><span class="ltr">D</span><span class="txt">Integration</span></a>
+      <a href="deliverable-e.html"><span class="ltr">E</span><span class="txt">Scenarios</span></a>
+    </nav>
+  </div>
+</div>
+
+<header class="masthead">
+  <div class="wrap">
+    <div class="del-badge">
+      <span class="lt">C</span>
+      <span class="of">Deliverable C · Differentiation snapshot</span>
+    </div>
+    <h1>Everyone will show the texted link. We built <span class="hl">what sits above it</span>.</h1>
+    <p class="lede">The sponsor FAQ told every team to design for a vendor who never logs in — SMS /
+      magic-link. That's the floor, and we built it. We just don't <b>claim</b> it as our idea. The
+      differentiation is the seven things we stacked on top.</p>
+  </div>
+</header>
+
+<main>
+  <!-- SIGNATURE -->
+  <section>
+    <div class="wrap">
+      <div class="linefig">
+        <div class="above">
+          <div class="cap">
+            <span class="k">Above the line</span>
+            <span class="k2">— what we built on top of the baseline</span>
+          </div>
+          <div class="chips">
+            <div class="chip2">
+              <h4>Silence ladder</h4>
+              <p>Unanswered at 2h the system nags; 2h later it escalates. Non-response becomes a timestamped event with an owner.</p>
+            </div>
+            <div class="chip2">
+              <h4>Verified vs vendor-reported</h4>
+              <p>Every status badged by evidence. An unproven "delivered" opens its own escalation; a driver POD opens nothing.</p>
+            </div>
+            <div class="chip2">
+              <h4>Nurse-primary pickup</h4>
+              <p>The nurse in the room is the trigger, the EMR the redundant fallback — the direction the baseline link never reaches.</p>
+            </div>
+            <div class="chip2">
+              <h4>Risk before the deadline</h4>
+              <p>Rules-based, in sentences a case manager can argue with, with a one-click vendor swap.</p>
+            </div>
+            <div class="chip2">
+              <h4>Two trust levels</h4>
+              <p>A tap needs no model; free text is confidence-gated to a human queue. Three personas, one ledger.</p>
+            </div>
+            <div class="chip2 feat">
+              <span class="tagx">The CEO named this one</span>
+              <h4>The household is the only witness — so ask it</h4>
+              <p>A condition survey isn't new; <b>who owns the answers is</b>. Today it lives in the file of the supplier being graded. We invert the direction: the hospice asks, holds the record, and it lands on the scorecard that picks the next vendor.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="theline">
+          <div class="lab">The floor · FAQ §3</div>
+          <div class="body">The texted magic link — <b>confirm / set ETA / can't fill it</b>. Table stakes as of that document. We built it. We don't sell it to you as differentiation.</div>
+        </div>
+
+        <div class="below">
+          <div class="cap">Below — the world this replaces</div>
+          <div class="world">
+            <div class="w">Phone calls and faxes to ask if it's coming</div>
+            <div class="w">One login per vendor, built for the vendor, not the discharge</div>
+            <div class="w">Silence is ambiguous — you find out at the front door</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- comparison table -->
+  <section>
+    <div class="wrap">
+      <div class="sectitle">
+        <h2>Row by row — the same moment, three ways</h2>
+        <p>The load-bearing failure today is that silence is ambiguous. Every row is a place we turned it
+          into a signal with an owner.</p>
+      </div>
+      <div class="tblwrap">
+        <table>
+          <thead>
+            <tr>
+              <th>The phone-and-fax world</th>
+              <th>The baseline link everyone shows</th>
+              <th class="built">What we built on top</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td class="was">Case manager calls to ask</td><td class="mid">Vendor <em>can</em> confirm</td><td class="built"><b>Silence ladder</b> — nobody has to ask; the software chases and the vendor is never punished for being busy.</td></tr>
+            <tr><td class="was">"It's delivered" on voicemail</td><td class="mid">A tap that says delivered</td><td class="built"><b>Verified vs vendor-reported</b> — every status badged by its evidence; unproven claims escalate.</td></tr>
+            <tr><td class="was">Family calls about the bed</td><td class="mid">Nothing — the link only covers what the hospice knew to ask</td><td class="built"><b>Nurse-primary pickup trigger</b>, EMR webhook as the redundant fallback.</td></tr>
+            <tr><td class="was">Someone interprets a voicemail</td><td class="mid">Model parses free text</td><td class="built"><b>Two input paths, two trust levels</b> — a tap needs no model; prose is confidence-gated to a human queue.</td></tr>
+            <tr><td class="was">Failure found at the front door</td><td class="mid">The link tells you it's late</td><td class="built"><b>Rules-based risk fires before the deadline</b>, in sentences, with a one-click swap.</td></tr>
+            <tr><td class="was">Nobody asks the house what showed up</td><td class="mid">Nothing — the link ends at "delivered"</td><td class="built"><b>The household rates the equipment 1–5 by text</b>; the score lands on the vendor's scorecard.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- close -->
+  <section>
+    <div class="wrap">
+      <div class="callout">
+        <span class="big">📞</span>
+        <p>Every mechanism above maps to a call a human didn't have to make. The saved discharge looks, to the
+          daughter, like nothing happening. <b>The measure is <span class="hl">phone calls that never
+          happened</span></b> — and if we build this right, the family never knows the system exists.</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="nextprev">
+      <a href="deliverable-b.html"><span>←</span> B · AI approach</a>
+      <a class="next" href="integration-pitch-v1.html">D · Integration <span>→</span></a>
+    </div>
+    <p class="src">DME coordination for hospice · BetterRX — Builder Day 2026. Running and test-covered today:
+      the silence ladder, verified/reported flags, the shared nurse/EMR pickup trigger, the confidence-gated
+      parse, the risk engine, and the caregiver condition channel with its guards.</p>
+  </div>
+</footer>
+
+</body>
+</html>

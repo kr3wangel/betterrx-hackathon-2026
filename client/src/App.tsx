@@ -18,6 +18,7 @@ import {
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { Toaster } from '@/components/ui/sonner'
 import { cn } from '@/lib/utils'
+import { BrandMark } from './components/BrandMark'
 import Hospice from './pages/Hospice'
 import VendorPage from './pages/Vendor'
 import Driver from './pages/Driver'
@@ -175,9 +176,7 @@ function PortalShell({ children }: { children: ReactNode }) {
     <div className="min-h-screen bg-background text-foreground">
       <header className="border-b border-border bg-card">
         <div className="flex items-center gap-4 px-5 py-3">
-          <span className="rounded-full bg-primary px-3 py-1 font-display text-sm font-extrabold tracking-tight text-primary-foreground">
-            betterRX
-          </span>
+          <BrandMark />
           <span className="ml-auto flex items-center gap-2 text-xs font-medium text-muted-foreground">
             <span
               className={cn('h-2.5 w-2.5 rounded-full', connected ? 'bg-success' : 'bg-destructive')}
@@ -205,10 +204,7 @@ function Shell() {
         <div className="min-h-screen bg-background text-foreground">
           <header className="border-b border-border bg-card">
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-3">
-              {/* Coral pill logo */}
-              <span className="rounded-full bg-primary px-3 py-1 font-display text-sm font-extrabold tracking-tight text-primary-foreground">
-                betterRX
-              </span>
+              <BrandMark />
               {/* Product-level nav — DME active, underlined in coral */}
               <nav className="flex items-center gap-4">
                 {productTabs.map((t) => (

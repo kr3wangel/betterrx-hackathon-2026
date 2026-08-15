@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A · A working application — BetterRX DME</title>
+<style>
+  :root {
+    --ground: #F7F5F3;
+    --surface: #FFFFFF;
+    --ink: #263240;
+    --muted: #5C6B75;
+    --faint: #93A0AA;
+    --border: #EBE7E3;
+    --coral: #E27B5E;
+    --coral-deep: #D2694C;
+    --coral-tint: #FBEFEA;
+    --navy: #2C3A49;
+    --green: #3E9C6B;
+    --green-tint: #E9F3ED;
+    --amber: #9A7B2E;
+    --amber-tint: #FBF4E2;
+    --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --mono: ui-monospace, "SF Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+    --shadow: 0 1px 2px rgba(38,50,64,.04), 0 14px 34px -20px rgba(38,50,64,.20);
+    --shadow-lift: 0 1px 2px rgba(38,50,64,.05), 0 30px 66px -30px rgba(38,50,64,.34);
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { margin: 0; background: var(--ground); color: var(--ink); font-family: var(--sans); line-height: 1.55; -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 0 26px; }
+  a { color: inherit; }
+  h1, h2, h3, h4 { margin: 0; font-weight: 800; letter-spacing: -0.025em; line-height: 1.05; }
+  .eyebrow { color: var(--coral); text-transform: uppercase; font-weight: 800; letter-spacing: 0.15em; font-size: 12px; }
+
+  /* ---------- SHARED CROSS-PAGE TOPBAR ---------- */
+  .topbar { position: sticky; top: 0; z-index: 50; background: rgba(247,245,243,.86); backdrop-filter: saturate(140%) blur(10px); -webkit-backdrop-filter: saturate(140%) blur(10px); border-bottom: 1px solid var(--border); }
+  .topbar .wrap { display: flex; align-items: center; gap: 16px; height: 60px; }
+  .pill { background: var(--coral); color: #fff; font-weight: 800; padding: 6px 13px; border-radius: 999px; font-size: 14px; white-space: nowrap; text-decoration: none; }
+  .pill .rx { opacity: .78; }
+  .letternav { display: flex; gap: 4px; margin-left: auto; }
+  .letternav a { display: flex; align-items: baseline; gap: 8px; text-decoration: none; padding: 7px 12px; border-radius: 10px; color: var(--faint); font-weight: 700; font-size: 13px; transition: color .18s ease, background .18s ease; }
+  .letternav a .ltr { font-size: 13px; font-weight: 800; }
+  .letternav a .txt { font-weight: 600; }
+  .letternav a:hover { color: var(--ink); background: rgba(226,123,94,.08); }
+  .letternav a.on { color: var(--coral-deep); background: var(--coral-tint); }
+  .letternav a:focus-visible { outline: 2px solid var(--coral); outline-offset: 2px; }
+
+  /* ---------- MASTHEAD ---------- */
+  header.masthead { padding: 52px 0 8px; }
+  .del-badge { display: inline-flex; align-items: center; gap: 10px; margin-bottom: 20px; }
+  .del-badge .lt { width: 34px; height: 34px; border-radius: 10px; background: var(--navy); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 17px; }
+  .del-badge .of { font-size: 12px; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; color: var(--faint); }
+  header.masthead h1 { font-size: clamp(30px, 5.2vw, 56px); max-width: 20ch; }
+  header.masthead h1 .hl { color: var(--coral); }
+  .lede { margin: 22px 0 0; font-size: clamp(17px, 2.2vw, 21px); color: var(--muted); max-width: 60ch; }
+  .lede b { color: var(--ink); font-weight: 700; }
+  .runline { margin-top: 26px; display: inline-flex; align-items: center; gap: 10px; font-size: 13.5px; font-weight: 600; color: #2f7a53; background: var(--green-tint); border: 1px solid #CDE7D8; padding: 9px 16px; border-radius: 999px; }
+  .runline .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 4px rgba(62,156,107,.18); }
+
+  section { padding: 42px 0; }
+  .sectitle { max-width: 52ch; margin: 0 0 28px; }
+  .sectitle h2 { font-size: clamp(22px, 3.3vw, 31px); }
+  .sectitle p { margin: 12px 0 0; color: var(--muted); font-size: 16px; }
+
+  /* ---------- SIGNATURE: BOARD MOCK ---------- */
+  .stage { background: var(--surface); border: 1px solid var(--border); border-radius: 26px; box-shadow: var(--shadow-lift); padding: 22px; }
+  .boardhead { display: flex; align-items: center; gap: 12px; padding: 6px 8px 16px; border-bottom: 1px solid var(--border); }
+  .boardhead .title { font-weight: 800; font-size: 15px; }
+  .boardhead .live { margin-left: auto; display: inline-flex; align-items: center; gap: 7px; font-size: 11.5px; font-weight: 700; color: var(--muted); }
+  .boardhead .live .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); }
+  .colhead { font-size: 10.5px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); margin: 18px 8px 8px; }
+  .colhead.needs { color: var(--coral-deep); }
+  .row { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 12px; padding: 13px 14px; border: 1px solid var(--border); border-radius: 14px; margin-bottom: 8px; background: var(--surface); }
+  .row.flag { border-color: #F1CFC2; background: #FEF8F5; box-shadow: 0 0 0 3px rgba(226,123,94,.06); }
+  .row .who { font-weight: 700; font-size: 14px; }
+  .row .what { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+  .row .reason { font-size: 12px; color: var(--coral-deep); margin-top: 5px; font-weight: 600; }
+  .row .right { display: flex; align-items: center; gap: 8px; justify-self: end; }
+  .chip { font-size: 11px; font-weight: 800; letter-spacing: .02em; padding: 4px 10px; border-radius: 999px; white-space: nowrap; }
+  .chip.ontruck { background: #EEF1F4; color: var(--navy); }
+  .chip.delivered { background: var(--green-tint); color: #2f7a53; }
+  .chip.pickup { background: var(--coral-tint); color: var(--coral-deep); }
+  .badge-ver { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 800; color: #2f7a53; }
+  .badge-rep { font-size: 11px; font-weight: 700; color: var(--faint); }
+  .swap { font-size: 11.5px; font-weight: 800; color: #fff; background: var(--coral); padding: 5px 11px; border-radius: 8px; }
+  .caption { margin-top: 16px; font-size: 13px; color: var(--muted); text-align: center; }
+  .caption b { color: var(--ink); }
+
+  /* ---------- SURFACES ---------- */
+  .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 22px 24px; box-shadow: var(--shadow); }
+  .card .ico { font-size: 24px; margin-bottom: 12px; }
+  .card h4 { font-size: 16px; margin-bottom: 8px; }
+  .card p { margin: 0; font-size: 13.5px; color: var(--muted); line-height: 1.5; }
+  .card p b { color: var(--ink); font-weight: 700; }
+  .card .path { margin-top: 12px; font-family: var(--mono); font-size: 11px; color: var(--coral-deep); }
+
+  /* ---------- STATS BAND ---------- */
+  .band { background: var(--navy); border-radius: 26px; padding: 38px 40px; color: #fff; }
+  .band h3 { color: #fff; font-size: clamp(19px,2.6vw,24px); max-width: 30ch; }
+  .band .bsub { margin: 10px 0 26px; color: #C6D0D8; font-size: 15px; max-width: 60ch; }
+  .statgrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+  .st { background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12); border-radius: 16px; padding: 20px 22px; }
+  .st .n { font-size: 32px; font-weight: 800; letter-spacing: -0.03em; line-height: 1; }
+  .st .n .u { font-size: 15px; color: #A7B4BE; font-weight: 700; }
+  .st .l { margin-top: 9px; font-size: 12.5px; color: #C6D0D8; line-height: 1.4; }
+
+  /* ---------- HONEST ---------- */
+  .honest { border-left: 3px solid var(--amber); background: var(--amber-tint); border-radius: 0 16px 16px 0; padding: 20px 24px; }
+  .honest .lab { font-size: 11px; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; color: var(--amber); margin-bottom: 8px; }
+  .honest p { margin: 0; font-size: 14px; color: #6b5620; line-height: 1.55; }
+  .honest p b { color: #4d3d13; }
+  .honest code { font-family: var(--mono); font-size: 12px; background: rgba(154,123,46,.12); padding: 1px 6px; border-radius: 5px; }
+
+  .provenance { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+  .tag { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; padding: 7px 13px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); }
+  .tag .sw { width: 9px; height: 9px; border-radius: 3px; }
+  .tag .sw.cms { background: var(--green); }
+  .tag .sw.syn { background: var(--amber); }
+  .tag b { font-weight: 800; }
+
+  footer { padding: 34px 0 60px; color: var(--faint); font-size: 12.5px; }
+  footer .nextprev { display: flex; justify-content: space-between; gap: 12px; padding: 22px 0 26px; border-top: 1px solid var(--border); margin-bottom: 20px; }
+  footer .nextprev a { text-decoration: none; font-weight: 700; font-size: 14px; color: var(--ink); display: inline-flex; align-items: center; gap: 8px; }
+  footer .nextprev a.next { color: var(--coral-deep); margin-left: auto; }
+  footer .nextprev a:hover { color: var(--coral); }
+  footer .src { color: var(--muted); max-width: 80ch; }
+
+  @media (max-width: 860px) {
+    .letternav a .txt { display: none; }
+    .letternav a { padding: 8px 10px; }
+    .cards, .statgrid { grid-template-columns: 1fr; }
+    .statgrid { grid-template-columns: 1fr 1fr; }
+  }
+  @media (prefers-reduced-motion: reduce) { .letternav a { transition: none; } }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="wrap">
+    <a class="pill" href="deliverables-v1.html">better<span class="rx">RX</span></a>
+    <nav class="letternav" aria-label="Deliverables">
+      <a href="deliverable-a.html" class="on"><span class="ltr">A</span><span class="txt">Working app</span></a>
+      <a href="deliverable-b.html"><span class="ltr">B</span><span class="txt">AI approach</span></a>
+      <a href="deliverable-c.html"><span class="ltr">C</span><span class="txt">Differentiation</span></a>
+      <a href="integration-pitch-v1.html"><span class="ltr">D</span><span class="txt">Integration</span></a>
+      <a href="deliverable-e.html"><span class="ltr">E</span><span class="txt">Scenarios</span></a>
+    </nav>
+  </div>
+</div>
+
+<header class="masthead">
+  <div class="wrap">
+    <div class="del-badge">
+      <span class="lt">A</span>
+      <span class="of">Deliverable A · A working application</span>
+    </div>
+    <h1>It runs. You can click a real interaction, <span class="hl">not a mockup of one</span>.</h1>
+    <p class="lede">A full-stack app — React front end, an Express + SQLite back end, live updates over one
+      shared event stream. Every order mutation goes through a single state machine and lands in an
+      <b>append-only ledger</b>, so what you click is what a judge can drive.</p>
+    <span class="runline"><span class="dot"></span>npm run dev · server :3001 + client :5173 · reset-safe synthetic seed</span>
+  </div>
+</header>
+
+<main>
+  <!-- SIGNATURE: the product's own board -->
+  <section>
+    <div class="wrap">
+      <div class="sectitle">
+        <h2>The hospice board — the surface the demo drives</h2>
+        <p>Orders sorted into plain language: what needs you, what's on the way, what's done. Risk is a
+          flag with a reason, never a hidden state. Evidence is badged by its source.</p>
+      </div>
+
+      <div class="stage" role="img" aria-label="Mock of the hospice order board showing a flagged order, an on-the-truck order, and a verified delivery">
+        <div class="boardhead">
+          <span class="title">Board</span>
+          <span class="live"><span class="dot"></span>Live</span>
+        </div>
+
+        <div class="colhead needs">Needs you</div>
+        <div class="row flag">
+          <div>
+            <div class="who">Margaret Osei · Hospital bed, semi-electric</div>
+            <div class="what">Due tonight · discharge home tomorrow · Beehive Medical</div>
+            <div class="reason">⚑ Beehive is 62% on-time for this equipment on this weekday (n=40)</div>
+          </div>
+          <div class="right"><span class="swap">Swap vendor</span></div>
+        </div>
+
+        <div class="colhead">On the way</div>
+        <div class="row">
+          <div>
+            <div class="who">Frank Turner · Oxygen concentrator</div>
+            <div class="what">ETA 2:00 PM · Wasatch Medical Supply</div>
+          </div>
+          <div class="right"><span class="chip ontruck">On the truck</span><span class="badge-rep">Vendor-reported</span></div>
+        </div>
+
+        <div class="colhead">Done</div>
+        <div class="row">
+          <div>
+            <div class="who">Ruth Delgado · Hospital bed + concentrator</div>
+            <div class="what">Delivered 1:52 PM · 8 min ahead of ETA</div>
+          </div>
+          <div class="right"><span class="chip delivered">Delivered</span><span class="badge-ver">✓ Verified</span></div>
+        </div>
+      </div>
+      <p class="caption">Tap any row in the live app for its risk reasons, the full event timeline, and the
+        AI-parse review queue. <b>The swap re-sends the order and clears the flag in one click.</b></p>
+    </div>
+  </section>
+
+  <!-- SURFACES -->
+  <section>
+    <div class="wrap">
+      <div class="sectitle">
+        <h2>Three surfaces, six roles, one ledger</h2>
+        <p>The app splits across who's actually holding the phone — the case manager at a desk, the vendor
+          with no account, the nurse and driver in the field. The nav rearranges when you switch role.</p>
+      </div>
+      <div class="cards">
+        <div class="card">
+          <div class="ico">🏥</div>
+          <h4>The hospice</h4>
+          <p>Board, new-order form, nurse status change, and the DON's reports view — <b>scorecards, a
+            calls-avoided counter, pickup latency</b>, all off the real event log.</p>
+          <div class="path">/hospice · /order · /nurse · /reports</div>
+        </div>
+        <div class="card">
+          <div class="ico">📱</div>
+          <h4>The vendor</h4>
+          <p>A texted magic link opens a no-login page scoped to that vendor's orders. <b>Confirm, set an
+            ETA, or "can't fill it"</b> — one tap each. A phone simulator stands in for the handset.</p>
+          <div class="path">/o/:token · /portal/:token · /vendor-phone</div>
+        </div>
+        <div class="card">
+          <div class="ico">🚚</div>
+          <h4>The field &amp; the home</h4>
+          <p>The driver captures a <b>photo + signature proof</b> and a condition attestation; the family
+            answers one text rating the equipment 1–5.</p>
+          <div class="path">/driver · /caregiver</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- STATS BAND -->
+  <section>
+    <div class="wrap">
+      <div class="band">
+        <h3>What's actually wired, counted from the code</h3>
+        <p class="bsub">Read out of the repo, not the pitch — re-derived by running the suite on the merged
+          tree. The honest inventory is the point: what's real earns more than what's claimed.</p>
+        <div class="statgrid">
+          <div class="st"><div class="n">14</div><div class="l">screens across hospice, vendor &amp; field</div></div>
+          <div class="st"><div class="n">33</div><div class="l">API endpoints behind one state machine</div></div>
+          <div class="st"><div class="n">254</div><div class="l">tests on the core logic, green</div></div>
+          <div class="st"><div class="n">8</div><div class="l">order states, every change appends &amp; broadcasts</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- HONEST DATA -->
+  <section>
+    <div class="wrap">
+      <div class="sectitle">
+        <h2>Where the data comes from — the one line that has to be right</h2>
+      </div>
+      <div class="honest">
+        <p>The equipment catalog and prices are <b>real CMS data</b> — the Medicare DMEPOS Public Use File:
+          HCPCS codes, descriptions, national beneficiary counts, average allowed amounts. Everything
+          else — <b>12 patients, 3 vendor personalities, a simulated year of orders, every delivery time and
+          outcome</b> — is synthetic and labeled synthetic, because CMS publishes billing, not logistics.
+          Both phone screens are <b>simulators</b>; there is no SMS gateway, and we say so before anyone asks.
+          The magic links in the bubbles are real <code>/portal/&lt;token&gt;</code> URLs.</p>
+        <div class="provenance">
+          <span class="tag"><span class="sw cms"></span><b>Real</b> — HCPCS catalog, prices, demand weights</span>
+          <span class="tag"><span class="sw syn"></span><b>Synthetic</b> — patients, vendors, times, outcomes</span>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="nextprev">
+      <a href="deliverables-v1.html"><span>←</span> All deliverables</a>
+      <a class="next" href="deliverable-b.html">B · AI approach <span>→</span></a>
+    </div>
+    <p class="src">DME coordination for hospice · BetterRX — Builder Day 2026. The demo runs on simulated
+      feeds; the production path swaps the transport, not the design. Counts re-derived from <code>main</code>
+      on 2026-08-15.</p>
+  </div>
+</footer>
+
+</body>
+</html>

@@ -3,6 +3,7 @@ import { api } from '../lib/api'
 import { useLive } from '../lib/useLive'
 import { Bubble, DayDivider, Linkify, newDay, PhoneScreen, ThreadEmpty } from '../components/PhoneScreen'
 import { digitLabel, isOpenQuestion } from '../components/QuickReplies'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import type { Message, SmsReplyResult, Vendor } from '../../../shared/types'
 
 /**
@@ -38,17 +39,21 @@ export default function VendorPhone() {
       key={vendor.id}
       vendor={vendor}
       picker={
-        <select
-          className="max-w-[15rem] truncate rounded-md border-0 bg-transparent text-[11px] text-slate-400 outline-none"
-          value={vendorId}
-          onChange={(e) => setVendorId(Number(e.target.value))}
-        >
-          {(vendors ?? []).map((v) => (
-            <option key={v.id} value={v.id}>
-              {v.name} · {v.contact_name}
-            </option>
-          ))}
-        </select>
+        <Select value={String(vendorId)} onValueChange={(v) => setVendorId(Number(v))}>
+          <SelectTrigger
+            aria-label="Switch vendor"
+            className="h-auto max-w-[15rem] gap-1 border-0 bg-transparent px-0 py-0 text-[11px] text-slate-400 shadow-none focus:ring-0 focus:ring-offset-0 [&_svg]:size-3"
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {(vendors ?? []).map((v) => (
+              <SelectItem key={v.id} value={String(v.id)}>
+                {v.name} · {v.contact_name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       }
     />
   )
