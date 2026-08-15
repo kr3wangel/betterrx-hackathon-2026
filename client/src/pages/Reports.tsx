@@ -134,40 +134,56 @@ function KpiRow({ data }: { data: ReportsData }) {
   }, [conditions])
 
   return (
-    <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-      {/* Hero: the coral "white card on a coral block" move. */}
-      <div className="rounded-2xl bg-primary p-6 text-primary-foreground shadow-[0_1px_2px_rgba(38,50,64,.04),0_14px_34px_-20px_rgba(38,50,64,.20)]">
-        <PhoneOff className="size-5 opacity-80" />
-        <div className="mt-3 font-display text-5xl font-extrabold tabular-nums tracking-tight">
-          {summary.calls_avoided}
+    <div className="space-y-3">
+      <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+        {/* Hero: the coral "white card on a coral block" move. */}
+        <div className="rounded-2xl bg-primary p-6 text-primary-foreground shadow-[0_1px_2px_rgba(38,50,64,.04),0_14px_34px_-20px_rgba(38,50,64,.20)]">
+          <div className="flex items-start justify-between gap-2">
+            <PhoneOff className="size-5 opacity-80" />
+            <span
+              className="rounded-full bg-primary-foreground/20 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide"
+              title="Synthetic: counted off a simulated year of orders in the seeded event ledger — the counting rule is printed below the row"
+            >
+              synthetic
+            </span>
+          </div>
+          <div className="mt-3 font-display text-5xl font-extrabold tabular-nums tracking-tight">
+            {summary.calls_avoided}
+          </div>
+          <div className="mt-1.5 text-sm font-semibold leading-snug">
+            phone calls that never happened
+          </div>
+          <div className="mt-1 text-xs text-primary-foreground/80">
+            {summary.calls_avoided_breakdown.auto_applied_messages} vendor texts auto-applied ·{' '}
+            {summary.calls_avoided_breakdown.vendor_self_service_updates} vendor self-updates ·{' '}
+            {summary.calls_avoided_breakdown.auto_triggered_pickups} auto-triggered pickups
+          </div>
         </div>
-        <div className="mt-1.5 text-sm font-semibold leading-snug">
-          phone calls that never happened
-        </div>
-        <div className="mt-1 text-xs text-primary-foreground/80">
-          {summary.calls_avoided_breakdown.auto_applied_messages} vendor texts auto-applied ·{' '}
-          {summary.calls_avoided_breakdown.vendor_self_service_updates} vendor self-updates ·{' '}
-          {summary.calls_avoided_breakdown.auto_triggered_pickups} auto-triggered pickups
-        </div>
+
+        <KpiCard
+          icon={<TrendingUp className="size-5" />}
+          value={onTime == null ? '—' : pct(onTime)}
+          label="deliveries on time"
+          tone="success"
+        />
+        <KpiCard
+          icon={<CheckCircle2 className="size-5" />}
+          value={avgCondition == null ? '—' : avgCondition.toFixed(1)}
+          label="avg equipment condition (1–5)"
+        />
+        <KpiCard
+          icon={<ShieldAlert className="size-5" />}
+          value={String(summary.open_escalations)}
+          label="open escalations"
+          tone={summary.open_escalations > 0 ? 'risk' : undefined}
+        />
       </div>
 
-      <KpiCard
-        icon={<TrendingUp className="size-5" />}
-        value={onTime == null ? '—' : pct(onTime)}
-        label="deliveries on time"
-        tone="success"
-      />
-      <KpiCard
-        icon={<CheckCircle2 className="size-5" />}
-        value={avgCondition == null ? '—' : avgCondition.toFixed(1)}
-        label="avg equipment condition (1–5)"
-      />
-      <KpiCard
-        icon={<ShieldAlert className="size-5" />}
-        value={String(summary.open_escalations)}
-        label="open escalations"
-        tone={summary.open_escalations > 0 ? 'risk' : undefined}
-      />
+      <p className="text-[11px] leading-relaxed text-muted-foreground">
+        <span className="font-semibold text-foreground">Where the calls-avoided number comes from.</span>{' '}
+        Synthetic demo data — most of it is the seeded year of history, not this session. The counting
+        rule, verbatim from the server: {summary.calls_avoided_definition}
+      </p>
     </div>
   )
 }

@@ -1,6 +1,6 @@
 import { api } from '../../lib/api'
 import { fmt, useLive } from '../../lib/useLive'
-import { eventLabel } from '../../lib/domain'
+import { eventLabel, eventSourceNote } from '../../lib/domain'
 import { isPickup, plainItem } from '../../lib/board'
 import { mockEvidenceSource, isVerifiedEvidence } from '../../lib/mocks'
 import { EvidenceBadge } from '@/components/EvidenceBadge'
@@ -99,19 +99,19 @@ export function RowDetail({ order, vendor }: { order: Order; vendor?: Vendor }) 
 
       <ul className="space-y-1.5 text-xs">
         {detail.events.map((e) => {
-          const source = mockEvidenceSource({
-            verified: e.type === 'delivered' || e.type === 'picked_up' ? podVerified(detail, e) : undefined,
-            actor: e.actor,
-          })
+          const podBacked = e.type === 'delivered' || e.type === 'picked_up' ? podVerified(detail, e) : undefined
+          const note = eventSourceNote(e)
+          const verified = note
+            ? podBacked === true
+            : isVerifiedEvidence(mockEvidenceSource({ verified: podBacked, actor: e.actor }))
           return (
             <li key={e.id} className="flex items-start justify-between gap-3">
               <span className="min-w-0">
                 <span className="tabular-nums text-faint">{fmt(e.created_at)}</span>{' '}
                 <span className="text-foreground">{eventLabel(e.type)}</span>
+                {note && <span className="text-faint"> · {note}</span>}
               </span>
-              {evidenceRelevant(e.type) && (
-                <EvidenceBadge verified={isVerifiedEvidence(source)} className="shrink-0" />
-              )}
+              {evidenceRelevant(e.type) && <EvidenceBadge verified={verified} className="shrink-0" />}
             </li>
           )
         })}

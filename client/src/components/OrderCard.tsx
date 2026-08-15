@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { AlertTriangle } from 'lucide-react'
 import { api } from '../lib/api'
 import { fmt } from '../lib/useLive'
-import { eventLabel } from '../lib/domain'
+import { eventLabel, eventSourceNote } from '../lib/domain'
 import { mockEvidenceSource, isVerifiedEvidence } from '../lib/mocks'
 import { StatusPill } from '@/components/StatusPill'
 import { RiskBadge, RISK_THRESHOLD } from '@/components/RiskBadge'
@@ -158,11 +158,11 @@ function OrderDetailPane({ detail }: { detail: OrderDetail }) {
         <div className="mb-2 text-xs font-bold uppercase tracking-wide text-faint">Activity</div>
         <ul className="space-y-2">
           {detail.events.map((e) => {
-            const source = mockEvidenceSource({
-              verified: e.type === 'delivered' || e.type === 'picked_up' ? podVerified(detail, e) : undefined,
-              actor: e.actor,
-            })
-            const verified = isVerifiedEvidence(source)
+            const podBacked = e.type === 'delivered' || e.type === 'picked_up' ? podVerified(detail, e) : undefined
+            const note = eventSourceNote(e)
+            const verified = note
+              ? podBacked === true
+              : isVerifiedEvidence(mockEvidenceSource({ verified: podBacked, actor: e.actor }))
             // The safety rule made visible: while the order is at-risk, a vendor's *text*
             // (reported, not verified) does not clear the flag — only POD or a case-manager action does.
             const inertClaim = atRisk && !verified && e.actor === 'vendor'
@@ -172,6 +172,7 @@ function OrderDetailPane({ detail }: { detail: OrderDetail }) {
                   <span className="tabular-nums text-faint">{fmt(e.created_at)}</span>{' '}
                   <span className="text-foreground">{eventLabel(e.type)}</span>{' '}
                   <span className="text-faint">({e.actor})</span>
+                  {note && <span className="text-faint"> · {note}</span>}
                   {inertClaim && (
                     <span className="ml-1 text-faint italic">— reported by text; doesn’t clear the risk flag</span>
                   )}

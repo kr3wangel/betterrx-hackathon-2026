@@ -10,7 +10,7 @@
  *   - serialized vendor inventory + per-unit location   → mockVendorInventory / mockUnitLocations
  *   - CMS HCPCS pricing (DME spend vs med spend)         → mockHcpcsPricing / mockPatientCostOfCare
  *   - cost-threshold approvals (DON approve/deny)        → mockApprovals / COST_APPROVAL_THRESHOLD_USD
- *   - message evidence_source (verified vs vendor claim) → mockEvidenceSource
+ *   - evidence_source where no payload.source exists      → mockEvidenceSource (fallback only)
  */
 import { CATALOG, byCode } from './domain'
 import type { Order } from '../../../shared/types'
@@ -190,8 +190,12 @@ export type EvidenceSource = 'pod' | 'vendor_text' | 'portal_tap' | 'case_manage
 
 /**
  * Evidence source for a message/event. `pod` is proof (verified); everything else is
- * a claim (reported). The backend doesn't tag this on messages yet, so infer it from
- * the actor/verification until it does.
+ * a claim (reported).
+ *
+ * Now the fallback, not the default: every live write site stamps `payload.source` on the
+ * event, and the timelines read it through `eventSourceNote()` in `lib/domain.ts`. This
+ * inference is still used for rows that genuinely carry no source — seeded history, and
+ * message rows, which the backend does not tag.
  */
 export function mockEvidenceSource(input: {
   verified?: boolean

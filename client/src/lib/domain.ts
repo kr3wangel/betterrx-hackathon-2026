@@ -1,4 +1,4 @@
-import type { MessageIntent, OrderState } from '../../../shared/types'
+import type { MessageIntent, OrderEvent, OrderState } from '../../../shared/types'
 
 // Single source of truth, grounded in the CMS DMEPOS public use file.
 export { CATALOG, byCode, BED_CODE } from '../../../shared/catalog'
@@ -70,6 +70,25 @@ export const EVENT_TYPE_LABEL: Record<string, string> = {
 
 export function eventLabel(type: string): string {
   return EVENT_TYPE_LABEL[type] ?? type.replaceAll('_', ' ')
+}
+
+// How the system learned a status, read from the event's own payload.source. On a
+// 'vendor_message' the actor is the discriminator the payload doesn't spell out: 'ai' is
+// the only actor applyParsed() runs under after a model parse — a tapped digit applies the
+// same intent under 'vendor' with confidence 1, and a queue confirmation under 'hospice'.
+// Seeded history writes no source at all, so those rows return null.
+export function eventSourceNote(event: OrderEvent): string | null {
+  const source = event.payload?.source
+  if (typeof source !== 'string') return null
+  if (source === 'vendor_message') {
+    if (event.actor === 'ai') return 'vendor text · parsed by Claude'
+    if (event.actor === 'hospice') return 'vendor text · confirmed by a human'
+    return 'digit reply · no model'
+  }
+  if (source === 'portal') return 'magic link · no model'
+  if (source === 'nurse') return 'nurse tap · no model'
+  if (source === 'emr') return 'EMR webhook · no model'
+  return null
 }
 
 // Plain-English labels for parsed message intents — never render the raw intent enum.
