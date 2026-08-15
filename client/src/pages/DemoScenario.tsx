@@ -46,21 +46,21 @@ const SCENARIO_PAGES: Record<string, ScenarioPage> = {
         n: '1',
         stop: {
           label:
-            'Board — click the Margaret Osei row in Needs you open (anywhere but the pill): vendor, deadline, “the vendor has not replied yet · nudged Xm ago”, the risk reasons as plain sentences, then the ledger',
+            'Board — click the Margaret Osei row in Needs you open (anywhere but the pill): vendor, deadline, “the vendor has not replied yet · nudged Xm ago”, the risk reasons as plain sentences, then the ledger. Her discharge-readiness line reads “NOT ready — 1 of 2 unconfirmed”',
           to: '/hospice',
         },
         says:
-          '“Nobody called anyone to learn this. It’s rules, not a model — every reason is a sentence a case manager can argue with.” Read one reason aloud, verbatim, off the screen.',
+          '“Nobody called anyone to learn this. It’s rules, not a model — every reason is a sentence a case manager can argue with.” Read one reason aloud, verbatim, off the screen. Then point at the readiness line: “and it answers the question the discharge planner actually has — can she go home?”',
       },
       {
         n: '2',
         stop: {
           label:
-            'Swap vendor on that row → in the dialog, pick the vendor the seed print’s “swap options” line named. Each alternative carries its own on-time line for this equipment on this deadline’s weekday; the cold-start vendor reads “New — no history yet”',
+            'Swap vendor on that row → in the dialog, pick the vendor the seed print’s “swap options” line named. Each alternative carries its on-time line for this equipment on this weekday, its live load (“3 stops open · says they can take 2 more today”), and its service area; the cold-start vendor reads “New — no history yet”',
           to: '/hospice',
         },
         says:
-          '“One action. The order re-issues to the vendor who is NN% on-time for this equipment on this day, and the text goes out on its own.”',
+          '“One action — and everything she needs is on the choice itself: track record, today’s load, the vendor’s own word on capacity, service area. The order re-issues, and the text goes out on its own.”',
       },
       {
         n: '2b',
@@ -99,6 +99,17 @@ const SCENARIO_PAGES: Record<string, ScenarioPage> = {
         },
         says:
           '“Delivered isn’t a claim here. It’s a signature and a timestamp — verified, not vendor-reported. Margaret’s bed is in the house tonight.”',
+      },
+      {
+        n: '6',
+        stop: {
+          label:
+            'Caregiver phone — one glance: the POD you just captured auto-texted the household its condition check (“is it clean and working, reply 1 to 5”)',
+          to: '/caregiver',
+          external: true,
+        },
+        says:
+          '“And the household was just asked to grade the equipment — the only signal in this system that doesn’t come from the vendor. Their answer lands on the vendor’s scorecard.” (The CEO asked for this by name — do not skip the glance.)',
       },
     ],
     notes: [
@@ -226,10 +237,11 @@ const SCENARIO_PAGES: Record<string, ScenarioPage> = {
         n: '3',
         stop: {
           label:
-            'Timpanogos portal (or tap the link in the thread) — vendor name, exactly one open order, Confirm · Set ETA · Can’t fill it',
+            'Timpanogos portal (or tap the link in the thread) — the “Today” strip (their day counted in stops), then exactly one open order, Confirm · Set ETA · Can’t fill it',
           portalVendorId: 4,
         },
-        says: '“No login screen. No signup. No password reset email at 6pm on a Thursday.”',
+        says:
+          '“No login screen. No signup. No password reset email at 6pm on a Thursday. And the strip at the top is their day in their own unit — stops, not our order numbers.”',
       },
       {
         n: '4',
@@ -275,11 +287,11 @@ const SCENARIO_PAGES: Record<string, ScenarioPage> = {
         n: '8',
         stop: {
           label:
-            'Reports — the directing nurse’s screen: vendor scorecards off the same table the risk engine reads, and the coral “phone calls that never happened” counter',
+            'Reports — the directing nurse’s screen: the coral “phone calls that never happened” counter, vendor scorecards, and — gesture at it — the “Verified vs. claimed” panel: what the ledger proves against what the vendor said',
           to: '/reports',
         },
         says:
-          '“The third hospice user is the directing nurse. She never opens the board. This is her screen — and it’s the exact data the risk engine already uses, so it cost us nothing.” Say the synthetic caveat out loud, every time.',
+          '“The third hospice user is the directing nurse. She never opens the board. This is her screen — and it’s the exact data the risk engine already uses, so it cost us nothing.” Gesture at Verified vs. claimed: “and this is what the ledger proves versus what vendors said — Beehive’s word runs NN points ahead of their signatures. That’s a contract-renewal argument.” Say the synthetic caveat out loud, every time.',
       },
     ],
     alt: {
