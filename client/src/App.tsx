@@ -24,6 +24,7 @@ import VendorPage from './pages/Vendor'
 import Driver from './pages/Driver'
 import Order from './pages/Order'
 import Reports from './pages/Reports'
+import CostOfCareReport from './pages/CostOfCareReport'
 import VendorPortal from './pages/VendorPortal'
 import PortalOrder from './pages/PortalOrder'
 import VendorStatus from './pages/VendorStatus'
@@ -248,6 +249,7 @@ function Shell() {
               <Route path="/nurse" element={<Nurse />} />
               <Route path="/driver" element={<Driver />} />
               <Route path="/reports" element={<Reports />} />
+              <Route path="/reports/cost-of-care" element={<CostOfCareReport />} />
               {/* Retired from the nav, kept routable: typed URL only.
                   /portal/:token and /status/:token live outside the Shell — see PortalShell. */}
               <Route path="/vendor" element={<VendorPage />} />

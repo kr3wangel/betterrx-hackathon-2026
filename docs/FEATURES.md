@@ -13,19 +13,21 @@ truthful.
 
 ```bash
 grep -oE "routes\.(get|post)\('[^']+'" server/routes.ts | sort -u   # every endpoint (34)
-grep -oE 'path="[^"]*"' client/src/App.tsx | sort -u                # every screen (14 pages: 15 rows minus the * catch-all; / is now a real page)
+grep -oE 'path="[^"]*"' client/src/App.tsx | sort -u                # every screen (15 pages: 16 rows minus the * catch-all; / is now a real page)
 grep -n "roles:" client/src/lib/surfaces.ts                          # who sees which nav link
 npm run typecheck && npm test                                        # it all still holds
 ```
 
 **Last verified against `main` on 2026-08-15 (afternoon)**, after trip batching (tier 2) merged on
 top of the overnight run (narration + handoffs + front door + P1/P2 sweep), the verified-vs-claimed
-panel (née contract leverage), rotating reply codes, the placement-anchored silence escalation, and
-add-vendor-by-phone. `/` is a real landing page now, `surfaceLinks` lives in
-`client/src/lib/surfaces.ts` (the third command's file changed), and the counts above were
-re-derived by running the commands on the merged tree, not by arithmetic: **34 endpoints, 14
-pages, 16 test files, 255 tests**, typecheck clean. Test count: re-run the suite rather than
-trusting any doc — it has moved most of the times anyone has looked.
+panel (née contract leverage), rotating reply codes, the placement-anchored silence escalation,
+add-vendor-by-phone, and the in-depth cost-of-care drill-down (`/reports/cost-of-care`). `/` is a
+real landing page now, `surfaceLinks` lives in `client/src/lib/surfaces.ts` (the third command's
+file changed), and the counts above were re-derived by running the commands on the merged tree, not
+by arithmetic: **34 endpoints, 15 pages, 16 test files, 255 tests**, typecheck clean. The new
+cost-of-care page adds no endpoint and no test (UI/routes stay test-free by convention). Test
+count: re-run the suite rather than trusting any doc — it has moved most of the times anyone has
+looked.
 
 ---
 
@@ -45,7 +47,8 @@ trusting any doc — it has moved most of the times anyone has looked.
 | `/order` | New order | Place an order. SLA defaults applied by urgency — same-day for urgent, 24h routine. **Add a vendor by phone** inline under the vendor picker (`POST /api/vendors`, idempotent on phone number): service area picked per market chip (the patient's own market is locked in — dropping it would hide the vendor from the picker it was just added to), zero history, and their *first order text is their invite* — magic link, reply pair, portal already waiting. The V7 "identify, invite, activate from a cold start" rung, clickable |
 | `/nurse` | Nurse | Nurse-in-the-field status change. Death or discharge fires the pickup trigger directly, ahead of EMR propagation |
 | `/driver` | Driver | Phone-sized. Today's deliveries and pickups, POD capture: photo, signature, and a condition attestation |
-| `/reports` | Reports | Vendor scorecards, condition stats, calls-avoided counter (all four sub-counters printed, so the breakdown sums to the hero), pickup latency, DME spend, cost-threshold approvals (labelled `synthetic` — decisions aren't saved) |
+| `/reports` | Reports | Vendor scorecards, condition stats, calls-avoided counter (all four sub-counters printed, so the breakdown sums to the hero), pickup latency, DME spend, cost-threshold approvals (labelled `synthetic` — decisions aren't saved). The single-patient cost card carries a **View all patients** link to the drill-down below |
+| `/reports/cost-of-care` | (drill-down, not in nav) | In-depth cost-of-care view off the Reports card. **Every** patient with DME orders in one table: searchable by name, sortable by DME / medication / total, portfolio totals across the panel, over-`$150/mo` flags, and a per-row spend-bar breakdown. Same client-side CMS-vs-synthetic math as the card, reached from its link or by URL |
 
 **The nav is role-filtered.** Each entry carries `roles: RoleId[]` and `Shell()` filters it against
 the signed-in role: Case Manager sees Board / New order / Nurse / Reports; Admissions Nurse sees

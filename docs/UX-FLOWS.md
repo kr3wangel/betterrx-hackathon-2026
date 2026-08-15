@@ -53,7 +53,7 @@ Read with [FEATURES.md](FEATURES.md) and
 |---|---|
 | `/` | The landing. Product name, the one-line promise, six persona cards, and the two simulated phones in the footer. Routed at the top level, **outside the Shell**: a front door that already shows the app's role-filtered nav bar isn't a door, it's the hallway. Clicking a card signs that role in and lands on `homeFor(roleId)` — the same code path as the account menu's role switch. `/demo` is deliberately not listed |
 
-### Hospice staff — 4 pages
+### Hospice staff — 4 pages (+1 drill-down)
 
 | Route | Persona in code | What the page is |
 |---|---|---|
@@ -61,6 +61,7 @@ Read with [FEATURES.md](FEATURES.md) and
 | `/hospice` | Case Manager | The board. Three sections (Needs you / On the way / Done), five-slot rows, tap-open detail with risk reasons + evidence, swap-vendor dialog, review-queue card when non-empty. Order form lives at `/order`; EMR simulator moved to `/demo` |
 | `/nurse` | Field Nurse | Two taps: pick patient, then discharged/deceased. Fires the pickup trigger |
 | `/reports` | Director of Nursing | Vendor scorecards, condition stats, calls avoided, pickup latency, DME spend, **and the cost-approval queue** |
+| `/reports/cost-of-care` | Director of Nursing | Drill-down off the Reports cost-of-care card: **every** patient with DME orders in one searchable, sortable table (DME · medication · total), portfolio totals, over-threshold flags, and a per-row spend-bar breakdown. Reached from the card's "View all patients" link; not in the nav |
 
 ### Vendor side — 6 pages
 
@@ -122,6 +123,7 @@ graph TD
     ORDER["/order<br/>place an order"]
     NURSE["/nurse<br/>patient status"]
     REPORTS["/reports<br/>scorecards + approvals"]
+    COSTCARE["/reports/cost-of-care<br/>all patients, searchable<br/>drill-down off Reports"]
     VBOARD["/vendor<br/>dispatcher board<br/>typed URL only"]
     VPORTAL["/vendor-portal<br/>tokenless fallback<br/>typed URL only"]
     DRIVER["/driver<br/>POD capture"]
@@ -157,6 +159,8 @@ graph TD
   NURSE ==>|"See the pickups toast<br/>Nurse.tsx:101"| DRIVER
   DEMO ==>|"See the pickups toast<br/>Demo.tsx:92"| DRIVER
   REPORTS ==>|"View board<br/>Reports.tsx:86"| BOARD
+  REPORTS ==>|"View all patients<br/>Reports.tsx"| COSTCARE
+  COSTCARE ==>|"Back to reports<br/>CostOfCareReport.tsx"| REPORTS
 
   ACCT ==>|"switch role<br/>App.tsx:60"| BOARD
   ACCT ==>|"new tab"| CARE
@@ -245,11 +249,14 @@ graph LR
   B["/order"]
   C["/nurse"]
   D["/reports"]
+  E["/reports/cost-of-care<br/>all patients"]
   L ==>|"Case Manager card"| A
   A ==>|"+ New order"| B
   B ==>|"on submit, row rings"| A
   A -->|"nav bar only"| C
   A -->|"nav bar only"| D
+  D ==>|"View all patients"| E
+  E ==>|"Back to reports"| D
 ```
 
 **The only well-connected role**, and the round trip is now genuinely round *without a click*: the
@@ -270,9 +277,12 @@ graph LR
   A["/reports"]
   B["/approvals<br/>PROPOSED"]
   C["/hospice"]
+  E["/reports/cost-of-care<br/>all patients"]
   L ==>|"Director of Nursing card"| C
   A -->|"scroll to find<br/>the approvals card"| A
   A ==>|"View board"| C
+  A ==>|"View all patients"| E
+  E ==>|"Back to reports"| A
   A -.->|"proposed"| B
 ```
 

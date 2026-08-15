@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { CheckCircle2, PhoneOff, ShieldAlert, TrendingUp } from 'lucide-react'
+import { ArrowRight, CheckCircle2, PhoneOff, ShieldAlert, TrendingUp } from 'lucide-react'
 import type {
   Order,
   Patient,
@@ -11,6 +11,7 @@ import type {
 } from '../../../shared/types'
 import { PersonaHeader } from '@/components/PersonaHeader'
 import { EmptyState } from '@/components/EmptyState'
+import { SpendBar } from '@/components/CostSpendBar'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -84,7 +85,6 @@ export default function Reports() {
   return (
     <div className="space-y-7">
       <PersonaHeader
-        persona="Director of Nursing"
         title="Reports"
         description="Oversight across vendors — performance, cost, and the calls no one had to make."
         actions={
@@ -350,6 +350,7 @@ function VendorScorecards({
 // --- Cost of care -------------------------------------------------------------
 
 function CostOfCare({ orders, patients }: { orders: Order[]; patients: Patient[] }) {
+  const navigate = useNavigate()
   // Only patients that actually have DME orders — an empty cost card helps no one.
   const withOrders = useMemo(() => {
     const ids = new Set(orders.map((o) => o.patient_id))
@@ -439,53 +440,18 @@ function CostOfCare({ orders, patients }: { orders: Order[]; patients: Patient[]
           drugs for the terminal diagnosis are paid inside the Medicare per-diem, so no public
           per-patient figure exists to source it from.
         </p>
+        <div className="flex justify-end border-t border-border pt-3">
+          <Button
+            variant="ghost"
+            className="rounded-xl text-primary"
+            onClick={() => navigate('/reports/cost-of-care')}
+          >
+            View all patients
+            <ArrowRight className="ml-1 size-4" />
+          </Button>
+        </div>
       </CardContent>
     </Card>
-  )
-}
-
-function SpendBar({
-  label,
-  amount,
-  width,
-  color,
-  source,
-}: {
-  label: string
-  amount: number
-  width: number
-  color: string
-  /** Provenance badge — a real figure and an invented one must not look alike. */
-  source?: 'CMS' | 'synthetic'
-}) {
-  return (
-    <div>
-      <div className="mb-1.5 flex items-center justify-between text-sm">
-        <span className="flex items-center gap-1.5 text-muted-foreground">
-          {label}
-          {source && (
-            <span
-              className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide ${
-                source === 'CMS'
-                  ? 'bg-primary/10 text-primary'
-                  : 'bg-muted text-muted-foreground'
-              }`}
-              title={
-                source === 'CMS'
-                  ? 'Real: CMS Medicare DMEPOS Public Use File, average allowed amount per HCPCS code'
-                  : 'Synthetic: hospice drug spend sits inside the Medicare per-diem, so there is no public per-patient figure'
-              }
-            >
-              {source === 'CMS' ? 'CMS data' : 'synthetic'}
-            </span>
-          )}
-        </span>
-        <span className="font-semibold tabular-nums">{usd(amount)}</span>
-      </div>
-      <div className="h-2.5 w-full overflow-hidden rounded-full bg-muted">
-        <div className={`h-full rounded-full ${color}`} style={{ width: `${Math.round(width * 100)}%` }} />
-      </div>
-    </div>
   )
 }
 
