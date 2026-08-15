@@ -1,6 +1,17 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { db } from '../server/db'
-import { vendorToken, resolveToken, portalOrders, portalConfirm, portalSetEta, portalDecline } from '../server/portal'
+import {
+  vendorToken,
+  resolveToken,
+  orderToken,
+  orderLink,
+  magicLink,
+  resolveOrderToken,
+  portalOrders,
+  portalConfirm,
+  portalSetEta,
+  portalDecline,
+} from '../server/portal'
 import { getOrder } from '../server/store'
 import { seedFixtures, seedOrder } from './helpers'
 import type { OrderEvent } from '../shared/types'
@@ -30,6 +41,35 @@ describe('magic link tokens', () => {
 
   it('rejects an unknown token', () => {
     expect(resolveToken('not-a-real-token')).toBeNull()
+  })
+})
+
+// The link that actually rides in a text. It is per-order, not per-vendor: a dispatcher
+// asked about #2123 lands on #2123 rather than a list to hunt through.
+describe('order magic link tokens', () => {
+  it('round-trips: orderToken resolves back to the order', () => {
+    const id = seedOrder()
+    expect(resolveOrderToken(orderToken(id))?.id).toBe(id)
+  })
+
+  it('is distinct per order, and distinct from that order vendor token', () => {
+    const a = seedOrder()
+    const b = seedOrder()
+    expect(orderToken(a)).not.toBe(orderToken(b))
+    expect(orderToken(a)).not.toBe(vendorToken(getOrder(a)!.vendor_id))
+  })
+
+  it('is short enough to sit in a text', () => {
+    // The vendor link put 20 hex characters in every message; this one is half that, and
+    // the path is /o/ rather than /portal/. Both halves of "shorter" are load-bearing.
+    const id = seedOrder()
+    expect(orderToken(id)).toHaveLength(10)
+    expect(orderLink(id)).toContain('/o/')
+    expect(orderLink(id).length).toBeLessThan(magicLink(getOrder(id)!.vendor_id).length)
+  })
+
+  it('rejects an unknown token', () => {
+    expect(resolveOrderToken('deadbeef00')).toBeNull()
   })
 })
 

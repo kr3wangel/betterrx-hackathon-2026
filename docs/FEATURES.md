@@ -30,7 +30,7 @@ over.
 
 | Route | Label | What it does |
 |---|---|---|
-| `/hospice` | Board | Case-manager board. Orders by state, risk flags with reasons, escalation bar with acknowledge, AI-parse review queue (confirm / reject), vendor swap, inline new-order form, EMR simulator (discharge / deceased) |
+| `/hospice` | Board | Case-manager board, rebuilt as v8: three sections (Needs you / On the way / Done) of five-slot rows, tap-open detail with risk reasons and evidence, escalation acknowledge, AI-parse review queue (confirm / reject), swap-vendor dialog. **The inline new-order form and the EMR simulator are no longer here** — ordering is `/order`, the EMR feed moved to `/demo` |
 | `/order` | New order | Place an order. SLA defaults applied by urgency — same-day for urgent, 24h routine |
 | `/nurse` | Nurse | Nurse-in-the-field status change. Death or discharge fires the pickup trigger directly, ahead of EMR propagation |
 | `/vendor` | Dispatcher board | Dispatcher board plus an in-page phone simulator — free-text reply, watch it parse |
@@ -49,9 +49,11 @@ guarded — hiding a link never blocks a URL, so no screen becomes unreachable m
 
 | Route | Chrome | Reached by | What it does |
 |---|---|---|---|
+| `/demo` | full Shell | Typed URL only — not in the nav, not in the account menu | The presenter's panel: mark a patient discharged or deceased (the EMR fallback path), and send any templated text by hand. Took both off the board in the v8 rebuild |
+| `/o/:token` | `PortalShell` | **The link in every vendor text** | That one order, its actions, and a link onward to the vendor's full portal if they have other work open. 10-character token, so the URL fits a text |
 | `/caregiver` | none | Account menu → Simulated phones (new tab), or typed URL | The family's phone. Full-screen SMS simulator: condition check arrives, reply 1–5 or free text, outcome shown as a delivery receipt |
 | `/vendor-phone` | none | Account menu → Simulated phones (new tab), or typed URL | The dispatcher's phone. **Two reply paths in one text box:** type a bare digit against an open question (deterministic route table, no model) or type prose (Claude, showing intent, confidence, and applied / sent-to-a-person). No buttons — SMS has none |
-| `/portal/:token` | `PortalShell` | A texted magic link | Magic-link vendor portal — confirm, set ETA, decline. No account |
+| `/portal/:token` | `PortalShell` | `/o/:token`'s "see all", or the fallback URLs in DEMO-SCRIPT | Per-vendor portal — every open order grouped, plus an equipment tab. No account. **No longer what a text links to** |
 | `/status/:token` | `PortalShell` | A texted magic link | Vendor status view, read-only |
 
 **The two phone simulators are in the account dropdown**, under a "Simulated phones" heading below
@@ -63,7 +65,8 @@ menu is the one control present on every Shell page.
 
 Three chrome levels, not two: the full Shell carries the hospice nav; **`PortalShell` carries only
 the betterRX mark and the live indicator**, so a vendor opening a texted link never sees our
-internal navigation; the two phone simulators get no chrome at all. Both simulators share
+internal navigation — it wraps all three token routes (`/o/`, `/portal/`, `/status/`); the two
+phone simulators get no chrome at all. Both simulators share
 `components/PhoneScreen.tsx` and `PhoneKeyboard.tsx`, including a fake on-screen keyboard that
 suppresses itself on real handsets.
 

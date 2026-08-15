@@ -10,10 +10,17 @@ navigation affordance found in the code, not an inferred user journey. The searc
 grep -rnE "useNavigate|navigate\(|window\.location|<Link|<NavLink|href=" client/src/pages/ client/src/components/
 ```
 
-That returns **four** programmatic navigations in the entire application — all of them
-`react-router` `navigate()` calls, no full page loads. Everything else is the global nav bar. An
+That returns **eight** navigation affordances in the entire application: four `navigate()` calls
+(`Order.tsx:122`, `Nurse.tsx:96`, `Reports.tsx:86`, and `App.tsx:74` — the role switch), two
+`<Link>`s (`Hospice.tsx:38` "+ New order", `PortalOrder.tsx:109` "see all"), and two new-tab
+anchors in the account menu. No full page loads anywhere. Everything else is the global nav bar. An
 earlier draft of this document drew vendor and driver arrows that were really *system events*, not
 navigation — those now live in §4, clearly separated.
+
+**Last re-derived 2026-08-14, after the Board v8 rebuild.** That rebuild moved the EMR simulator to
+`/demo` and deleted the board's inline order form; the same day added `/o/:token`, the role-switch
+landing, and the account-menu phone links. Every count below was recounted against the code, not
+edited in place.
 
 **Viewing:** mermaid renders on github.com natively; in VS Code use *Markdown Preview Mermaid
 Support* + `Cmd+Shift+V`. All diagrams here were rendered through `mermaid-cli` v9 and v10 before
@@ -26,7 +33,8 @@ Read with [FEATURES.md](FEATURES.md) and
 
 ## 1 · Every page, one line each
 
-**11 routes, 10 page components** (`VendorPortal` serves both `/vendor-portal` and `/portal/:token`).
+**13 routes, 12 page components** (`VendorPortal` serves both `/vendor-portal` and `/portal/:token`),
+plus `/` which redirects to `/hospice`.
 
 ### Hospice staff — 4 pages
 
@@ -37,15 +45,22 @@ Read with [FEATURES.md](FEATURES.md) and
 | `/nurse` | Field Nurse | Two taps: pick patient, then discharged/deceased. Fires the pickup trigger |
 | `/reports` | Director of Nursing | Vendor scorecards, condition stats, calls avoided, pickup latency, DME spend, **and the cost-approval queue** |
 
-### Vendor side — 5 pages
+### Vendor side — 6 pages
 
 | Route | What the page is |
 |---|---|
-| `/portal/:token` | Magic link, no login. One order: Confirm, Set ETA, Can't fill it |
+| `/o/:token` | **The link in every text.** Per-order, 10-char token. Opens that one order with its actions, plus "you have N other open orders" |
+| `/portal/:token` | Per-vendor magic link, no login. All their open orders, grouped, with an equipment tab |
 | `/vendor-portal` | Same component, no token — the demo entry |
 | `/status/:token` | Read-only vendor status view |
 | `/vendor` | Dispatcher board + in-page phone simulator |
-| `/vendor-phone` | Full-screen SMS simulator, shows parse intent + confidence. Account menu → Simulated phones, new tab |
+| `/vendor-phone` | Full-screen SMS simulator. No buttons — a typed digit routes deterministically, prose gets the model. Account menu → Simulated phones, new tab |
+
+### Presenter tools — 1 page
+
+| Route | What the page is |
+|---|---|
+| `/demo` | EMR feed (mark a patient discharged / deceased) and send-a-text-by-hand. Took the EMR simulator off the board in the v8 rebuild. Not in the nav, and not in the account menu either — typed URL only |
 
 ### Field & household — 2 pages
 
@@ -66,9 +81,10 @@ Read with [FEATURES.md](FEATURES.md) and
 ## 2 · The navigation map
 
 `App.tsx` splits the app into **three** chrome levels. The full Shell carries the hospice nav bar.
-`PortalShell` carries the betterRX mark and the live indicator and nothing else — it wraps the two
-token links a vendor opens from a text. `/caregiver` and `/vendor-phone` get no chrome at all,
-because they stand in for real handsets.
+`PortalShell` carries the betterRX mark and the live indicator and nothing else — it wraps the
+three token routes a vendor can arrive on from a text (`/o/:token`, `/portal/:token`,
+`/status/:token`). `/caregiver` and `/vendor-phone` get no chrome at all, because they stand in for
+real handsets.
 
 The two handsets are **off the surface nav but not unreachable**: the account dropdown carries a
 "Simulated phones" section under the role list that opens each one in a new tab. They aren't roles
@@ -88,10 +104,12 @@ graph TD
     VBOARD["/vendor<br/>dispatcher board"]
     VPORTAL["/vendor-portal<br/>demo entry"]
     DRIVER["/driver<br/>POD capture"]
+    DEMO["/demo<br/>EMR + send a text<br/>typed URL only"]
   end
 
   subgraph PortalShell - brand and status only
-    PORTAL["/portal/:token<br/>magic link"]
+    OPORTAL["/o/:token<br/>one order<br/>the link in a text"]
+    PORTAL["/portal/:token<br/>all their orders"]
     VSTATUS["/status/:token<br/>read-only"]
   end
 
@@ -108,28 +126,39 @@ graph TD
   NAV --> VPORTAL
   NAV --> DRIVER
 
-  BOARD ==>|"+ New order<br/>Hospice.tsx:41"| ORDER
-  ORDER ==>|"View board toast<br/>Order.tsx:100"| BOARD
+  BOARD ==>|"+ New order<br/>Hospice.tsx:38"| ORDER
+  ORDER ==>|"View board toast<br/>Order.tsx:122"| BOARD
   NURSE ==>|"View board<br/>Nurse.tsx:96"| BOARD
   REPORTS ==>|"View board<br/>Reports.tsx:86"| BOARD
 
-  SMS["SMS link to vendor"] -.-> PORTAL
-  SMS -.-> VSTATUS
+  ACCT ==>|"switch role<br/>App.tsx:74"| BOARD
   ACCT ==>|"new tab"| CARE
   ACCT ==>|"new tab"| VPHONE
+
+  SMS["SMS link to vendor"] -.-> OPORTAL
+  SMS -.-> VSTATUS
+  OPORTAL ==>|"see all N others<br/>PortalOrder.tsx:109"| PORTAL
+  TYPED["typed URL, presenter only"] -.-> DEMO
 ```
 
-Thick arrows are real in-app jumps: four `navigate()` calls between hospice pages, plus the two
-account-menu links that open a handset in a new tab. Thin arrows are the nav bar. Dashed arrows
-are external entry — a link texted to a vendor.
+Thick arrows are real in-app jumps. Thin arrows are the nav bar. Dashed arrows are external
+entry — a link texted to a vendor, or a URL the presenter types.
+
+Two of those thick arrows are new since the last pass. **The role switch navigates**: choosing a
+role in the account menu now lands you on that role's first nav surface, because filtering the nav
+while leaving you on a page the new role can't see was worse than not filtering. It goes to
+`/hospice` for four of the six roles, `/vendor` for Dispatcher and `/driver` for Driver. **And the
+texted link is per-order**: `/o/:token` opens the one order the text was about, with a link onward
+to the vendor's full portal if they have other work open.
 
 **Where this stands after the XS fix batch:**
 
 1. ~~`/nurse` and `/reports` have no exit at all.~~ **Fixed.** Both now carry a "View board" action
    in their header, so every hospice page has a designed way out and the board is the consistent
    home. The field nurse can finally see what her two taps set in motion.
-2. ~~`/hospice` uses `window.location.href`, a full page reload that drops SSE.~~ **Fixed.** All
-   four navigations are now `navigate()`. Nothing in the app tears down the event stream mid-demo.
+2. ~~`/hospice` uses `window.location.href`, a full page reload that drops SSE.~~ **Fixed.** Every
+   in-app jump is now `navigate()` or `<Link>`. Nothing tears down the event stream mid-demo, and
+   the two account-menu phone links open a *new* tab rather than replacing the one you present from.
 3. ~~`/portal/:token` renders inside the Shell, showing an external vendor the hospice's nav.~~
    **Fixed.** Both token routes moved out to `PortalShell`. Role filtering could never have fixed
    this — a vendor arrives with no session, and signed out deliberately shows every link. The route
@@ -170,14 +199,18 @@ graph LR
   D["/reports"]
   A ==>|"+ New order"| B
   B ==>|"View board"| A
-  A -->|"inline order card<br/>stays on page"| A
   A -->|"nav bar only"| C
   A -->|"nav bar only"| D
 ```
 
-**The only well-connected role.** Both real navigations in the app belong to her, and the board has
-its own inline order form so the common case never leaves the page. This is the one journey that was
-actually designed.
+**The only well-connected role**, and the round trip is now genuinely round: the board's "+ New
+order" goes to `/order`, and placing one offers "View board" straight back.
+
+**The inline order form on the board is gone** — the v8 rebuild deleted it, so `/order` is the only
+place an order is written. That closes the duplicate-form question in §8 by removing the duplicate
+rather than by sharing a component, and it costs her a step she used to save: the common case now
+leaves the page. Worth watching in rehearsal; if it drags, the fix is a dialog on the board, not a
+second form.
 
 ### Director of nursing
 
@@ -257,15 +290,20 @@ grep -rn "useAuth" client/src --include="*.tsx" --include="*.ts" | grep -v "lib/
 **The nav now filters by role** (added in the XS batch). Each entry in `surfaceLinks` carries a
 `roles: RoleId[]`, and `Shell()` filters against the signed-in role:
 
-| Role | Sees in the nav |
-|---|---|
-| Case Manager | Board · New order · Nurse · Reports |
-| Admissions Nurse | Board · New order |
-| Field Nurse | Board · Nurse |
-| Director of Nursing | Board · Reports |
-| Dispatcher | Dispatcher board · Portal |
-| Driver | Driver |
-| *signed out* | *everything* |
+| Role | Sees in the nav | Lands on when you switch to it |
+|---|---|---|
+| Case Manager | Board · New order · Nurse · Reports | `/hospice` |
+| Admissions Nurse | Board · New order | `/hospice` |
+| Field Nurse | Board · Nurse | `/hospice` |
+| Director of Nursing | Board · Reports | `/hospice` |
+| Dispatcher | Dispatcher board · Portal | `/vendor` |
+| Driver | Driver | `/driver` |
+| *signed out* | *everything* | *stays put* |
+
+**Switching role navigates** (`App.tsx:74`): you land on the first nav link that role can see, so
+you're never left staring at a page your new role can't reach from its own nav. Picking the role
+you're already in is a no-op. This makes the account menu the fastest way to move around the app
+during a demo — switch to Driver and you're on `/driver`, no second click.
 
 Field Nurse gets Board for a specific reason: `/nurse` now has a "View board" button, and **a nav
 that hides a page the page itself sends you to is worse than no filtering at all.** Any future link
@@ -345,6 +383,19 @@ the client, the nav filters on them, and the ledger still records every one of t
 `hospice`. That gap is now the most visible inconsistency in the product: the UI knows who you are
 and the audit trail doesn't.
 
+**Shipped since this plan was written, and never on it.** Worth listing so the plan isn't read as
+the whole record of what changed:
+
+| Item | Where |
+|---|---|
+| Board v8 — three sections, five-slot rows, tap-open detail, swap dialog, review-queue dialog | `pages/Hospice.tsx`, `components/board/*`, `lib/board.ts` |
+| EMR simulator and send-a-text moved off the board to `/demo` | `pages/Demo.tsx` |
+| Account menu opens both phone simulators in a new tab | `App.tsx` `phoneLinks` |
+| Switching role lands on that role's first surface | `App.tsx:74` |
+| `/vendor` renamed "Dispatcher board" in nav and page header | `App.tsx`, `pages/Vendor.tsx` |
+| Reply buttons removed; a typed digit routes like a structured one | `pages/*Phone.tsx`, `server/sms.ts` |
+| Per-order magic links, shorter, with human dates in the copy | `server/portal.ts`, `server/messaging.ts`, `pages/PortalOrder.tsx` |
+
 ---
 
 ## 8 · Open questions
@@ -353,7 +404,13 @@ and the audit trail doesn't.
    switcher. Do we present six personas or three plus supporting cast?
 2. **Can the case manager approve** under a lower second threshold? Currently modelled DON-only.
 3. **Is $150/mo right?** Real in code, unvalidated against any hospice.
-4. **Two order forms** — `/order` and the inline card on `/hospice`. They should share a component.
+4. ~~**Two order forms** — `/order` and the inline card on `/hospice`.~~ **Resolved by deletion.**
+   The v8 rebuild dropped the board's inline form; `/order` is the only one. See §3.
+6. **`/demo` is reachable only by typing the URL.** The two phone simulators got an account-menu
+   entry; the presenter's own EMR and send-a-text page didn't. Either add it beside them or accept
+   that whoever drives the demo has to remember the path.
+7. **The order form still shows no cost** (build plan item 6), so the DON's $150 threshold has no
+   counterpart at the moment of ordering. `avg_allowed_usd` is right there in `shared/catalog.ts`.
 5. ~~**`/vendor` vs `/vendor-phone`**~~ — **resolved.** `/vendor` is now "Dispatcher board" in the
    nav and in its own page header; "Vendor phone" now unambiguously means `/vendor-phone`, which
    the account menu opens as "DME vendor's phone". FEATURES.md §8.2.

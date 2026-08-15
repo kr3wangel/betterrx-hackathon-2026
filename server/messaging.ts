@@ -3,7 +3,7 @@ import { broadcast } from './sse'
 import { extractJson } from './llm'
 import { applyEvent, escalate } from './statemachine'
 import { listOrders, getOrder } from './store'
-import { magicLink } from './portal'
+import { orderLink } from './portal'
 import type {
   Actor,
   FamilyTemplate,
@@ -117,23 +117,41 @@ export function householdGate(order: Order, template: FamilyTemplate): { ok: boo
   return { ok: true }
 }
 
+/**
+ * How a person writes a time in a text: "today 2:00 PM", "Sat 9:30 AM".
+ *
+ * toLocaleString() gives "8/15/2026, 12:21:32 PM" — 22 characters, seconds included, which
+ * is as long as the whole link and reads like a log line. Nobody texts a deadline to the
+ * second. Same day is "today", within the week is the weekday, beyond that a short date.
+ */
+function whenText(iso: string): string {
+  const at = new Date(iso)
+  const time = at.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+  // setHours on a copy — mutating `at` here would silently move the date used below.
+  const days = Math.round((new Date(at).setHours(0, 0, 0, 0) - new Date().setHours(0, 0, 0, 0)) / 86_400_000)
+  if (days === 0) return `today ${time}`
+  if (days === 1) return `tomorrow ${time}`
+  if (days > 1 && days < 7) return `${at.toLocaleDateString([], { weekday: 'short' })} ${time}`
+  return `${at.toLocaleDateString([], { month: 'numeric', day: 'numeric' })} ${time}`
+}
+
 export function orderRequestText(order: Order, patientArea: string): string {
-  const deadline = order.target_at ? new Date(order.target_at).toLocaleString() : 'ASAP'
-  return `New order #${order.id}: ${order.quantity}x ${order.equipment_name} (${order.hcpcs_code}), deliver by ${deadline}, area ${patientArea}. Reply 1 to accept, 2 if you can't fill it — or confirm here: ${magicLink(order.vendor_id)}`
+  const deadline = order.target_at ? whenText(order.target_at) : 'ASAP'
+  return `New order #${order.id}: ${order.quantity}x ${order.equipment_name} (${order.hcpcs_code}), deliver by ${deadline}, area ${patientArea}. Reply 1 to accept, 2 if you can't fill it — or confirm here: ${orderLink(order.id)}`
 }
 
 export function pickupRequestText(order: Order, patientArea?: string): string {
   const where = patientArea ? `, area ${patientArea}` : ''
-  return `Pickup needed for order #${order.id} (${order.equipment_name})${where}. Reply 1 if you can get it today, 2 to give us a window: ${magicLink(order.vendor_id)}`
+  return `Pickup needed for order #${order.id} (${order.equipment_name})${where}. Reply 1 if you can get it today, 2 to give us a window: ${orderLink(order.id)}`
 }
 
 export function ackNagText(order: Order): string {
-  return `Order #${order.id} (${order.equipment_name}) hasn't been confirmed — reply 1 to accept, 2 if you can't fill it, or tap to accept or decline: ${magicLink(order.vendor_id)}`
+  return `Order #${order.id} (${order.equipment_name}) hasn't been confirmed — reply 1 to accept, 2 if you can't fill it, or tap to accept or decline: ${orderLink(order.id)}`
 }
 
 export function etaCheckText(order: Order): string {
-  const due = order.target_at ? new Date(order.target_at).toLocaleString() : 'today'
-  return `Order #${order.id} (${order.equipment_name}) is due today by ${due}. Reply 1 if you're on schedule, 2 if it'll be late: ${magicLink(order.vendor_id)}`
+  const due = order.target_at ? whenText(order.target_at) : 'today'
+  return `Order #${order.id} (${order.equipment_name}) is due ${due}. Reply 1 if you're on schedule, 2 if it'll be late: ${orderLink(order.id)}`
 }
 
 // Household copy. Stricter than the vendor templates: equipment named generically, and
@@ -144,7 +162,7 @@ export function deliveryConfirmText(order: Order): string {
 }
 
 export function etaNoticeText(order: Order): string {
-  const when = order.eta_at ? new Date(order.eta_at).toLocaleString() : 'soon'
+  const when = order.eta_at ? whenText(order.eta_at) : 'soon'
   return `Your hospice team: the ${order.equipment_name.toLowerCase()} is scheduled to arrive ${when}. No reply needed — we'll let you know if that changes.`
 }
 
