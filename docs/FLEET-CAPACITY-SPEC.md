@@ -5,6 +5,36 @@
 > agreed shape; `docs/BOUNTY-REQS.md` V1 tracks the requirement. Authority ordering: this doc →
 > `SMS-BATCHING-SPEC.md` (the stop/trip concept it builds on) → code as it stands.
 
+## 0 · Build amendments (post-review, 08-15 — these override anything below that differs)
+
+An independent review (fix-first verdict: 4 blockers, 9 gaps — all decisions, not code) was
+applied before the build. The decisions:
+
+1. **B1:** the new `vendor_capacity` ServerEvent variant reds typecheck in
+   `client/src/lib/narration.ts` (exhaustive switch, no default; and the `order_id` narrowing
+   guard). `narration.ts` joins the build's file list: mute case + guard + a test pinning that a
+   capacity edit never narrates.
+2. **B2 — one denominator:** `remaining_today = max(0, capacity − due_today_stops)` computed
+   server-side on `VendorLoad`; every surface renders server fields and does zero arithmetic.
+3. **B3 — per-stop area labels CUT.** The Today strip is counts only; no patients join.
+4. **B4:** one exported `demoDay()` helper (UTC calendar day) is the only day function — seed and
+   reader both call it.
+5. `act()` is not reused (it's order-id/OrderState-shaped); the capacity control gets its own
+   small pending state. Strip renders ABOVE the portal tabs (visible on both), labeled "stops"
+   where the existing tiles say orders. **The order-form load line is CUT** (pre-agreed cut
+   order) — the swap dialog is the only hospice surface in v1.
+6. Stop grouping = `(patient_id, direction)` over open orders — documented as a same-day
+   approximation of the batching spec's per-burst stop. `due_today_stops` includes undated
+   pickups (§9.2 decided: yes) and overdue orders.
+7. Copy: declared 0 renders "says no trucks today" (distinct from full); at/over capacity
+   renders "at capacity", never a negative.
+8. `BOUNTY-REQS.md` V1 stays **PARTIAL** with upgraded prose — §6's own no-truck-model list
+   forbids claiming BUILT (the review caught the spec contradicting itself here).
+9. The swap dialog also gains the vendor's **service area** line — the review found V1's third
+   leg was claimed-but-invisible at the moment of choice; one line closes it honestly.
+10. Nit accepted: the schema change is `CREATE TABLE IF NOT EXISTS` on boot — needs a re-seed,
+    NOT a `db:reset` team ping.
+
 ## 1 · Reading the requirement
 
 The sponsor's vendor-side list is a **profile** — what the platform should *know* about a vendor —
