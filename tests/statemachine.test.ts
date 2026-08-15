@@ -70,6 +70,18 @@ describe('applyEvent', () => {
     expect(order.risk_score).toBe(85)
     expect(order.risk_reasons).toEqual(['late vendor'])
   })
+
+  it('records which internal persona acted, and null when none was given', () => {
+    const id = seedOrder({ state: 'ordered' })
+    applyEvent(id, 'cancelled', null, 'hospice', 'case_manager')
+    const events = listOrderEvents(id)
+    expect(events.at(-1)!.actor).toBe('hospice')
+    expect(events.at(-1)!.actor_role).toBe('case_manager')
+
+    const other = seedOrder({ state: 'ordered' })
+    applyEvent(other, 'vendor_accepted', null, 'vendor')
+    expect(listOrderEvents(other).at(-1)!.actor_role).toBeNull()
+  })
 })
 
 describe('escalate', () => {

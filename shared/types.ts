@@ -24,6 +24,22 @@ export type OrderEventType =
   | 'family_confirmed'
 
 export type Actor = 'hospice' | 'vendor' | 'driver' | 'system' | 'ai' | 'family'
+
+/**
+ * The six internal personas from the client's mock login. `Actor` names the channel a
+ * ledger event came through; `actor_role` names which hat was worn — so the append-only
+ * history can say "cancelled by the Case Manager", not just "cancelled by the hospice".
+ * Sent per request as an X-Role header; the server treats anything unrecognised as null.
+ */
+export const ROLE_IDS = [
+  'case_manager',
+  'admissions_nurse',
+  'field_nurse',
+  'dispatcher',
+  'driver',
+  'director_of_nursing',
+] as const
+export type RoleId = (typeof ROLE_IDS)[number]
 export type Urgency = 'routine' | 'urgent' | 'stat'
 export type PatientStatus = 'active' | 'discharged' | 'deceased'
 
@@ -102,6 +118,8 @@ export interface OrderEvent {
   type: OrderEventType
   payload: Record<string, unknown> | null
   actor: Actor
+  /** Which internal persona acted, when the channel was ours. Null on system/vendor/family events. */
+  actor_role: RoleId | null
   created_at: string
 }
 

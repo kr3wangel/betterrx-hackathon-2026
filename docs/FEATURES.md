@@ -104,7 +104,7 @@ these up or don't claim them.
 |---|---|---|
 | `POST /api/messages/send` — send any templated message | `sms.ts` `sendTemplate` | **Now called** by `/demo`'s send-a-text form (`Demo.tsx`) and RowDetail's "Send another nudge" |
 | Cost-threshold approvals on `/reports` | `Reports.tsx:450` `decide()` | **UI only.** Local `useState` — no API call, no persistence, no ledger event, and **nothing gates dispatch** |
-| Roles / sign-in | `App.tsx:47` is the only `useAuth` consumer | **Nav filtering only.** No page branches on role, no route guards, and `Actor` on the server has no matching split |
+| Roles / sign-in | `App.tsx:47` is the only `useAuth` consumer | **Nav filtering plus ledger attribution** (08-15): every request carries an `X-Role` header and internally-acted events record `actor_role`, so the timeline reads "Cancelled · by Case Manager". Still no route guards and no page branches on role — that part is deliberate (see §1) |
 
 **`/api/messages/reply` is now wired** (08-14). `VendorPhone` renders tappable quick replies under
 the most recent unanswered question and POSTs the digit; the reply resolves through `sms.ts`'s
@@ -122,10 +122,11 @@ integration.
 ships to the vendor whether or not the DON ever looks at it. Demo the queue as a *design*, not as a
 gate.
 
-**The roles row is the honest framing of a real win.** Identity shipped and the nav filters on it —
-but `shared/types.ts:26` still has `Actor = 'hospice' | ...` as one undivided value, so the
-append-only ledger cannot record *which* of the six roles acted. We tell judges the ledger captures
-who acted and through which channel; that's true of vendors and not yet of us.
+**The roles claim is now fully true** (08-15). `Actor` still names the channel, and a new
+`actor_role` column records which of the six personas acted on internally-driven events —
+order placed, swap, cancel, nurse pickup trigger, driver POD. Mock auth, so the header is
+trusted rather than verified; the ledger records it, it doesn't authenticate it. Say it that
+way on stage.
 
 ---
 
@@ -162,9 +163,9 @@ verified-vs-vendor-reported badges · measured token costs · **role-filtered na
 
 | Gap | Size | Why it matters |
 |---|---|---|
-| **Backtest stat** | M | Re-checked 08-14: **nothing anywhere in the repo.** "Flagged N% of late deliveries X hours early, false-positive rate Y%" is one slide with a big payoff. **Must be labelled SYNTHETIC in large type** — FAQ §6 penalises manufactured precision, and the honesty is the point |
-| **Approvals don't persist or gate** | M | See §2. Server state + `pending_approval` + dispatch gate, then approval latency on `/reports` |
-| **`Actor` has no role split** | S | Six roles in the client, one `'hospice'` in the ledger. The client already has the enum to copy |
+| ~~Backtest stat~~ | — | **Done 08-15** — `npm run backtest` (`scripts/backtest.ts`) replays the seeded year through `computeRisk` tick by tick, honestly (state from events, flags only before the deadline): 78% of late deliveries caught a median 8.7h early, 27% false alarms, plus a 50/70/90 threshold sweep. Wired into AI-APPROACH.md. Labelled SYNTHETIC everywhere. **Re-run after reseeding — numbers move with the seed date** |
+| **Approvals don't persist or gate** | M | See §2. **Team decision 08-15 (Angel): keep mocked.** Do not click Approve on stage as if it gates dispatch |
+| ~~`Actor` has no role split~~ | — | **Done 08-15** — `actor_role` on `order_events`, `X-Role` header attached by the api helper, timeline shows "by Case Manager". See §2 |
 | **Medication spend on the cost card is invented** | — | *DME pricing is already real* — `mockHcpcsPricing` reads CMS allowed amounts from `shared/catalog.ts` despite the "mock" name. What is fabricated is `med_spend_usd`, and BetterRX is a pharmacy company, so that is the number they would recognise. No public per-patient figure exists — hospice drugs sit inside the per-diem like DME — so both bars are provenance-badged (`CMS data` / `synthetic`) rather than faked better |
 | **Live-test the AI parse** | S–M | Needs `ANTHROPIC_API_KEY` and a run of the six spec messages through the vendor simulator. Untested prompts are a bad thing to discover on stage |
 | **Risk engine credibility pass** | M | Tune weights and threshold in `server/risk.ts`, keep tests green |
@@ -224,8 +225,8 @@ as on-time anyway (per-vendor `pod_rate` / `fudge_rate` in the seed).
 
 ## 7 · Test coverage
 
-**14 files, 190 tests** (re-derived 08-15, after contract leverage + vendor responsiveness).
-Core logic is covered; UI and routes deliberately are not.
+**14 files, 191 tests** (re-derived 08-15, after contract leverage, vendor responsiveness, and
+the actor-role split). Core logic is covered; UI and routes deliberately are not.
 
 | File | Tests | Covers |
 |---|---:|---|
@@ -236,7 +237,7 @@ Core logic is covered; UI and routes deliberately are not.
 | `risk.test.ts` | 12 | Risk scoring and thresholds |
 | `messaging.test.ts` | 11 | Parse pipeline, confidence gate, decline handling |
 | `at-risk.test.ts` | 9 | Board selectors |
-| `statemachine.test.ts` | 9 | Transition guards |
+| `statemachine.test.ts` | 10 | Transition guards, actor-role attribution |
 | `silence.test.ts` | 8 | Silence ladder |
 | `evidence.test.ts` | 7 | Verified vs reported |
 | `pickup-clock.test.ts` | 6 | Pickup clocks |
