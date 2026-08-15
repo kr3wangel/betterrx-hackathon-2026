@@ -1,4 +1,5 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
+import { toast } from 'sonner'
 import { api } from '../../lib/api'
 import { useLive } from '../../lib/useLive'
 import { decisionLine } from '../../lib/board'
@@ -15,8 +16,22 @@ export function SwapVendorDialog({
   onOpenChange: (open: boolean) => void
 }) {
   const { data: cards } = useLive(() => api.get<VendorScorecard[]>('/api/reports/vendor-scorecards'))
+  const [busy, setBusy] = useState<number | null>(null)
   const now = useMemo(() => new Date(), [])
   const alternatives = (cards ?? []).filter((c) => c.vendor.id !== order.vendor_id)
+
+  const swap = async (vendorId: number, vendorName: string) => {
+    setBusy(vendorId)
+    try {
+      await api.post(`/api/orders/${order.id}/swap-vendor`, { vendor_id: vendorId })
+      toast.success(`Sent to ${vendorName} — they've been texted.`)
+      onOpenChange(false)
+    } catch {
+      toast.error("That didn't go through — give it another tap.")
+    } finally {
+      setBusy(null)
+    }
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -28,15 +43,13 @@ export function SwapVendorDialog({
           {alternatives.map((card) => (
             <button
               key={card.vendor.id}
-              className="rounded-[14px] border border-border bg-card px-4 py-3.5 text-left transition-colors hover:border-primary hover:bg-accent"
-              onClick={() => {
-                api.post(`/api/orders/${order.id}/swap-vendor`, { vendor_id: card.vendor.id }).catch(console.error)
-                onOpenChange(false)
-              }}
+              disabled={busy !== null}
+              className="rounded-[14px] border border-border bg-card px-4 py-3.5 text-left transition-colors hover:border-primary hover:bg-accent disabled:opacity-60"
+              onClick={() => swap(card.vendor.id, card.vendor.name)}
             >
               <div className="font-display text-[15px] font-bold tracking-tight">{card.vendor.name}</div>
               <div className="mt-0.5 tabular-nums text-sm text-muted-foreground">
-                {decisionLine(card, order, now)}
+                {busy === card.vendor.id ? 'Sending…' : decisionLine(card, order, now)}
               </div>
             </button>
           ))}
