@@ -1,9 +1,8 @@
 import { Fragment, useMemo, useState } from 'react'
 import { api } from '../lib/api'
 import { useLive } from '../lib/useLive'
-import { Bubble, Linkify, PhoneScreen, ThreadEmpty } from '../components/PhoneScreen'
-import { ReplyReceipt, answeredQuestion, digitLabel, isOpenQuestion } from '../components/QuickReplies'
-import { intentLabel } from '../lib/domain'
+import { Bubble, DayDivider, Linkify, newDay, PhoneScreen, ThreadEmpty } from '../components/PhoneScreen'
+import { digitLabel, isOpenQuestion } from '../components/QuickReplies'
 import type { Message, SmsReplyResult, Vendor } from '../../../shared/types'
 
 /**
@@ -25,71 +24,14 @@ import type { Message, SmsReplyResult, Vendor } from '../../../shared/types'
  * the split is decided by the server (handleReply), never by this screen.
  */
 
-const INTENT_TONE: Record<string, string> = {
-  accept: 'text-green-600',
-  delivered: 'text-green-600',
-  picked_up: 'text-green-600',
-  out_for_delivery: 'text-blue-600',
-  eta_update: 'text-blue-600',
-  pickup_scheduled: 'text-blue-600',
-  delay: 'text-amber-600',
-  decline: 'text-red-600',
-  unknown: 'text-slate-400',
-}
-
 const time = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
 
-function PhoneNotice({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="flex h-[100dvh] items-center justify-center px-6 text-center text-sm text-slate-400">
-      {children}
-    </div>
-  )
-}
-
-/** What happened to a reply the vendor sent: a tapped digit, parsed prose, or neither. */
-function replyMeta(m: Message, label: string | null) {
-  if (label) {
-    return (
-      <>
-        {' · '}
-        <span className="text-slate-500">{label}</span>
-        {m.review_status === 'auto_applied' && <span className="text-green-600"> · applied · no model needed</span>}
-        {m.review_status === 'needs_review' && <span className="text-amber-600"> · sent to a person</span>}
-      </>
-    )
-  }
-  if (m.parsed) {
-    return (
-      <>
-        {' · '}
-        <span className={INTENT_TONE[m.parsed.intent] ?? 'text-slate-400'}>
-          read as {intentLabel(m.parsed.intent).toLowerCase()}
-        </span>
-        {' · '}
-        {Math.round((m.parsed.confidence ?? 0) * 100)}%
-        {m.review_status === 'needs_review' && <span className="text-amber-600"> · sent to a person</span>}
-        {m.review_status === 'auto_applied' && <span className="text-green-600"> · applied</span>}
-      </>
-    )
-  }
-  return m.review_status === 'auto_applied' ? (
-    <span className="text-green-600"> · applied</span>
-  ) : (
-    <span className="text-amber-600"> · awaiting review</span>
-  )
-}
-
 export default function VendorPhone() {
-  const { data: vendors, failed } = useLive(() => api.get<Vendor[]>('/api/vendors'))
+  const { data: vendors } = useLive(() => api.get<Vendor[]>('/api/vendors'))
   const [vendorId, setVendorId] = useState(1)
-  // Falls back to the first seeded vendor: a reseed can renumber, and a phone with no
-  // chrome has nowhere else to say "vendor 1 doesn't exist".
-  const vendor = vendors?.find((v) => v.id === vendorId) ?? vendors?.[0]
+  const vendor = vendors?.find((v) => v.id === vendorId)
 
-  if (failed) return <PhoneNotice>Can’t reach the server. Check the connection and reload.</PhoneNotice>
-  if (!vendors) return <PhoneNotice>Loading…</PhoneNotice>
-  if (!vendor) return <PhoneNotice>No vendors seeded yet. Run the seed and reload.</PhoneNotice>
+  if (!vendor) return <div className="flex h-[100dvh] items-center justify-center text-sm text-slate-400">Loading…</div>
 
   return (
     <Thread
@@ -97,9 +39,8 @@ export default function VendorPhone() {
       vendor={vendor}
       picker={
         <select
-          aria-label="Switch vendor"
-          className="max-w-[15rem] truncate rounded-md border-0 bg-transparent text-[11px] text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
-          value={vendor.id}
+          className="max-w-[15rem] truncate rounded-md border-0 bg-transparent text-[11px] text-slate-400 outline-none"
+          value={vendorId}
           onChange={(e) => setVendorId(Number(e.target.value))}
         >
           {(vendors ?? []).map((v) => (
@@ -122,8 +63,8 @@ function Thread({ vendor, picker }: { vendor: Vendor; picker: React.ReactNode })
   // must not say "reading…". This is the only place that distinction is visible live.
   const [pending, setPending] = useState<null | 'digit' | 'prose'>(null)
   const sending = pending !== null
-  const [reply, setReply] = useState<SmsReplyResult | null>(null)
-  // A phone simulator has no Toaster — a failure has to say so inside the thread.
+  // A phone simulator has no Toaster, and a failed send produces no texted receipt —
+  // the thread itself is the only place that can say so.
   const [sendFailed, setSendFailed] = useState(false)
 
   const thread = useMemo(() => messages ?? [], [messages])
@@ -141,7 +82,9 @@ function Thread({ vendor, picker }: { vendor: Vendor; picker: React.ReactNode })
       // Exactly what a gateway webhook posts: a sender and a body, no reply-to. The server
       // resolves an owned digit through the routing table with no model, and everything
       // else through the parse gate — this screen carries no routing knowledge at all.
-      setReply(await api.post<SmsReplyResult>('/api/messages/inbound', { vendor_id: vendor.id, body }))
+      // The outcome renders as the bubble's own receipt line once the SSE refetch lands;
+      // a real phone shows nothing extra under a sent text, so neither do we.
+      await api.post<SmsReplyResult>('/api/messages/inbound', { vendor_id: vendor.id, body })
       setDraft('')
       setSendFailed(false)
     } catch {
@@ -156,7 +99,7 @@ function Thread({ vendor, picker }: { vendor: Vendor; picker: React.ReactNode })
       title={vendor.contact_name || vendor.name}
       subtitle={`${vendor.name} · ${vendor.phone}`}
       picker={picker}
-      scrollKey={`${thread.length}:${sending}:${reply?.message_id ?? ''}`}
+      scrollKey={`${thread.length}:${sending}`}
       draft={draft}
       onDraft={setDraft}
       onSend={send}
@@ -166,31 +109,22 @@ function Thread({ vendor, picker }: { vendor: Vendor; picker: React.ReactNode })
         <ThreadEmpty>No messages yet. Place an order on the hospice board and the request lands here.</ThreadEmpty>
       )}
 
+      {/* Meta is the timestamp and nothing else. A real handset shows no parse outcome
+          under a sent text — the vendor's phone has never heard of our review queue.
+          What happened to a reply is the hospice board's story: the state pill flips
+          when a parse auto-applies, and the review queue holds what didn't. */}
       {thread.map((m, i) => {
         // 'out' is hospice → vendor, so on the vendor's own phone it reads as received.
         const mine = m.direction === 'in'
-        const digit = mine && /^[0-9]$/.test(m.body.trim()) ? m.body.trim() : null
-        const label = digit ? digitLabel(answeredQuestion(thread, i), digit) : null
         return (
           <Fragment key={m.id}>
-            <Bubble
-              side={mine ? 'sent' : 'received'}
-              meta={
-                <>
-                  {time(m.created_at)}
-                  {mine && replyMeta(m, label)}
-                </>
-              }
-            >
+            {newDay(thread[i - 1]?.created_at, m.created_at) && <DayDivider iso={m.created_at} />}
+            <Bubble side={mine ? 'sent' : 'received'} meta={time(m.created_at)}>
               <Linkify text={m.body} />
             </Bubble>
-            {mine && reply?.message_id === m.id && <ReplyReceipt result={reply} />}
           </Fragment>
         )
       })}
-
-      {/* Until the SSE refetch brings the new row in, the receipt is the only feedback. */}
-      {reply && !thread.some((m) => m.id === reply.message_id) && <ReplyReceipt result={reply} />}
 
       {sending && (
         <Bubble side="sent">

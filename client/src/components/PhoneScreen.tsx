@@ -8,9 +8,9 @@ import { PHONE_KEYFRAMES, PhoneKeyboard, isTouch } from './PhoneKeyboard'
  * header, and the full viewport. Everything visually identical between the two lives here,
  * so restyling one can't quietly diverge from the other the morning of a demo.
  *
- * What deliberately does NOT live here is the metadata under each bubble. A caregiver
- * rating shows "4 · Good"; a vendor reply shows "read as accept · 92% · applied". That
- * difference is the AI argument, so each page renders its own.
+ * Bubble metadata is the timestamp and nothing else, on both phones — a real handset
+ * annotates no outcomes, and the parse result (applied vs review queue) is the hospice
+ * board's story, not the sender's phone's.
  */
 
 export function PhoneScreen({
@@ -105,6 +105,26 @@ export function PhoneScreen({
       )}
     </div>
   )
+}
+
+/**
+ * Centered day marker, the way Messages breaks a thread — the seeded history spans days,
+ * and without these every timestamp reads as "today" and the thread looks like one
+ * impossible flood. Render when the calendar day changes between consecutive bubbles.
+ */
+export function DayDivider({ iso }: { iso: string }) {
+  const d = new Date(iso)
+  const today = new Date()
+  const label =
+    d.toDateString() === today.toDateString()
+      ? 'Today'
+      : d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })
+  return <div className="py-2 text-center text-[10px] font-semibold text-slate-400">{label}</div>
+}
+
+/** True when two ISO timestamps fall on different calendar days — a DayDivider goes between. */
+export function newDay(prevIso: string | undefined, iso: string): boolean {
+  return !prevIso || new Date(prevIso).toDateString() !== new Date(iso).toDateString()
 }
 
 /** One message. `sent` is the phone's owner talking; `received` is the system texting them. */

@@ -1,5 +1,5 @@
 import { db } from '../server/db'
-import { ackNagText, orderRequestText } from '../server/messaging'
+import { ackNagText, orderRequestText, vendorAckText } from '../server/messaging'
 import { allocateSlot, slotDigits, SLOT_BASES } from '../server/slots'
 import { computeRisk, RISK_THRESHOLD } from '../server/risk'
 import { conditionCheckText } from '../server/condition'
@@ -385,6 +385,16 @@ const insertVendorMessage = db.prepare(
 const insertEscalation = db.prepare(
   'INSERT INTO escalations (order_id, reason, status, created_at) VALUES (?, ?, ?, ?)',
 )
+// A question the seed closes must also show its answer, or the phone renders "Reply 1 to
+// accept" bubbles that look open while their pairs are secretly retired — and a vendor
+// typing 1 gets told "already updated earlier" about a reply they never saw. The digit
+// bubble and its receipt make the seeded thread the conversation it claims to be.
+const insertVendorReply = db.prepare(
+  "INSERT INTO messages (order_id, vendor_id, direction, body, confidence, review_status, recipient_type, created_at) VALUES (?, ?, 'in', ?, 1, 'auto_applied', 'vendor', ?)",
+)
+const insertVendorAck = db.prepare(
+  "INSERT INTO messages (order_id, vendor_id, direction, body, recipient_type, created_at) VALUES (?, ?, 'out', ?, 'vendor', ?)",
+)
 const insertCondition = db.prepare(
   'INSERT INTO condition_reports (order_id, vendor_id, patient_id, score, source, comment, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
 )
@@ -400,7 +410,36 @@ let materialized = 0
  */
 const DEMO_PATIENTS = new Set([1, 3, 4, 5])
 
-for (const h of history.filter((x) => x.day_offset <= MATERIALIZE_DAYS)) {
+/**
+ * Which pairs each vendor's earlier questions still hold at a given moment — allocateSlot
+ * replayed over the simulated timeline, so overlapping questions land on different pairs
+ * and the seeded thread demonstrates the rotation for real: a slow vendor's history shows
+ * (1,2), (3,4), (5,6) stacked and answered out of order with "3"s and "5"s, not a wall of
+ * "1"s. An ignored question squats its pair for 48h before rotation retires it; if all
+ * five are somehow in play, the oldest is retired first, the way live rotation would.
+ */
+const IGNORED_HOLD_MS = 48 * 3_600_000
+type SeedSlotBase = (typeof SLOT_BASES)[number]
+const slotHolds = new Map<number, { base: SeedSlotBase; until: number }[]>()
+function seedSlot(vendorId: number, at: number, until: number): SeedSlotBase {
+  const holds = (slotHolds.get(vendorId) ?? []).filter((hold) => hold.until > at)
+  let base: SeedSlotBase | undefined = SLOT_BASES.find((b) => !holds.some((hold) => hold.base === b))
+  if (base === undefined) {
+    holds.sort((a, b) => a.until - b.until)
+    base = holds.shift()!.base
+  }
+  holds.push({ base, until })
+  slotHolds.set(vendorId, holds)
+  return base
+}
+
+// Chronological, not generation order: slot occupancy replays a timeline, and message ids
+// drive thread order on the phones — same-day bubbles must not jump backwards in time.
+const toMaterialize = history
+  .filter((x) => x.day_offset <= MATERIALIZE_DAYS)
+  .sort((a, b) => a.ordered_at.getTime() - b.ordered_at.getTime())
+
+for (const h of toMaterialize) {
   const done = h.picked_up_at !== null
   if (!done && DEMO_PATIENTS.has(h.patient_id)) continue
   const id = nextId++
@@ -450,14 +489,17 @@ for (const h of history.filter((x) => x.day_offset <= MATERIALIZE_DAYS)) {
   const answeredAt = ignoredQuestion
     ? null
     : new Date(h.ordered_at.getTime() + profile.answer_hours * orderBetween(0.3, 2.5) * 3_600_000)
+  const heldUntil = answeredAt ?? new Date(h.ordered_at.getTime() + IGNORED_HOLD_MS)
+  const questionSlot = seedSlot(h.vendor_id, h.ordered_at.getTime(), heldUntil.getTime())
+  const yesDigit = String(slotDigits(questionSlot)[0])
   const order = getOrder(id)!
   const area = PATIENTS.find((p) => p.id === h.patient_id)!.market
   insertVendorMessage.run(
     id,
     h.vendor_id,
-    orderRequestText(order, area, slotDigits(SLOT_BASES[0])),
+    orderRequestText(order, area, slotDigits(questionSlot)),
     'v_order_request',
-    ignoredQuestion ? null : SLOT_BASES[0],
+    ignoredQuestion ? null : questionSlot,
     answeredAt ? iso(answeredAt) : null,
     iso(h.ordered_at),
   )
@@ -466,9 +508,9 @@ for (const h of history.filter((x) => x.day_offset <= MATERIALIZE_DAYS)) {
     insertVendorMessage.run(
       id,
       h.vendor_id,
-      ackNagText(order, slotDigits(SLOT_BASES[0])),
+      ackNagText(order, slotDigits(questionSlot)),
       'v_ack_nag',
-      ignoredQuestion ? null : SLOT_BASES[0],
+      ignoredQuestion ? null : questionSlot,
       answeredAt ? iso(answeredAt) : null,
       iso(nagAt),
     )
@@ -481,6 +523,8 @@ for (const h of history.filter((x) => x.day_offset <= MATERIALIZE_DAYS)) {
       iso(new Date(h.ordered_at.getTime() + 4 * 3_600_000)),
     )
   } else {
+    insertVendorReply.run(id, h.vendor_id, yesDigit, iso(answeredAt!))
+    insertVendorAck.run(id, h.vendor_id, vendorAckText(order, 'accept', yesDigit), iso(answeredAt!))
     insertEvent.run(id, 'vendor_accepted', null, 'vendor', iso(answeredAt!))
   }
 
@@ -574,6 +618,8 @@ function seedOrder(
   insertEvent.run(id, 'order_placed', null, 'hospice', placedAt)
   // An order that already moved past 'ordered' was answered off-camera; recording that
   // releases its pair, so a seeded world doesn't open with four of five codes spoken for.
+  // The answer is on camera too — reply bubble and receipt — or the phone would show an
+  // open-looking question whose pair is secretly retired.
   const answeredAt = state === 'ordered' ? null : placedAt
   const slot = allocateSlot(vendorId, id) ?? SLOT_BASES[0]
   insertVendorMessage.run(
@@ -585,6 +631,10 @@ function seedOrder(
     answeredAt,
     placedAt,
   )
+  if (answeredAt) {
+    insertVendorReply.run(id, vendorId, String(slotDigits(slot)[0]), answeredAt)
+    insertVendorAck.run(id, vendorId, vendorAckText(getOrder(id)!, 'accept'), answeredAt)
+  }
   if (['dispatched', 'in_transit', 'delivered', 'pickup_pending'].includes(state)) {
     insertEvent.run(id, 'vendor_accepted', null, 'vendor', new Date().toISOString())
   }

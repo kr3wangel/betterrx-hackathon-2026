@@ -1,8 +1,8 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import { api } from '../lib/api'
 import { useLive } from '../lib/useLive'
-import { Bubble, Linkify, PhoneScreen, ThreadEmpty } from '../components/PhoneScreen'
-import { ReplyReceipt, answeredQuestion, digitLabel, isOpenQuestion } from '../components/QuickReplies'
+import { Bubble, DayDivider, Linkify, newDay, PhoneScreen, ThreadEmpty } from '../components/PhoneScreen'
+import { isOpenQuestion } from '../components/QuickReplies'
 import type {
   CaregiverReplyResult,
   ConditionReport,
@@ -25,13 +25,6 @@ import type {
  * question is what gives a "1" its meaning, so no model reads this thread at all.
  */
 
-const SCALE: Record<number, string> = {
-  1: 'Unusable',
-  2: 'Poor',
-  3: 'Acceptable',
-  4: 'Good',
-  5: 'Like new',
-}
 
 const time = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
 
@@ -137,7 +130,6 @@ function Thread({ household, picker }: { household: Household; picker: React.Rea
   )
   const [draft, setDraft] = useState('')
   const [sending, setSending] = useState(false)
-  const [reply, setReply] = useState<SmsReplyResult | null>(null)
   const [legacy, setLegacy] = useState<CaregiverReplyResult | null>(null)
   // No toast here: /caregiver is a household's phone and has no Toaster — a product chrome
   // toast on it would break the fiction. Feedback stays inside the thread.
@@ -179,11 +171,11 @@ function Thread({ household, picker }: { household: Household; picker: React.Rea
     try {
       if (openQuestion) {
         // Thread-aware: the server derives order and template from the question, and the
-        // condition rating still goes through parseConditionReply() unchanged.
+        // condition rating still goes through parseConditionReply() unchanged. The outcome
+        // shows on the bubble's own receipt line — a real phone adds nothing underneath.
         setLegacy(null)
-        setReply(await api.post<SmsReplyResult>('/api/messages/reply', { reply_to_message_id: openQuestion.id, body }))
+        await api.post<SmsReplyResult>('/api/messages/reply', { reply_to_message_id: openQuestion.id, body })
       } else if (activeOrderId) {
-        setReply(null)
         setLegacy(await api.post<CaregiverReplyResult>(`/api/orders/${activeOrderId}/condition-reply`, { body }))
         reloadReports()
       }
@@ -200,7 +192,7 @@ function Thread({ household, picker }: { household: Household; picker: React.Rea
       title={patient.caregiver_name || 'Caregiver'}
       subtitle={`${patient.caregiver_phone || '—'} · caring for ${patient.name}`}
       picker={picker}
-      scrollKey={`${thread.length}:${reply?.message_id ?? ''}:${legacy?.score ?? ''}`}
+      scrollKey={`${thread.length}:${sending}:${legacy?.score ?? ''}`}
       draft={draft}
       onDraft={setDraft}
       onSend={send}
@@ -233,48 +225,40 @@ function Thread({ household, picker }: { household: Household; picker: React.Rea
         </ThreadEmpty>
       )}
 
-      {thread.map((item) => {
+      {thread.map((item, i) => {
+        // Meta is the timestamp and nothing else — a real handset annotates no outcomes.
+        const divider = newDay(thread[i - 1]?.at, item.at) && <DayDivider iso={item.at} />
         if (item.kind === 'report') {
           return (
-            <Bubble key={`r${item.report.id}`} side="sent" meta={`${time(item.at)} · ${SCALE[item.report.score]}`}>
-              <span className="text-lg font-semibold">{item.report.score}</span>
-              {item.report.comment ? ` — ${item.report.comment}` : ''}
-            </Bubble>
+            <Fragment key={`r${item.report.id}`}>
+              {divider}
+              <Bubble side="sent" meta={time(item.at)}>
+                <span className="text-lg font-semibold">{item.report.score}</span>
+                {item.report.comment ? ` — ${item.report.comment}` : ''}
+              </Bubble>
+            </Fragment>
           )
         }
 
         const m = item.message
         const mine = m.direction === 'in'
-        const label = mine ? digitLabel(answeredQuestion(rows, item.index), m.body.trim()) : null
         return (
           <Fragment key={m.id}>
-            <Bubble
-              side={mine ? 'sent' : 'received'}
-              meta={
-                <>
-                  {time(m.created_at)}
-                  {label && ` · ${label}`}
-                  {mine && m.review_status === 'needs_review' && (
-                    <span className="text-amber-600"> · sent to a person</span>
-                  )}
-                </>
-              }
-            >
+            {divider}
+            <Bubble side={mine ? 'sent' : 'received'} meta={time(m.created_at)}>
               <Linkify text={m.body} />
             </Bubble>
-            {mine && reply?.message_id === m.id && <ReplyReceipt result={reply} />}
           </Fragment>
         )
       })}
 
-      {/* Until the SSE refetch brings the new row in, the receipt is the only feedback. */}
-      {reply && !rows.some((m) => m.id === reply.message_id) && <ReplyReceipt result={reply} />}
-
+      {/* A failed send produces no texted receipt, so the thread itself must say so. */}
       {sendFailed && (
         <div role="alert" className="pt-1 text-right text-[11px] text-red-600">
           Didn’t send — try again
         </div>
       )}
+
 
       {/* Delivery-receipt style status, so the consequence reads as part of the conversation. */}
       {legacy && (

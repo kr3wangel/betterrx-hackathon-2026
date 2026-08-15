@@ -843,9 +843,11 @@ describe('rotating reply codes', () => {
 
     await handleVendorInbound(1, '1')
 
+    // Every outbound row holding a pair, not every outbound row: the acknowledgement text
+    // that follows the reply is conversational — no slot, nothing to answer.
     expect(
       messages(id)
-        .filter((m) => m.direction === 'out')
+        .filter((m) => m.direction === 'out' && m.reply_slot !== null)
         .every((m) => m.answered_at !== null),
     ).toBe(true)
   })
@@ -918,6 +920,20 @@ describe('trip batching replies', () => {
     expect(messages().filter((m) => m.template === 'f_pickup_notice')).toHaveLength(1)
     expect(liveQuestions(1)).toHaveLength(0)
     expect(messages().find((m) => m.id === questionId)!.answered_at).not.toBeNull()
+  })
+
+  // The receipt paradigm: bubbles carry no annotations, so the texted reply IS the
+  // vendor's confirmation — and for a trip it must speak for the whole stop, not the anchor.
+  it('texts one receipt back that covers the whole trip', async () => {
+    stop()
+
+    await handleVendorInbound(1, '1')
+
+    const receipts = messages().filter(
+      (m) => m.direction === 'out' && m.recipient_type === 'vendor' && m.template === null && m.body.includes('Got your'),
+    )
+    expect(receipts).toHaveLength(1)
+    expect(receipts[0].body).toContain('both pickups')
   })
 
   // "Yes to both" when one is already collected must not abort the trip: the rest apply and
@@ -1050,11 +1066,117 @@ describe('inbound with no reply-to', () => {
     expect(result.prompt).toMatch(/\/portal\//)
   })
 
-  it('has nothing to clarify when no question is open, so it just goes to review', async () => {
+  it('has nothing to clarify when no question is open — review queue plus a generic receipt', async () => {
     const result = await handleVendorInbound(1, '1')
 
     expect(result.outcome).toBe('review')
     expect(result.prompt).toBeNull()
-    expect(messages().filter((m) => m.direction === 'out')).toHaveLength(0)
+    const out = messages().filter((m) => m.direction === 'out')
+    expect(out).toHaveLength(1)
+    // The receipt echoes the digit back — the sender must recognise which text it answers.
+    expect(out[0].body).toMatch(/Got your "1" — no open request matches that code/)
+  })
+})
+
+describe('acknowledgement receipts', () => {
+  function acks(orderId?: number) {
+    return messages(orderId).filter((m) => m.direction === 'out' && m.template === null && m.reply_slot === null)
+  }
+
+  it('texts back what happened when an accept digit applies', async () => {
+    const id = seedOrder()
+    ask(id, 'v_order_request')
+
+    await handleVendorInbound(1, '1')
+
+    const receipts = acks(id)
+    expect(receipts).toHaveLength(1)
+    // Echoes the digit as the lead — in a flat thread that's how the sender knows which
+    // of their texts this receipt answers.
+    expect(receipts[0].body).toMatch(new RegExp(`Got your "1" — order #${id}.*confirmed with you`))
+  })
+
+  it("texts back the reassignment promise on can't-fill", async () => {
+    const id = seedOrder()
+    ask(id, 'v_order_request')
+
+    await handleVendorInbound(1, '2')
+
+    const receipts = acks(id)
+    expect(receipts).toHaveLength(1)
+    expect(receipts[0].body).toMatch(new RegExp(`we'll reassign order #${id}`))
+  })
+
+  it('does not double-text on the prompt path — the follow-up question is the receipt', async () => {
+    const id = seedOrder({ state: 'pickup_pending' })
+    ask(id, 'v_pickup_request')
+
+    await handleVendorInbound(1, '2')
+
+    const conversational = acks(id)
+    expect(conversational).toHaveLength(1)
+    expect(conversational[0].body).toBe('When can you collect it? Text back a day and time.')
+  })
+
+  it('echoes the digit and names the order when a reply lands on an answered question', async () => {
+    const id = seedOrder()
+    const questionId = ask(id, 'v_order_request')
+    await handleReply({ reply_to_message_id: questionId, digit: '1' })
+
+    const result = await handleReply({ reply_to_message_id: questionId, digit: '1' })
+
+    expect(result.outcome).toBe('review')
+    const receipts = acks(id).filter((m) => /coordinator will take a look/.test(m.body))
+    expect(receipts).toHaveLength(1)
+    expect(receipts[0].body).toMatch(new RegExp(`Got your "1" — order #${id} .* was already updated earlier`))
+  })
+
+  it('echoes the digit and names the order when the digit is not one of its codes', async () => {
+    const id = seedOrder()
+    const questionId = ask(id, 'v_order_request')
+
+    const result = await handleReply({ reply_to_message_id: questionId, digit: '9' })
+
+    expect(result.outcome).toBe('unmapped')
+    const receipts = acks(id)
+    expect(receipts).toHaveLength(1)
+    expect(receipts[0].body).toMatch(new RegExp(`Got your "9" — that's not one of the reply codes for order #${id}`))
+  })
+
+  it('sends the generic receipt for prose that lands in the review queue', async () => {
+    const id = seedOrder()
+    ask(id, 'v_order_request')
+
+    const result = await handleVendorInbound(1, 'truck is down, not sure about this week')
+
+    expect(result.outcome).toBe('review')
+    const receipts = messages().filter(
+      (m) => m.direction === 'out' && m.template === null && /coordinator will take a look/.test(m.body),
+    )
+    expect(receipts).toHaveLength(1)
+  })
+
+  it('a repeated digit through the gateway names the order it already updated', async () => {
+    const id = seedOrder()
+    ask(id, 'v_order_request')
+    await handleVendorInbound(1, '1')
+
+    const result = await handleVendorInbound(1, '1')
+
+    expect(result.outcome).toBe('review')
+    const stale = messages().filter((m) => m.direction === 'out' && /already updated earlier/.test(m.body))
+    expect(stale).toHaveLength(1)
+    expect(stale[0].body).toMatch(new RegExp(`Got your "1" — order #${id}`))
+  })
+
+  it('acknowledgements own no reply pair and never count as questions', async () => {
+    const id = seedOrder()
+    ask(id, 'v_order_request')
+    await handleVendorInbound(1, '1')
+
+    for (const receipt of acks(id)) {
+      expect(receipt.reply_slot).toBeNull()
+      expect(receipt.answered_at).toBeNull()
+    }
   })
 })

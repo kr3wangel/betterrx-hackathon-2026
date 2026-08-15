@@ -171,13 +171,19 @@ and you are back on the handset with the numbering intact.
 
 **`/vendor` is not in the list, on purpose.** It is the **dispatcher's own board** — open orders
 plus an in-page free-text simulator (`Vendor.tsx:24,48`). It has no digit quick-reply buttons.
-Every vendor-facing beat in this script happens on the handset at tab 7.
+Every vendor-facing beat in this script happens on the handset at tab 7, where replies are typed.
 
 **What each phone is.** Tab 7 is the DME dispatcher's phone: a vendor picker in the header and the
 real thread. **There are no tap-buttons — SMS has none.** You TYPE the digit the question's own
-body names (pairs rotate: one text says "reply 1", the next "reply 3") into the composer, and the
-receipt reads *"applied · no model needed"* (`QuickReplies.tsx` is the read side only;
-`VendorPhone.tsx` posts a gateway-shaped `{vendor_id, body}`). Tab 6 is the family's phone, one thread per household: submitting a
+body names (pairs rotate: one text says "reply 1", the next "reply 3") into the composer, and
+`VendorPhone.tsx` posts a gateway-shaped `{vendor_id, body}`. **Bubbles show only the time — no
+outcome annotations** (removed 08-15: a real handset shows nothing under a sent text, and the
+vendor's phone has never heard of our review queue). Instead, **every vendor update gets a texted
+receipt back** (added 08-15) — "Got it — order #X is confirmed with you", or "a coordinator will
+take a look" when it parks for review — so the thread reads like a real SMS conversation. The
+system's side of the story is narrated from **tab 1**: the state pill flips when a parse
+auto-applies, and low-confidence prose lands in the board's review queue. Tab 6 is the family's
+phone, one thread per household: submitting a
 **delivery** POD fires the condition check automatically (`routes.ts:144-146`), so it lights up on its
 own during S1 step 5, and a 1–5 reply rolls into the condition stats behind `/reports`. That's the
 beat the CEO asked for by name at the briefing.
@@ -359,7 +365,7 @@ board at all. They are inside **Done · N this week** (open `history ▸` if you
 |---|---|---|---|
 | 1 | Tab 3 `/nurse` → **Ruth Nakamura** → **Passed away** → **Confirm, with care** | A phone-shaped screen: *"Who has a change to report?"*, then *"What changed for Ruth Nakamura?"* with two choices — *Went home / discharged* and *Passed away*. The confirm card reads *"We'll schedule the equipment pickup with care and a note for the family. Take your time — this is the only step you need to do."* Then a toast: *"Recorded, with care."* | "The nurse is standing in the living room. She taps this once. That's the whole trigger — the sponsor told us their own discovery found the EMR-only path fail: someone dies and the vendor never finds out." |
 | 2 | *(switch to tab 1 — no click)* | Ruth's two orders leave **Done** and appear in **On the way** as **one grouped row**: `Ruth Nakamura · Pickup · 2 items · — · 0 of 2 moving` (no date, because a pickup has no deadline of its own). **One** pickup text lands in Wasatch's thread, with a magic link — *"Pickup needed — 2 items from one home (hospital bed, oxygen concentrator), area Ogden. Family is present — please schedule promptly. Reply 1 if you can get both today, 2 to give us a window: `…/portal/<token>`"* | "Two pickups scheduled. Zero phone calls made by anyone in that house — **one death, one text, one trip.**" |
-| 2b | Tab 7 `/vendor-phone` → header picker → **Wasatch** → in the message box type **the affirmative digit the text itself names** (read it off the bubble — *"Reply N if you can get both today"*) → send | The bubble goes out, the status line reads **"sending…"** — not *"reading…"*, the model's word — and the green receipt lands under it: ***"N · Yes — the whole stop — applied to 2 orders · no model needed"*** (`QuickReplies.tsx:85-98`). Glance at tab 1: Ruth's grouped row reflects the vendor's commitment | "One digit from the vendor, and both pickups are committed — the trip is the unit, and no model touched it." |
+| 2b | Tab 7 `/vendor-phone` → header picker → **Wasatch** → in the message box type **the affirmative digit the text itself names** (read it off the bubble — *"Reply N if you can get both today"*) → send | The bubble goes out, the in-flight line reads **"sending…"** — not *"reading…"*, the model's word — and the system **texts a receipt back into the thread**: *"Got your "N" — both pickups are on the books for today. Thanks."* (`groupAckText()`, `server/messaging.ts`). Glance at tab 1: Ruth's grouped row reflects the vendor's commitment (green `Confirmed ✓`) | "One digit from the vendor, and both pickups are committed — the trip is the unit, and no model touched it." |
 | 3 | Tab 2 `/driver` → vendor **Wasatch** *(already the default — no switch needed here)* | Two **PICK UP** job cards, each carrying *"**The family is grieving.** Call ahead, be brief and kind."* | "The dispatcher sees logistics. Never the death." |
 | 4 | **Complete pickup** → sign → **Confirm pickup** | The job card is replaced by a green completion card — and inside it, a coral **Family notified** panel quoting the **actual sentence** sent to the household: *"Your hospice team: the equipment has been picked up. There's nothing else you need to do. We're thinking of your family."* (`Driver.tsx:73-81,221-226`) | **"Ruth's family made zero phone calls. That's the product."** |
 | 5 | *(optional, if you have the slack)* tab 6 `/caregiver` → Ken Nakamura's thread | The same sentence, in the household's own thread | — |
@@ -483,10 +489,14 @@ one, so this is a stage direction, not a problem.
 - The portal page has **shipped** — step 3 is a real click, and the confirm was verified end to end
   (`POST /api/portal/1c2282…/orders/1060/confirm` → `state: "dispatched"`).
 - **The digit beat, if you have 10 spare seconds at beat 5:** type `1` into the box on the vendor
-  phone (there is nothing to tap — SMS has no buttons). The receipt reads *"applied · no model
-  needed"*, #1061 goes to **Accepted ✓** on tab 1, and the event notes *"Vendor accepted by text
-  (replied 1)"* at confidence 1.0 — a template × position lookup (`server/sms.ts` `VENDOR_ROUTES`),
-  no model call at all. **This ends the silence beat**, so only do it after beats 6 and 7 have
+  phone (there is nothing to tap — SMS has no buttons, and no annotations appear under the sent
+  text, exactly like a real handset). Two things then happen at once: **a receipt texts back on
+  the phone** — *"Got your \"1\" — order #1061 (…) is confirmed with you. Thanks."*, exactly what a
+  production SMS system would send — and on **tab 1**, #1061 flips to **Accepted ✓** live over
+  SSE, with the event noting *"Vendor accepted by text (replied 1)"* at confidence 1.0 — a
+  template × position lookup (`server/sms.ts` `VENDOR_ROUTES`), no model call at all. Narrate it
+  that way: "the vendor's phone stays a plain text conversation; our side is where the
+  intelligence shows." **This ends the silence beat**, so only do it after beats 6 and 7 have
   landed.
   - **Verified 08-14: the digit here is `1`.** Vendor reply codes rotate — each open question owns a
     pair, allocated per vendor (`server/slots.ts`) — but Beehive has only #1061 open in this

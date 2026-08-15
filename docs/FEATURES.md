@@ -23,7 +23,7 @@ overnight run (narration + handoffs + front door + P1/P2 sweep), the contract-le
 rotating reply codes. `/` is a real landing page now, `surfaceLinks` lives in
 `client/src/lib/surfaces.ts` (the third command's file changed), and the counts above were
 re-derived by running the commands on the merged tree, not by arithmetic: **33 endpoints, 14
-pages, 15 test files, 224 tests**, typecheck clean. Test count: re-run the suite rather than
+pages, 16 test files, 254 tests**, typecheck clean. Test count: re-run the suite rather than
 trusting any doc — it has moved most of the times anyone has looked.
 
 ---
@@ -61,8 +61,8 @@ guarded — hiding a link never blocks a URL, so no screen becomes unreachable m
 | `/vendor-portal` | full Shell | Typed URL only — **retired from the nav** | The same component as `/portal/:token` with no token, so all it can render is "open the link we texted you". As a nav destination it was a dead end by construction; kept as a URL fallback |
 | `/demo` | full Shell | Typed URL only — not in the nav, not in the account menu | The presenter's panel: mark a patient discharged or deceased (the EMR fallback path), and send any templated text by hand. Took both off the board in the v8 rebuild |
 | `/o/:token` | `PortalShell` | **The link in every vendor text** | That one order, its actions, and a link onward to the vendor's full portal if they have other work open. 10-character token, so the URL fits a text |
-| `/caregiver` | none | Account menu → Simulated phones (new tab), or typed URL | The family's phone. Full-screen SMS simulator: condition check arrives, reply 1–5 or free text, outcome shown as a delivery receipt |
-| `/vendor-phone` | none | Account menu → Simulated phones (new tab), or typed URL | The dispatcher's phone. **Two reply paths in one text box:** type a digit owned by an open question (deterministic route table, no model) or type prose (Claude, showing intent, confidence, and applied / sent-to-a-person). No buttons — SMS has none. Posts to `/api/messages/inbound` with just a sender and a body, exactly what a gateway webhook delivers; the screen carries no routing knowledge |
+| `/caregiver` | none | Account menu → Simulated phones (new tab), or typed URL | The family's phone. Full-screen SMS simulator: condition check arrives, reply 1–5 or free text. **Bubbles show only the time** (08-15) — outcomes surface on `/reports` and the board, not the handset |
+| `/vendor-phone` | none | Account menu → Simulated phones (new tab), or typed URL | The dispatcher's phone. **Two reply paths in one text box:** a digit owned by an open question routes deterministically (route table, no model), prose goes to Claude behind the 0.8 gate. No buttons, and **no outcome annotations under bubbles** (08-15) — a real handset shows only the time, and the vendor's phone has never heard of our review queue; the result shows as the board's state pill flipping, or a row in the review queue. Posts to `/api/messages/inbound` with just a sender and a body, exactly what a gateway webhook delivers; the screen carries no routing knowledge |
 | `/portal/:token` | `PortalShell` | `/o/:token`'s "see all", or the fallback URLs in DEMO-SCRIPT | Per-vendor portal — every open order grouped, plus an equipment tab. No account. **No longer what a text links to** |
 | `/status/:token` | `PortalShell` | A texted magic link | Vendor status view, read-only |
 
@@ -88,6 +88,7 @@ suppresses itself on real handsets.
 | Risk scoring | `risk.ts` | **Rules-based on purpose** — explainable, tunable, reasons in sentences |
 | Watchdog | `watchdog.ts` | 30s tick: recompute risk, escalate threshold crossings, flag overdue pickups, silence ladder |
 | Vendor SMS parsing | `messaging.ts` + `llm.ts` | Claude, with a confidence gate — ≥0.8 auto-applies, below lands in the human review queue. Prompt carries the vendor's open orders plus a focus hint (the newest unanswered question) so bare prose like "ok" can be placed |
+| Acknowledgement receipts | `vendorAckText()` + friends in `messaging.ts` | **Every vendor text gets a receipt back that echoes the digit and names the order** (08-15) — the phones show nothing but time under a bubble, so the reply IS the confirmation, as a real SMS system would send it. Applied → "Got it — order #1042 is confirmed with you"; can't-fill → "we'll reassign order #X"; a repeated digit → "Got your \"1\" — order #1042 was already updated earlier" (via `lastAnsweredOwner()`, receipt copy only, never routing); a digit nothing ever owned → "no open request matches that code"; prose parked for review → "a coordinator will take a look"; and a review-queue confirm sends the delayed receipt. Conversational sends — no template, no reply pair, never counted as questions |
 | Rotating reply codes | `slots.ts` + `shared/slots.ts` | **Five open questions per vendor, each owning a digit pair** — (1,2) (3,4) (5,6) (7,8) (9,0), odd = affirmative. Each message states its own pair, so a question buried five texts back is still answerable, in any order, days apart. A follow-up reuses its order's pair rather than spending a new one. Sixth question → one rate-limited digest with a portal link, never a recycled code |
 | Trip batching (tier 2) | `pickups.ts` + `sms.ts` + `message_orders` | **One text per stop, not per order.** A death that owes a vendor a bed and a concentrator from the same home sends one `v_pickup_group` question spending one reply pair; the manifest rides in `message_orders`, and the affirmative fans `pickup_scheduled` out to every order on it (`payload.source: 'group reply'`, ledger reads *"group reply · no model"*, receipt reads *"applied to 2 orders"*). An order whose state refuses the transition is skipped and named in the notes rather than aborting the trip, and the household gets one `f_pickup_notice`, not one per item. **We batch the asking, never the answering** — per-order events, clocks, escalations and evidence are untouched, and there is no `trips` table. Past five stops the existing exhaustion digest takes over. Spec + what stayed unbuilt: `docs/SMS-BATCHING-SPEC.md` |
 | Caregiver condition parsing | `condition.ts` | **Deterministic regex, no model.** A digit is a digit |
@@ -231,21 +232,20 @@ as on-time anyway (per-vendor `pod_rate` / `fudge_rate` in the seed).
 | Differentiation from current DME approaches | 30% | Caregiver condition channel · vendor scorecards · verified vs vendor-reported · **the trust gap as a contract-renewal number** · silence ladder · nurse-first pickup trigger |
 | Addresses core user problems | 25% | Discharge-readiness risk · automatic pickup on death/discharge · condition attestation · calls-avoided counter · cost approvals for the DON |
 | Architecture / integration-readiness | 15% | State machine with guarded transitions · SSE · integration sketch modelled on the real eRx payloads · forward-compatible inventory hook |
-| AI ROI | 15% | **The split**: model for vendor prose with a confidence gate and review queue; regex for caregiver digits; **a tapped quick reply on the vendor phone runs no model at all**, so the same thread shows both trust levels. Rules-based risk scoring on purpose |
+| AI ROI | 15% | **The split**: model for vendor prose with a confidence gate and review queue; regex for caregiver digits; **a typed digit runs no model at all**. The phones stay clean (time-only receipts) — the trust split shows on the hospice board, where an auto-applied parse flips the state pill and low confidence lands in the review queue. Rules-based risk scoring on purpose, now with a measured backtest |
 | UX / intuitiveness | 15% | Six roles on separate surfaces with a **role-filtered nav that visibly rearranges when you switch** · phone simulators · plain-English state labels · reasons in sentences · every hospice page has a designed exit |
 
 ---
 
 ## 7 · Test coverage
 
-**15 files, 224 tests** (re-derived 08-15 by running the suite on the merged tree, after contract
-leverage, the actor-role split, narration, and trip batching). Core logic is covered; UI and
-routes deliberately are not. Two earlier counts — "15 files, 199 tests" and "14 files, 191 tests" —
-sat here as an unresolved merge conflict; neither was right, and the number below came off a run.
+**16 files, 254 tests** (re-derived 08-15 by running the suite on the
+merged tree, after contract leverage, the actor-role split, narration, trip batching, and
+acknowledgement receipts). Core logic is covered; UI and routes deliberately are not.
 
 | File | Tests | Covers |
 |---|---:|---|
-| `sms.test.ts` | 64 | SMS templates, reply handling, route-table integrity, rotating reply codes, trip-batching replies, gateway-shaped inbound |
+| `sms.test.ts` | 83 | SMS templates, reply handling, route-table integrity, rotating reply codes, trip-batching replies, gateway-shaped inbound, acknowledgement receipts |
 | `reports.test.ts` | 28 | Scorecards, calls avoided, latency, contract leverage (trust gap, cohort minimum, interventions, median answer time, never-answered rate) |
 | `narration.test.ts` | 22 | Which events narrate and which never do, enrichment, own-action suppression, collapse |
 | `portal.test.ts` | 15 | Magic-link flows |

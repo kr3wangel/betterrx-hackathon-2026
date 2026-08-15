@@ -1,0 +1,488 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How DME Connects — BetterRX</title>
+<style>
+  :root {
+    --ground: #F7F5F3;
+    --surface: #FFFFFF;
+    --ink: #263240;
+    --muted: #5C6B75;
+    --faint: #93A0AA;
+    --border: #EBE7E3;
+    --coral: #E27B5E;
+    --coral-deep: #D2694C;
+    --coral-tint: #FBEFEA;
+    --navy: #2C3A49;
+    --green: #3E9C6B;
+    --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --mono: ui-monospace, "SF Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+    --shadow: 0 1px 2px rgba(38,50,64,.04), 0 14px 34px -20px rgba(38,50,64,.20);
+    --shadow-lift: 0 1px 2px rgba(38,50,64,.05), 0 30px 66px -30px rgba(38,50,64,.34);
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { margin: 0; background: var(--ground); color: var(--ink); font-family: var(--sans); line-height: 1.55; -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 0 26px; }
+  .eyebrow { color: var(--coral); text-transform: uppercase; font-weight: 800; letter-spacing: 0.15em; font-size: 12px; }
+  h1, h2, h3 { margin: 0; font-weight: 800; letter-spacing: -0.025em; line-height: 1.05; }
+
+  header.masthead { padding: 44px 0 6px; }
+  .brandrow { display: flex; align-items: center; gap: 12px; margin-bottom: 44px; }
+  .pill { background: var(--coral); color: #fff; font-weight: 800; padding: 6px 14px; border-radius: 999px; font-size: 15px; }
+  .pill .rx { opacity: .78; }
+  .navtabs { display: flex; gap: 18px; margin-left: 4px; color: var(--faint); font-weight: 700; font-size: 13px; }
+  .navtabs .on { color: var(--ink); border-bottom: 2px solid var(--coral); padding-bottom: 3px; }
+  header.masthead h1 { font-size: clamp(30px, 5.4vw, 58px); max-width: 17ch; margin-top: 16px; }
+  header.masthead h1 .hl { color: var(--coral); }
+  .lede { margin: 22px 0 0; font-size: clamp(17px, 2.2vw, 21px); color: var(--muted); max-width: 60ch; }
+
+  section { padding: 40px 0; }
+  .sectitle { text-align: center; max-width: 44ch; margin: 0 auto 34px; }
+  .sectitle h2 { font-size: clamp(22px, 3.4vw, 32px); }
+  .sectitle p { margin: 12px 0 0; color: var(--muted); font-size: 16px; }
+
+  /* ---------- THE FLOW ---------- */
+  .stage { background: var(--surface); border: 1px solid var(--border); border-radius: 28px; box-shadow: var(--shadow-lift); padding: 48px 40px 40px; }
+  .rail { position: relative; display: grid; grid-template-columns: repeat(4, 1fr); gap: 26px; }
+  .pipe { position: absolute; top: 46px; left: 11%; right: 11%; height: 4px; background: linear-gradient(90deg, var(--border), #E8CFC5 50%, var(--border)); border-radius: 3px; z-index: 0; }
+  .pipe .packet { position: absolute; top: 50%; left: 0; width: 12px; height: 12px; margin-top: -6px; margin-left: -6px; border-radius: 50%; background: var(--coral); box-shadow: 0 0 0 5px rgba(226,123,94,.18); animation: travel 4.2s cubic-bezier(.55,0,.45,1) infinite; }
+  .pipe .packet.b { animation-delay: 2.1s; opacity: .8; }
+  @keyframes travel { 0% { left: 0; } 100% { left: 100%; } }
+
+  .stationwrap { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; text-align: center; }
+  .marker { width: 84px; height: 84px; border-radius: 24px; display: flex; align-items: center; justify-content: center; font-size: 34px; background: var(--ground); border: 1px solid var(--border); box-shadow: var(--shadow); margin-bottom: 16px; }
+  .stationwrap.hero-node .marker { background: var(--coral); border-color: var(--coral); color: #fff; box-shadow: 0 1px 2px rgba(38,50,64,.05), 0 22px 44px -20px rgba(226,123,94,.62); }
+  .step { font-size: 11px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); margin-bottom: 6px; }
+  .stationwrap.hero-node .step { color: var(--coral-deep); }
+  .stationwrap h3 { font-size: 17px; margin-bottom: 8px; }
+  .stationwrap p { margin: 0; font-size: 13.5px; color: var(--muted); max-width: 22ch; }
+  .conn { position: absolute; top: 40px; right: -13px; z-index: 2; font-size: 12px; font-weight: 800; color: var(--coral); background: var(--surface); padding: 2px 8px; border-radius: 999px; border: 1px solid var(--coral-tint); white-space: nowrap; transform: translateX(50%); }
+
+  .moment { margin-top: 38px; display: flex; align-items: center; gap: 16px; background: var(--coral-tint); border-radius: 18px; padding: 20px 24px; }
+  .moment .big { font-size: 30px; line-height: 1; }
+  .moment p { margin: 0; color: var(--coral-deep); font-size: 15.5px; font-weight: 600; }
+  .moment p span { color: var(--muted); font-weight: 500; display: block; font-size: 13.5px; margin-top: 2px; }
+
+  /* ---------- WHY CREDIBLE ---------- */
+  .band { background: var(--navy); border-radius: 28px; padding: 44px 40px; color: #fff; }
+  .band .sectitle h2 { color: #fff; }
+  .band .sectitle p { color: #C6D0D8; }
+  .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+  .card { background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12); border-radius: 18px; padding: 24px; }
+  .card .nm { font-size: 19px; font-weight: 800; margin-bottom: 12px; }
+  .card p { margin: 0; font-size: 14px; color: #D3DBE1; line-height: 1.5; }
+  .card p b { color: #fff; font-weight: 700; }
+
+  /* ---------- ADOPTION WEDGE ---------- */
+  .split { display: grid; grid-template-columns: 1.1fr 1fr; gap: 30px; align-items: center; }
+  .split .txt h2 { font-size: clamp(22px, 3.2vw, 30px); margin-bottom: 14px; }
+  .split .txt p { color: var(--muted); font-size: 16px; margin: 0 0 12px; }
+  .split .txt p b { color: var(--ink); }
+  .phone { justify-self: center; width: 240px; background: var(--navy); border-radius: 30px; padding: 12px; box-shadow: var(--shadow-lift); }
+  .phone .screen { background: var(--ground); border-radius: 20px; padding: 16px 14px; min-height: 300px; display: flex; flex-direction: column; gap: 10px; }
+  .phone .hd { font-size: 11px; color: var(--faint); font-weight: 700; text-align: center; margin-bottom: 2px; }
+  .bub { max-width: 82%; padding: 9px 13px; border-radius: 16px; font-size: 13px; line-height: 1.4; }
+  .bub.in { background: #fff; border: 1px solid var(--border); border-bottom-left-radius: 5px; align-self: flex-start; color: var(--ink); }
+  .bub.out { background: var(--coral); color: #fff; border-bottom-right-radius: 5px; align-self: flex-end; }
+  .bub small { display: block; font-size: 10.5px; opacity: .65; margin-top: 3px; }
+
+  /* ---------- STATUS STRIP ---------- */
+  .strip { display: grid; grid-template-columns: 1.4fr 1fr; gap: 18px; }
+  .box { border-radius: 18px; padding: 24px 26px; border: 1px solid var(--border); background: var(--surface); box-shadow: var(--shadow); }
+  .box .lab { font-size: 11px; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; margin-bottom: 14px; }
+  .box.live .lab { color: var(--green); }
+  .box.next .lab { color: var(--coral-deep); }
+  .box ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 9px; }
+  .box li { font-size: 14.5px; color: var(--ink); padding-left: 26px; position: relative; }
+  .box.live li::before { content: "✓"; position: absolute; left: 0; color: var(--green); font-weight: 800; }
+  .box.next li::before { content: "→"; position: absolute; left: 0; color: var(--coral); font-weight: 800; }
+
+  /* ---------- UNDER THE HOOD ---------- */
+  details.hood { background: var(--surface); border: 1px solid var(--border); border-radius: 22px; box-shadow: var(--shadow); overflow: hidden; }
+  details.hood > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 14px; padding: 22px 28px; font-weight: 800; font-size: 16px; color: var(--ink); }
+  details.hood > summary::-webkit-details-marker { display: none; }
+  .caret { width: 26px; height: 26px; border-radius: 8px; background: var(--coral-tint); color: var(--coral-deep); display: flex; align-items: center; justify-content: center; font-size: 13px; transition: transform .2s ease; flex: none; }
+  details.hood[open] .caret { transform: rotate(90deg); }
+  summary .sublab { font-weight: 500; color: var(--muted); font-size: 13.5px; margin-left: auto; }
+  .hood-body { padding: 4px 28px 30px; border-top: 1px solid var(--border); }
+  .hood-lead { color: var(--muted); font-size: 14.5px; margin: 20px 0 18px; max-width: 74ch; }
+  .hood-lead code { font-family: var(--mono); font-size: 12.5px; background: var(--ground); padding: 1px 6px; border-radius: 5px; color: var(--navy); }
+  .diagram-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: 16px; background: #FCFBFA; padding: 8px; }
+  .diagram-scroll svg { display: block; min-width: 780px; width: 100%; height: auto; }
+  .hood-notes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 20px; }
+  .hnote { border: 1px solid var(--border); border-radius: 14px; padding: 16px 18px; background: var(--surface); }
+  .hnote h4 { font-size: 13.5px; margin: 0 0 6px; }
+  .hnote p { margin: 0; font-size: 12.5px; color: var(--muted); line-height: 1.5; }
+  .hnote code { font-family: var(--mono); font-size: 11.5px; color: var(--coral-deep); }
+
+  .kicker { text-align: center; padding: 44px 0 4px; }
+  .kicker p { font-size: clamp(19px, 2.6vw, 26px); font-weight: 800; letter-spacing: -0.02em; max-width: 24ch; margin: 0 auto; }
+  .kicker p .hl { color: var(--coral); }
+
+  footer { padding: 34px 0 60px; color: var(--faint); font-size: 12.5px; text-align: center; }
+  footer .src { color: var(--muted); max-width: 78ch; margin: 0 auto 8px; }
+
+  @media (max-width: 840px) {
+    .rail { grid-template-columns: 1fr; gap: 14px; }
+    .pipe { display: none; }
+    .conn { position: static; transform: none; margin: 6px 0 0; display: inline-block; }
+    .stationwrap { flex-direction: row; text-align: left; gap: 16px; }
+    .marker { margin-bottom: 0; flex: none; width: 64px; height: 64px; font-size: 26px; }
+    .stationwrap p { max-width: none; }
+    .cards, .hood-notes { grid-template-columns: 1fr; }
+    .split, .strip { grid-template-columns: 1fr; }
+    .phone { order: -1; }
+    summary .sublab { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) { .packet { animation: none; opacity: 0; } .caret { transition: none; } }
+</style>
+</head>
+<body>
+
+<header class="masthead">
+  <div class="wrap">
+    <div class="brandrow">
+      <span class="pill">better<span class="rx">RX</span></span>
+      <nav class="navtabs"><span>Pharmacy</span><span class="on">DME</span><span>Reports</span></nav>
+    </div>
+    <p class="eyebrow">How the equipment side connects</p>
+    <h1>We don't add another system. We put equipment on the feed hospices <span class="hl">already trust</span>.</h1>
+    <p class="lede">Medical equipment orders ride the same connection BetterRX already runs for medications —
+      so a hospice sees the bed, the oxygen and the meds for one patient in one place, and the vendor joins
+      with nothing more than a text message.</p>
+  </div>
+</header>
+
+<main>
+  <!-- THE FLOW -->
+  <section>
+    <div class="wrap">
+      <div class="sectitle">
+        <h2>One patient. One connection. End to end.</h2>
+        <p>From the hospice's own system to the vendor's phone — no new software for anyone to buy or learn.</p>
+      </div>
+
+      <div class="stage">
+        <div class="rail">
+          <div class="pipe"><span class="packet"></span><span class="packet b"></span></div>
+
+          <div class="stationwrap">
+            <div class="marker">🏥</div>
+            <div class="step">Starts here</div>
+            <h3>Hospice</h3>
+            <p>Where nurses already work. Admission, discharge and death are recorded as they happen.</p>
+            <span class="conn">same connection</span>
+          </div>
+
+          <div class="stationwrap hero-node">
+            <div class="marker">💊</div>
+            <div class="step">The pipe that exists</div>
+            <h3>BetterRX</h3>
+            <p>The medication feed hospices already run. Equipment simply rides alongside the meds.</p>
+            <span class="conn">one shared view</span>
+          </div>
+
+          <div class="stationwrap">
+            <div class="marker">📋</div>
+            <div class="step">What we add</div>
+            <h3>Live order tracking</h3>
+            <p>Every order watched from placed to picked up. At-risk deliveries flagged before they slip.</p>
+            <span class="conn">one text</span>
+          </div>
+
+          <div class="stationwrap">
+            <div class="marker">🚚</div>
+            <div class="step">Reaches here</div>
+            <h3>Equipment vendor</h3>
+            <p>Confirms, gives an ETA, or sends proof of delivery — all by replying to a text. No app, no login.</p>
+          </div>
+        </div>
+
+        <div class="moment">
+          <span class="big">🔔</span>
+          <p>The moment a patient passes, the equipment pickup starts on its own.
+            <span>No one has to remember to call the vendor — the request goes out automatically, so a hospital bed doesn't sit in a grieving family's home for days.</span></p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- WHY CREDIBLE -->
+  <section>
+    <div class="wrap">
+      <div class="band">
+        <div class="sectitle">
+          <h2>This isn't a bet. It's how the industry already connects.</h2>
+          <p>The biggest hospice platforms already link pharmacy and equipment into the patient's record. We follow the proven path.</p>
+        </div>
+        <div class="cards">
+          <div class="card">
+            <div class="nm">Axxess</div>
+            <p>Patient status and medications <b>already flow into BetterRX today</b> — the exact connection equipment rides on.</p>
+          </div>
+          <div class="card">
+            <div class="nm">Homecare Homebase</div>
+            <p>Runs a <b>partner network built to automate equipment ordering</b> and share patient status with outside vendors.</p>
+          </div>
+          <div class="card">
+            <div class="nm">MatrixCare</div>
+            <p>Has <b>equipment ordering built right into the chart</b> — proof the destination we're driving toward is real.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ADOPTION WEDGE -->
+  <section>
+    <div class="wrap">
+      <div class="split">
+        <div class="txt">
+          <p class="eyebrow">Why vendors say yes</p>
+          <h2>The vendor needs zero software.</h2>
+          <p>Most equipment vendors are a warehouse, a few trucks and a dispatcher. Ask them to log into a portal and they walk. So we don't.</p>
+          <p><b>Onboarding a vendor is typing their phone number.</b> They get a text, they tap or reply, and the hospice sees the update instantly — turning silence into an answer.</p>
+        </div>
+        <div class="phone">
+          <div class="screen">
+            <div class="hd">Text message</div>
+            <div class="bub out">Wasatch Medical — hospital bed for a patient in Provo. Can you deliver today? Reply 1 yes, 2 no.<small>BetterRX · 9:02 AM</small></div>
+            <div class="bub in">1<small>9:14 AM</small></div>
+            <div class="bub out">Thanks! Got you down. What time?<small>9:14 AM</small></div>
+            <div class="bub in">Around 2pm<small>9:15 AM</small></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- STATUS STRIP -->
+  <section>
+    <div class="wrap">
+      <div class="strip">
+        <div class="box live">
+          <div class="lab">Working in the demo today</div>
+          <ul>
+            <li>Live order tracking, hospice to vendor</li>
+            <li>Text-message vendor updates — no app</li>
+            <li>Automatic pickup when a patient passes</li>
+            <li>Risk alerts before a delivery slips</li>
+            <li>Photo proof of delivery and pickup</li>
+          </ul>
+        </div>
+        <div class="box next">
+          <div class="lab">What's left for production</div>
+          <ul>
+            <li>Connect to the eRx bus medications already ride</li>
+            <li>It brings the patient's identity and the discharge &amp; death alerts we act on</li>
+            <li>Equipment orders and vendor texts go live on real infrastructure</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- UNDER THE HOOD (expandable UML) -->
+  <section>
+    <div class="wrap">
+      <div class="sectitle">
+        <h2>How it works, in detail.</h2>
+        <p>The same two flows shown above — now with the actual events and endpoints that carry them.</p>
+      </div>
+
+      <details class="hood">
+        <summary>
+          <span class="caret">▶</span>
+          The integration sequence, step by step
+          <span class="sublab">expand for the full diagram</span>
+        </summary>
+        <div class="hood-body">
+          <p class="hood-lead">A UML sequence of the two demo flows. <b>Solid = runs in the demo today</b>;
+            <b>dashed = the production path</b> (the real eRx bus, sketched). Every message maps to a real
+            endpoint or event: the nurse trigger is <code>POST /api/patients/:id/status</code>, the EMR fallback
+            is <code>POST /api/emr/patient-status</code>, verified proof is a POD row, and the sibling events on
+            the BetterRX bus are <code>newDmeOrder</code> / <code>dmeOrderStatus</code> alongside the existing
+            <code>newMedications</code>.</p>
+
+          <div class="diagram-scroll">
+            <svg viewBox="0 0 1200 772" role="img" aria-label="UML sequence diagram of the DME delivery and post-death pickup flows">
+              <defs>
+                <marker id="ah-navy" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+                  <path d="M0,0 L10,5 L0,10 z" fill="#2C3A49"></path>
+                </marker>
+                <marker id="ah-coral" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+                  <path d="M0,0 L10,5 L0,10 z" fill="#D2694C"></path>
+                </marker>
+                <style>
+                  .ll { stroke:#C7CFD5; stroke-width:1.4; stroke-dasharray:3 5; }
+                  .head { fill:#FFFFFF; stroke:#EBE7E3; stroke-width:1.4; }
+                  .head.self { fill:#FBEFEA; stroke:#E27B5E; }
+                  .htxt { font:800 12.5px var(--sans, system-ui,sans-serif); fill:#263240; text-anchor:middle; }
+                  .hsub { font:600 10px system-ui,sans-serif; fill:#93A0AA; text-anchor:middle; letter-spacing:.05em; }
+                  .act { fill:#FBEFEA; stroke:#E27B5E; stroke-width:1.2; }
+                  .msg-b { stroke:#2C3A49; stroke-width:1.7; marker-end:url(#ah-navy); }
+                  .msg-s { stroke:#D2694C; stroke-width:1.7; stroke-dasharray:6 4; marker-end:url(#ah-coral); }
+                  .lbl { font:600 12px system-ui,sans-serif; fill:#263240; text-anchor:middle; }
+                  .lbl.dim { fill:#5C6B75; font-weight:500; }
+                  .frame { fill:none; stroke:#DCD6D0; stroke-width:1.3; }
+                  .ftab { fill:#EFEAE5; }
+                  .ftxt { font:800 11px system-ui,sans-serif; fill:#5C6B75; letter-spacing:.04em; }
+                  .note { fill:#FFFDF6; stroke:#E4CE9A; stroke-width:1.2; }
+                  .ntxt { font:600 11px system-ui,sans-serif; fill:#8a6d2e; }
+                  .lgd { font:600 12px system-ui,sans-serif; fill:#5C6B75; }
+                </style>
+              </defs>
+
+              <!-- lifeline heads: cx = 100 310 560 780 960 1110 -->
+              <g>
+                <rect class="head" x="35"  y="20" width="130" height="50" rx="11"></rect>
+                <text class="htxt" x="100"  y="41">Hospice EMR</text>
+                <text class="hsub" x="100"  y="57">/ nurse</text>
+
+                <rect class="head" x="245" y="20" width="130" height="50" rx="11"></rect>
+                <text class="htxt" x="310" y="41">BetterRX eRx</text>
+                <text class="hsub" x="310" y="57">medication bus</text>
+
+                <rect class="head self" x="470" y="20" width="180" height="50" rx="11"></rect>
+                <text class="htxt" x="560" y="41">DME Coordination</text>
+                <text class="hsub" x="560" y="57">this system</text>
+
+                <rect class="head" x="715" y="20" width="130" height="50" rx="11"></rect>
+                <text class="htxt" x="780" y="44">Vendor (SMS)</text>
+
+                <rect class="head" x="895" y="20" width="130" height="50" rx="11"></rect>
+                <text class="htxt" x="960" y="44">Driver</text>
+
+                <rect class="head" x="1045" y="20" width="130" height="50" rx="11"></rect>
+                <text class="htxt" x="1110" y="44">Family</text>
+              </g>
+
+              <!-- lifelines -->
+              <line class="ll" x1="100"  y1="70" x2="100"  y2="742"></line>
+              <line class="ll" x1="310"  y1="70" x2="310"  y2="742"></line>
+              <line class="ll" x1="560"  y1="70" x2="560"  y2="742"></line>
+              <line class="ll" x1="780"  y1="70" x2="780"  y2="742"></line>
+              <line class="ll" x1="960"  y1="70" x2="960"  y2="742"></line>
+              <line class="ll" x1="1110" y1="70" x2="1110" y2="742"></line>
+
+              <!-- activation bar on coordination -->
+              <rect class="act" x="554" y="150" width="12" height="542" rx="2"></rect>
+
+              <!-- FRAME 1: Delivery -->
+              <rect class="frame" x="34" y="92" width="1140" height="298" rx="10"></rect>
+              <path class="ftab" d="M34,92 h96 v14 l-10,10 h-86 z"></path>
+              <text class="ftxt" x="46" y="109">Delivery</text>
+
+              <!-- m1 EMR -> eRx (existing) -->
+              <line class="msg-b" x1="100" y1="134" x2="310" y2="134"></line>
+              <text class="lbl dim" x="205" y="126">newMedications · newOrUpdatePatient</text>
+
+              <!-- m2 eRx -> Coordination (sketched) -->
+              <line class="msg-s" x1="310" y1="180" x2="554" y2="180"></line>
+              <text class="lbl" x="432" y="172">newDmeOrder</text>
+
+              <!-- m3 Coordination -> Vendor -->
+              <line class="msg-b" x1="566" y1="226" x2="780" y2="226"></line>
+              <text class="lbl" x="673" y="218">SMS + magic link — confirm? 1 / 2</text>
+
+              <!-- m4 Vendor -> Coordination -->
+              <line class="msg-b" x1="780" y1="272" x2="566" y2="272"></line>
+              <text class="lbl" x="673" y="264">tap 1 = accept · confidence 1.0</text>
+
+              <!-- m5 Coordination -> eRx (sketched) -->
+              <line class="msg-s" x1="554" y1="318" x2="310" y2="318"></line>
+              <text class="lbl" x="432" y="310">dmeOrderStatus: accepted</text>
+
+              <!-- m6 Driver -> Coordination -->
+              <line class="msg-b" x1="960" y1="364" x2="566" y2="364"></line>
+              <text class="lbl" x="763" y="356">POD photo + signature → delivery verified</text>
+
+              <!-- confidence-gate note -->
+              <g>
+                <path class="note" d="M858,244 h196 v40 l-12,12 h-184 z"></path>
+                <path class="note" d="M1054,244 v12 h12 z" fill="#F0E4C2"></path>
+                <text class="ntxt" x="870" y="262" style="fill:#8a6d2e">free-text reply → Claude parse;</text>
+                <text class="ntxt" x="870" y="277" style="fill:#8a6d2e">&lt; 0.8 → human review queue</text>
+              </g>
+
+              <!-- FRAME 2: Post-death pickup -->
+              <rect class="frame" x="34" y="406" width="1140" height="300" rx="10"></rect>
+              <path class="ftab" d="M34,406 h150 v14 l-10,10 h-140 z"></path>
+              <text class="ftxt" x="46" y="423">Post-death pickup</text>
+
+              <!-- m7 Nurse -> Coordination PRIMARY -->
+              <line class="msg-b" x1="100" y1="452" x2="554" y2="452"></line>
+              <text class="lbl" x="320" y="444">patient deceased — PRIMARY (nurse, one tap)</text>
+
+              <!-- m8 eRx -> Coordination FALLBACK -->
+              <line class="msg-s" x1="310" y1="498" x2="554" y2="498"></line>
+              <text class="lbl" x="432" y="490">ADT death — FALLBACK (redundant)</text>
+
+              <!-- m9 Coordination -> Vendor -->
+              <line class="msg-b" x1="566" y1="544" x2="780" y2="544"></line>
+              <text class="lbl" x="673" y="536">pickup request — automatic</text>
+
+              <!-- m10 Driver -> Coordination -->
+              <line class="msg-b" x1="960" y1="590" x2="566" y2="590"></line>
+              <text class="lbl" x="763" y="582">pickup POD → picked up</text>
+
+              <!-- m11 Coordination -> Family -->
+              <line class="msg-b" x1="566" y1="636" x2="1110" y2="636"></line>
+              <text class="lbl" x="838" y="628">family notified</text>
+
+              <!-- m12 Coordination -> eRx (sketched) -->
+              <line class="msg-s" x1="554" y1="682" x2="310" y2="682"></line>
+              <text class="lbl" x="432" y="674">dmeOrderStatus: pickedUp</text>
+
+              <!-- legend -->
+              <line x1="46" y1="742" x2="86" y2="742" class="msg-b"></line>
+              <text class="lgd" x="94" y="746">built — runs in the demo</text>
+              <line x1="300" y1="742" x2="340" y2="742" class="msg-s"></line>
+              <text class="lgd" x="348" y="746">production path — sketched (real eRx bus)</text>
+            </svg>
+          </div>
+
+          <div class="hood-notes">
+            <div class="hnote">
+              <h4>Every order mutation is auditable</h4>
+              <p>State changes run through one <code>applyEvent()</code> path and append to a permanent
+                order-event ledger — nothing is silently overwritten.</p>
+            </div>
+            <div class="hnote">
+              <h4>A claim is never shown as proof</h4>
+              <p>"Delivered" from a vendor text and "delivered" with a driver photo look different on the
+                board. Verification comes from a POD row, never a vendor's word.</p>
+            </div>
+            <div class="hnote">
+              <h4>AI only acts when it's sure</h4>
+              <p>Free-text replies are parsed by Claude; anything under <code>0.8</code> confidence goes to a
+                human review queue instead of moving the order.</p>
+            </div>
+          </div>
+        </div>
+      </details>
+    </div>
+  </section>
+
+  <div class="kicker">
+    <div class="wrap">
+      <p>Equipment finally sits <span class="hl">next to the meds</span> — for the same patient, in the system hospices already use.</p>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <div class="wrap">
+    <p class="src">Event shapes are modeled on BetterRX's own eRx medication payloads, so equipment data
+      reads and writes exactly alongside medications. Real-world integrations referenced: Axxess × BetterRX,
+      Homecare Homebase Business Connect, and MatrixCare × Brightree.</p>
+    <p>DME coordination for hospice · BetterRX — Builder Day 2026. The demo runs on simulated feeds; the
+      production path swaps the transport, not the design.</p>
+  </div>
+</footer>
+
+</body>
+</html>

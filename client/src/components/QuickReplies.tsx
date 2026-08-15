@@ -1,5 +1,5 @@
 import { digitOffset } from '../../../shared/slots'
-import type { FamilyTemplate, Message, SmsReplyResult, VendorTemplate } from '../../../shared/types'
+import type { FamilyTemplate, Message, VendorTemplate } from '../../../shared/types'
 
 /**
  * Reading digit replies in the two phone simulators.
@@ -10,12 +10,14 @@ import type { FamilyTemplate, Message, SmsReplyResult, VendorTemplate } from '..
  * imports mid-build; what it holds is the read side.
  *
  * A digit under a known question is deterministic — server/sms.ts maps template x position
- * to an action, at confidence 1.0 with no model call. That table is authoritative; the
- * labels below are cosmetic, used to annotate a bubble after the fact ("7 · Today"), and
- * the client never decides the action.
+ * to an action, at confidence 1.0 with no model call. That table is authoritative and the
+ * client never decides the action. Bubbles carry no outcome annotations anymore — a real
+ * handset shows only the time, and the parse result is the hospice board's story — so the
+ * labels below have exactly one client job left: deciding whether a typed body is a digit
+ * some open question owns, which picks "sending…" over "reading…" while a send is in flight.
  *
  * Vendor labels are positional because vendor digits rotate: which pair a question owns is
- * what addresses it in a flat SMS thread, so the label can only be resolved against the
+ * what addresses it in a flat SMS thread, so a digit can only be resolved against the
  * question's own slot. Family labels stay literal — one question at a time in a household
  * thread, and f_condition_check's 1-5 is a rating whose digits are the meaning.
  */
@@ -58,61 +60,3 @@ export function isOpenQuestion(m: Message): boolean {
     : !!FAMILY_LABELS[m.template as FamilyTemplate]
 }
 
-/**
- * The question an inbound bubble answers.
- *
- * Vendor side this is decided by the digit, not by position: the whole point of rotating
- * pairs is that a reply can land on a question several messages back, so scanning upward
- * for the nearest outbound would label it with whatever was asked most recently. Only when
- * no open question owns the digit — prose, or a household thread — does proximity apply.
- */
-export function answeredQuestion(thread: Message[], index: number): Message | undefined {
-  const digit = thread[index].body.trim()
-  // Nearest question above that owned this digit — not the first in the thread, since a
-  // pair is recycled once its question closes and an old bubble must keep its own meaning.
-  if (/^[0-9]$/.test(digit)) {
-    for (let i = index - 1; i >= 0; i--) {
-      const m = thread[i]
-      if (m.direction === 'out' && m.reply_slot !== null && digitLabel(m, digit)) return m
-    }
-  }
-  for (let i = index - 1; i >= 0; i--) {
-    const m = thread[i]
-    if (m.direction === 'out' && m.template) return m
-  }
-  return undefined
-}
-
-/** Delivery-receipt line, so the consequence of a reply reads as part of the conversation. */
-export function ReplyReceipt({ result }: { result: SmsReplyResult }) {
-  const label = result.digit ? digitLabel({ template: result.template, reply_slot: result.slot }, result.digit) : null
-  const digit = result.digit ? `${result.digit}${label ? ` · ${label}` : ''} — ` : ''
-
-  if (result.outcome === 'applied') {
-    const group = result.group_order_ids?.length ?? 0
-    return (
-      <div className="pt-1 text-right text-[11px] text-green-600">
-        {digit}
-        {group > 1 ? `applied to ${group} orders` : 'applied'}
-        {result.digit ? ' · no model needed' : ''}
-      </div>
-    )
-  }
-  if (result.outcome === 'prompt') {
-    return <div className="pt-1 text-right text-[11px] text-slate-400">{digit}we texted back a question</div>
-  }
-  if (result.outcome === 'clarify') {
-    return (
-      <div className="pt-1 text-right text-[11px] text-amber-600">
-        {digit}that code isn't open — we asked which order rather than guessing
-      </div>
-    )
-  }
-  return (
-    <div className="pt-1 text-right text-[11px] text-amber-600">
-      {result.outcome === 'unmapped'
-        ? "Couldn't match that to the question — sent to a person rather than guessed"
-        : 'Sent to a person rather than guessed'}
-    </div>
-  )
-}

@@ -82,6 +82,27 @@ export function resolveDigit(vendorId: number, digit: string): { question: Messa
 }
 
 /**
+ * The newest ANSWERED question whose pair owned this digit — resolveDigit's fallback for
+ * the receipt copy only, never for routing. A vendor who repeats a digit right after it
+ * applied should hear "order #X was already updated", not "nothing matches": the pair
+ * retired the moment their first reply landed, but their mental model hasn't.
+ */
+export function lastAnsweredOwner(vendorId: number, digit: string): Message | null {
+  const rows = db
+    .prepare(
+      `SELECT * FROM messages
+         WHERE vendor_id = ? AND recipient_type = 'vendor' AND direction = 'out'
+           AND reply_slot IS NOT NULL AND answered_at IS NOT NULL
+         ORDER BY id DESC`,
+    )
+    .all(vendorId) as never[]
+  for (const question of rows.map(rowToMessage)) {
+    if (digitOffset(question.reply_slot!, digit) !== null) return question
+  }
+  return null
+}
+
+/**
  * Retire a pair. Every unanswered question sharing it is closed, not just the one that was
  * replied to: a nag and its original request are the same ask, and leaving the request
  * open would keep the pair allocated forever.

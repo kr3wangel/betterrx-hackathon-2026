@@ -110,7 +110,7 @@ Confirm delivery. Back to tab 1 as the badge flips.*
 the pairs rotate) → the receipt lands. Glance at tab 1.*
 
 > **One digit from the vendor, and both pickups are committed — the trip is the unit, and no model
-> touched it.** [SCREEN — *"applied to 2 orders · no model needed"*.] **One death. One text. One
+> touched it.** [SCREEN — the texted receipt: *"Got your "N" — both pickups are on the books for today."*] **One death. One text. One
 > trip. One digit.**
 
 ▶ *Tab 2, driver — two PICK UP cards.*
