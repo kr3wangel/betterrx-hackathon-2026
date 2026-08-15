@@ -12,9 +12,37 @@ export function vendorToken(vendorId: number): string {
   return createHash('sha256').update(`vendor:${vendorId}:${SECRET}`).digest('hex').slice(0, 20)
 }
 
+function baseUrl(): string {
+  return process.env.PORTAL_BASE_URL ?? 'http://localhost:5173'
+}
+
 export function magicLink(vendorId: number): string {
-  const base = process.env.PORTAL_BASE_URL ?? 'http://localhost:5173'
-  return `${base}/portal/${vendorToken(vendorId)}`
+  return `${baseUrl()}/portal/${vendorToken(vendorId)}`
+}
+
+/**
+ * The link that goes in a text about one order.
+ *
+ * Shorter than the vendor link on purpose — it sits in an SMS a dispatcher reads on a
+ * phone, and the vendor-wide link put 28 characters of hex in every message. Ten hex
+ * characters is 40 bits, which is not a security boundary and is not claimed as one: the
+ * whole magic-link model here is "possession of the URL", exactly as the vendor link is.
+ */
+export function orderToken(orderId: number): string {
+  return createHash('sha256').update(`order:${orderId}:${SECRET}`).digest('hex').slice(0, 10)
+}
+
+/**
+ * No scheme in the text. "http://" is seven characters of nothing in a message a
+ * dispatcher reads on a phone, and short links are written without it in practice; the
+ * emulator's Linkify puts it back to build the href. The API links keep theirs.
+ */
+export function orderLink(orderId: number): string {
+  return `${baseUrl().replace(/^https?:\/\//, '')}/o/${orderToken(orderId)}`
+}
+
+export function resolveOrderToken(token: string): Order | null {
+  return listOrders().find((o) => orderToken(o.id) === token) ?? null
 }
 
 export function resolveToken(token: string): Vendor | null {

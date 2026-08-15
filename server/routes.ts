@@ -16,7 +16,15 @@ import {
 import { handleReply, sendTemplate } from './sms'
 import { setPatientStatus } from './pickups'
 import { resolveTargetAt } from './sla'
-import { resolveToken, portalOrders, portalConfirm, portalSetEta, portalDecline } from './portal'
+import {
+  resolveToken,
+  resolveOrderToken,
+  vendorToken,
+  portalOrders,
+  portalConfirm,
+  portalSetEta,
+  portalDecline,
+} from './portal'
 import {
   handleCaregiverReply,
   recordConditionReport,
@@ -166,6 +174,19 @@ routes.get('/portal/:token', (req, res) => {
   const vendor = resolveToken(req.params.token)
   if (!vendor) return res.status(404).json({ error: 'unknown link' })
   res.json({ vendor, orders: portalOrders(vendor.id) })
+})
+
+/**
+ * The order-specific magic link. Returns the vendor token too, so the one-order page can
+ * post confirm / eta / decline through the same routes the full portal uses — one set of
+ * mutations, one set of ownership checks, rather than a parallel pair that could drift.
+ */
+routes.get('/portal/order/:token', (req, res) => {
+  const order = resolveOrderToken(req.params.token)
+  if (!order) return res.status(404).json({ error: 'unknown link' })
+  const vendor = getVendor(order.vendor_id)
+  if (!vendor) return res.status(404).json({ error: 'unknown link' })
+  res.json({ vendor, order, portal_token: vendorToken(vendor.id), open_orders: portalOrders(vendor.id).length })
 })
 
 routes.post('/portal/:token/orders/:id/confirm', (req, res) => {

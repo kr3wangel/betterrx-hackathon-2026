@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { db } from '../server/db'
 import { ackNagText } from '../server/messaging'
+import { resolveOrderToken } from '../server/portal'
 import { applyEvent } from '../server/statemachine'
 import { getOrder } from '../server/store'
 import { tick } from '../server/watchdog'
@@ -31,9 +32,14 @@ describe('ackNagText', () => {
     const text = ackNagText(getOrder(id)!)
     expect(text).toContain(`#${id}`)
     expect(text).toContain('Hospital bed')
-    expect(text).toContain('/portal/')
     expect(text).toMatch(/accept or decline/i)
     expect(text).not.toContain('Test Patient')
+
+    // The link is the order's own, not the vendor's. A text about #id that opens someone
+    // else's order — or a list to hunt through — is the failure this guards.
+    const token = text.match(/\/o\/(\w+)/)?.[1]
+    expect(token, 'no order link in the text').toBeTruthy()
+    expect(resolveOrderToken(token!)?.id).toBe(id)
   })
 })
 

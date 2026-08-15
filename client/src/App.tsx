@@ -21,6 +21,7 @@ import Driver from './pages/Driver'
 import Order from './pages/Order'
 import Reports from './pages/Reports'
 import VendorPortal from './pages/VendorPortal'
+import PortalOrder from './pages/PortalOrder'
 import VendorStatus from './pages/VendorStatus'
 import Nurse from './pages/Nurse'
 import Caregiver from './pages/Caregiver'
@@ -152,6 +153,15 @@ export default function App() {
         element={
           <PortalShell>
             <VendorPortal />
+          </PortalShell>
+        }
+      />
+      {/* The link in a text. Short, per-order, and it opens on that order alone. */}
+      <Route
+        path="/o/:token"
+        element={
+          <PortalShell>
+            <PortalOrder />
           </PortalShell>
         }
       />

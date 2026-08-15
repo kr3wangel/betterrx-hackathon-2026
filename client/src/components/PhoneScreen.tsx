@@ -126,7 +126,12 @@ export function Bubble({
   )
 }
 
-const URL_PART = /(https?:\/\/\S+)/g
+// Scheme optional: the texts send "localhost:5173/o/ab12cd" with no "http://", the way a
+// short link is actually written, and a phone linkifies that too. The host must carry a
+// dot or a port — without that rule "and/or" in a dispatcher's prose becomes a link.
+const HOST = String.raw`(?:https?:\/\/)?(?:[\w-]+(?:\.[\w-]+)+|[\w-]+:\d+)`
+const URL_PART = new RegExp(`(${HOST}\\/\\S+)`, 'g')
+const LINK_LIKE = new RegExp(`^${HOST}\\/`)
 
 /**
  * Message bodies carry genuine /portal/<token> magic links — nothing about them is faked,
@@ -136,10 +141,10 @@ export function Linkify({ text }: { text: string }) {
   return (
     <>
       {text.split(URL_PART).map((part, i) =>
-        /^https?:\/\//.test(part) ? (
+        LINK_LIKE.test(part) ? (
           <a
             key={i}
-            href={part}
+            href={/^https?:\/\//.test(part) ? part : `http://${part}`}
             target="_blank"
             rel="noreferrer"
             className="underline underline-offset-2 hover:opacity-80"
