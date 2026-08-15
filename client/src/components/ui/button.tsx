@@ -9,8 +9,8 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: 'bg-primary text-primary-foreground hover:bg-[#d2694c]',
-        secondary: 'bg-secondary text-secondary-foreground hover:bg-[#22303d]',
+        default: 'bg-primary text-primary-foreground hover:bg-primary-hover',
+        secondary: 'bg-secondary text-secondary-foreground hover:bg-secondary-hover',
         destructive: 'bg-destructive text-destructive-foreground hover:bg-destructive/90',
         success: 'bg-success text-success-foreground hover:bg-success/90',
         outline: 'border border-border bg-card text-foreground hover:bg-muted',
@@ -47,6 +47,8 @@ function Button({
       data-slot="button"
       className={cn(buttonVariants({ variant, size, className }))}
       {...props}
+      // A bare <button> inside a <form> is type="submit"; nothing here means to submit unasked.
+      {...(asChild ? {} : { type: props.type ?? 'button' })}
     />
   )
 }

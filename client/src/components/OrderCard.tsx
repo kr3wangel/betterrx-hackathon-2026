@@ -2,11 +2,12 @@ import { useState } from 'react'
 import { AlertTriangle } from 'lucide-react'
 import { api } from '../lib/api'
 import { fmt } from '../lib/useLive'
-import { eventLabel, eventSourceNote } from '../lib/domain'
+import { actorLabel, eventLabel, eventSourceNote } from '../lib/domain'
 import { mockEvidenceSource, isVerifiedEvidence } from '../lib/mocks'
 import { StatusPill } from '@/components/StatusPill'
 import { RiskBadge, RISK_THRESHOLD } from '@/components/RiskBadge'
 import { EvidenceBadge } from '@/components/EvidenceBadge'
+import { PodImage } from '@/components/PodImage'
 import { cn } from '@/lib/utils'
 import type { Escalation, Message, Order, OrderEvent, Pod, PodCondition } from '../../../shared/types'
 import { STATE_STATUS_TONE, type StatusTone } from '../lib/domain'
@@ -69,11 +70,20 @@ export function OrderCard({
 
   return (
     <article
+      role="button"
+      tabIndex={0}
+      aria-expanded={detail !== null}
       className={cn(
-        'flex cursor-pointer overflow-hidden rounded-2xl border bg-card shadow-[0_1px_2px_rgba(38,50,64,.04),0_14px_34px_-20px_rgba(38,50,64,.20)] transition-shadow hover:shadow-[0_1px_2px_rgba(38,50,64,.06),0_18px_40px_-20px_rgba(38,50,64,.28)]',
+        'flex cursor-pointer overflow-hidden rounded-2xl border bg-card shadow-[0_1px_2px_rgba(38,50,64,.04),0_14px_34px_-20px_rgba(38,50,64,.20)] transition-shadow hover:shadow-[0_1px_2px_rgba(38,50,64,.06),0_18px_40px_-20px_rgba(38,50,64,.28)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
         atRisk ? 'border-destructive/40 ring-1 ring-destructive/20' : 'border-border'
       )}
       onClick={toggle}
+      onKeyDown={(e) => {
+        if (e.target !== e.currentTarget) return
+        if (e.key !== 'Enter' && e.key !== ' ') return
+        e.preventDefault()
+        toggle()
+      }}
     >
       <div className={cn('w-1.5 flex-none', SPINE_CLASS[spineTone])} aria-hidden="true" />
       <div className={cn('min-w-0 flex-1', mini ? 'p-4' : 'p-5')}>
@@ -89,7 +99,7 @@ export function OrderCard({
               {order.equipment_name} <span className="tabular-nums text-faint">· {order.hcpcs_code}</span>
               {vendorName && !mini && <span> · {vendorName}</span>}
               {order.urgency === 'stat' && (
-                <span className="ml-1.5 font-bold uppercase tracking-wide text-[#d2694c]">STAT</span>
+                <span className="ml-1.5 font-bold uppercase tracking-wide text-primary-hover">STAT</span>
               )}
             </div>
           </div>
@@ -171,7 +181,7 @@ function OrderDetailPane({ detail }: { detail: OrderDetail }) {
                 <span className="min-w-0">
                   <span className="tabular-nums text-faint">{fmt(e.created_at)}</span>{' '}
                   <span className="text-foreground">{eventLabel(e.type)}</span>{' '}
-                  <span className="text-faint">({e.actor})</span>
+                  <span className="text-faint">({actorLabel(e.actor)})</span>
                   {note && <span className="text-faint"> · {note}</span>}
                   {inertClaim && (
                     <span className="ml-1 text-faint italic">— reported by text; doesn’t clear the risk flag</span>
@@ -196,16 +206,18 @@ function PodProof({ pods }: { pods: Pod[] }) {
           <div key={pod.id} className="rounded-xl border border-border bg-muted/40 p-2">
             <div className="flex gap-2">
               {pod.photo_path && (
-                <img
+                <PodImage
                   src={`/${pod.photo_path.replace(/^data\//, 'api/')}`}
                   alt="Delivery photo"
+                  missing="Photo missing"
                   className="size-20 rounded-lg object-cover"
                 />
               )}
               {pod.signature_path && (
-                <img
+                <PodImage
                   src={`/${pod.signature_path.replace(/^data\//, 'api/')}`}
                   alt="Signature"
+                  missing="Signature missing"
                   className="size-20 rounded-lg border border-border bg-white object-contain"
                 />
               )}

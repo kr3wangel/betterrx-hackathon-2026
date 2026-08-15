@@ -21,9 +21,11 @@
 
   --primary: #e27b5e; /* coral — CTAs, brand accents */
   --primary-foreground: #ffffff;
+  --primary-hover: #d2694c; /* coral-deep — hover on every coral CTA */
 
   --secondary: #2c3a49; /* navy — dark buttons, in-motion */
   --secondary-foreground: #ffffff;
+  --secondary-hover: #22303d;
 
   --muted: #f1eeea;
   --muted-foreground: #5c6b75;
@@ -71,8 +73,10 @@
   --color-popover-foreground: var(--popover-foreground);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
+  --color-primary-hover: var(--primary-hover);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary-hover: var(--secondary-hover);
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
   --color-accent: var(--accent);

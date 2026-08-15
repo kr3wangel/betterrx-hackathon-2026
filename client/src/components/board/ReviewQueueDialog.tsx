@@ -86,7 +86,8 @@ function ReviewItem({ message, orders }: { message: Message; orders: Order[] }) 
       )}
       <div className="mt-2.5 flex flex-wrap items-center gap-2">
         <select
-          className="h-9 rounded-md border border-border bg-card px-2 text-xs"
+          aria-label="Which order does this reply belong to?"
+          className="h-11 rounded-md border border-border bg-card px-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           value={orderId}
           onChange={(e) => setOrderId(e.target.value)}
         >
@@ -97,10 +98,10 @@ function ReviewItem({ message, orders }: { message: Message; orders: Order[] }) 
             </option>
           ))}
         </select>
-        <Button size="sm" disabled={!message.parsed || !orderId || busy} onClick={apply}>
+        <Button disabled={!message.parsed || !orderId || busy} onClick={apply}>
           Apply
         </Button>
-        <Button size="sm" variant="outline" disabled={busy} onClick={dismiss}>
+        <Button variant="outline" disabled={busy} onClick={dismiss}>
           Dismiss
         </Button>
       </div>

@@ -62,7 +62,7 @@ export default function Hospice() {
       <div className="mb-7 flex items-center justify-end">
         <Link
           to="/order"
-          className="rounded-[10px] bg-primary px-5 py-2.5 text-[13px] font-bold text-primary-foreground transition-colors hover:bg-[#d2694c]"
+          className="rounded-[10px] bg-primary px-5 py-2.5 text-[13px] font-bold text-primary-foreground transition-colors hover:bg-primary-hover"
         >
           + New order
         </Link>
@@ -99,7 +99,7 @@ export default function Hospice() {
           ))}
           {queue.length > 0 && (
             <button
-              className="mb-2.5 flex w-full items-center justify-between gap-3 rounded-[14px] bg-card px-5 py-4 text-left text-[14.5px] shadow-[0_1px_4px_rgba(38,50,64,.08)]"
+              className="mb-2.5 flex w-full items-center justify-between gap-3 rounded-[14px] bg-card px-5 py-4 text-left text-[14.5px] shadow-[0_1px_4px_rgba(38,50,64,.08)] transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               onClick={() => setShowReview(true)}
             >
               <span>
@@ -145,7 +145,8 @@ export default function Hospice() {
             {board.done.completions > 0 && (
               <>
                 <button
-                  className="mt-2.5 text-[13px] font-semibold text-primary"
+                  aria-expanded={showHistory}
+                  className="mt-2.5 rounded-md text-[13px] font-semibold text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   onClick={() => setShowHistory((o) => !o)}
                 >
                   {showHistory ? 'history ▾' : 'history ▸'}
@@ -242,7 +243,8 @@ function LaterRow({
   return (
     <>
       <button
-        className="mb-2 flex w-full items-center justify-between gap-3 rounded-[14px] bg-card px-5 py-3.5 text-left text-[14px] text-faint shadow-[0_1px_3px_rgba(38,50,64,.05)]"
+        aria-expanded={open}
+        className="mb-2 flex w-full items-center justify-between gap-3 rounded-[14px] bg-card px-5 py-3.5 text-left text-[14px] text-faint shadow-[0_1px_3px_rgba(38,50,64,.05)] transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         onClick={onToggle}
       >
         <span>

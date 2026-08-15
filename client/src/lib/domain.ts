@@ -73,6 +73,20 @@ export function eventLabel(type: string): string {
   return EVENT_TYPE_LABEL[type] ?? type.replaceAll('_', ' ')
 }
 
+// Who did it, in words — 'ai' and 'system' mean nothing to a case manager.
+export const ACTOR_LABEL: Record<string, string> = {
+  hospice: 'hospice',
+  vendor: 'vendor',
+  driver: 'driver',
+  family: 'family',
+  ai: 'Claude',
+  system: 'automatic',
+}
+
+export function actorLabel(actor: string): string {
+  return ACTOR_LABEL[actor] ?? actor.replaceAll('_', ' ')
+}
+
 // How the system learned a status, read from the event's own payload.source. On a
 // 'vendor_message' the actor is the discriminator the payload doesn't spell out: 'ai' is
 // the only actor applyParsed() runs under after a model parse — a tapped digit applies the

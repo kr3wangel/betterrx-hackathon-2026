@@ -8,7 +8,7 @@ import { useHighlight } from '../../lib/highlight'
 import type { Order, Vendor } from '../../../../shared/types'
 
 const PILL_TONE: Record<Pill['tone'], string> = {
-  act: 'bg-primary text-primary-foreground hover:bg-[#d2694c]',
+  act: 'bg-primary text-primary-foreground hover:bg-primary-hover',
   good: 'bg-[#E6F4EC] text-success',
   wait: 'bg-[#EEF1F3] text-muted-foreground',
 }
@@ -109,8 +109,9 @@ export function BoardRow({ row, vendors, lead }: { row: Row; vendors: Vendor[]; 
 }
 
 function PillView({ pill, onAct }: { pill: Pill; onAct: () => void }) {
+  // min-h-11 is the design system's 44px touch floor — this is the board's only CTA.
   const base = cn(
-    'mt-2.5 block w-full rounded-[10px] py-2.5 text-center text-[13px] font-bold sm:col-start-5 sm:row-start-1 sm:mt-0 sm:w-40',
+    'mt-2.5 flex min-h-11 w-full items-center justify-center rounded-[10px] px-2 text-center text-[13px] font-bold sm:col-start-5 sm:row-start-1 sm:mt-0 sm:w-40',
     PILL_TONE[pill.tone]
   )
   if (pill.action === null) return <span className={base}>{pill.label}</span>

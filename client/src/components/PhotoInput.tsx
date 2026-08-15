@@ -25,7 +25,13 @@ export function PhotoInput({ onCapture }: { onCapture: (dataUrl: string) => void
           }}
         />
       </label>
-      {preview && <img src={preview} alt="captured" className="max-h-48 rounded-md border border-slate-200" />}
+      {preview && (
+        <img
+          src={preview}
+          alt="The equipment you just photographed"
+          className="max-h-48 rounded-md border border-border"
+        />
+      )}
     </div>
   )
 }

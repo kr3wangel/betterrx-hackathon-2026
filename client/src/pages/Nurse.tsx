@@ -9,6 +9,7 @@ import { PersonaHeader } from '@/components/PersonaHeader'
 import { EmptyState } from '@/components/EmptyState'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 
 type StatusChoice = Exclude<PatientStatus, 'active'>
@@ -62,9 +63,10 @@ function pickupLine(name: string, choice: StatusChoice, count: number): string {
 
 export default function Nurse() {
   const navigate = useNavigate()
-  const [patients, setPatients] = useState<Patient[]>([])
+  const [patients, setPatients] = useState<Patient[] | null>(null)
   const [loadError, setLoadError] = useState(false)
   const [selected, setSelected] = useState<Patient | null>(null)
+  const [saving, setSaving] = useState(false)
 
   function load() {
     api
@@ -75,12 +77,13 @@ export default function Nurse() {
   useEffect(load, [])
 
   const activePatients = useMemo(
-    () => patients.filter((p) => p.status === 'active'),
+    () => (patients ?? []).filter((p) => p.status === 'active'),
     [patients],
   )
 
   async function apply(choice: StatusChoice) {
-    if (!selected) return
+    if (!selected || saving) return
+    setSaving(true)
     const patient = selected
     // Narrowed to the pickups this tap fires, so a vendor accepting inside the window still speaks.
     expectOwn([`patient:${patient.id}`], { types: ['pickup_triggered'] })
@@ -109,6 +112,8 @@ export default function Nurse() {
       toast.error('Couldn’t save that', {
         description: 'Something went wrong reaching the server. Try again in a moment.',
       })
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -132,7 +137,18 @@ export default function Nurse() {
           </CardContent>
         </Card>
       ) : selected ? (
-        <StatusConfirm patient={selected} onBack={() => setSelected(null)} onApply={apply} />
+        <StatusConfirm
+          patient={selected}
+          saving={saving}
+          onBack={() => setSelected(null)}
+          onApply={apply}
+        />
+      ) : patients === null ? (
+        <div className="space-y-2.5">
+          {Array.from({ length: 3 }, (_, i) => (
+            <Skeleton key={i} className="h-[74px] rounded-2xl" />
+          ))}
+        </div>
       ) : activePatients.length === 0 ? (
         <EmptyState
           title="No active patients"
@@ -178,10 +194,12 @@ function PatientPicker({
 
 function StatusConfirm({
   patient,
+  saving,
   onBack,
   onApply,
 }: {
   patient: Patient
+  saving: boolean
   onBack: () => void
   onApply: (choice: StatusChoice) => void
 }) {
@@ -225,11 +243,18 @@ function StatusConfirm({
                 size="lg"
                 className="w-full"
                 variant={choice.tone === 'passing' ? 'secondary' : 'default'}
+                disabled={saving}
                 onClick={() => onApply(choice.value)}
               >
-                {choice.confirmCta}
+                {saving ? 'Saving…' : choice.confirmCta}
               </Button>
-              <Button size="lg" variant="ghost" className="w-full" onClick={() => setPending(null)}>
+              <Button
+                size="lg"
+                variant="ghost"
+                className="w-full"
+                disabled={saving}
+                onClick={() => setPending(null)}
+              >
                 Not yet
               </Button>
             </div>

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Camera, CheckCircle2, PackageCheck, Truck, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '../lib/api'
@@ -24,12 +24,30 @@ interface CompletedJob {
   familyText: string | null
 }
 
+// The states GET /api/driver/jobs hands back — mirrored here only to pick a sane opening vendor.
+const DRIVER_STATES: Order['state'][] = ['dispatched', 'in_transit', 'pickup_pending', 'pickup_overdue']
+
 export default function Driver() {
-  const [vendorId, setVendorId] = useState(1)
+  const [vendorId, setVendorId] = useState<number | null>(null)
   const [completed, setCompleted] = useState<CompletedJob | null>(null)
   const { data: vendors } = useLive(() => api.get<Vendor[]>('/api/vendors'))
-  const { data: jobs } = useLive(() => api.get<Order[]>(`/api/driver/jobs?vendor_id=${vendorId}`), [vendorId])
+  const { data: allOrders } = useLive(() => api.get<Order[]>('/api/orders'))
+  const { data: jobs } = useLive(
+    () =>
+      vendorId === null
+        ? Promise.resolve<Order[]>([])
+        : api.get<Order[]>(`/api/driver/jobs?vendor_id=${vendorId}`),
+    [vendorId],
+  )
   const { data: patients } = useLive(() => api.get<Patient[]>('/api/patients'))
+
+  // Open on a vendor that actually has work. Settled once, so finishing the last job
+  // doesn't slide the page over to somebody else's route mid-demo.
+  useEffect(() => {
+    if (vendorId !== null || !allOrders || !vendors) return
+    const busy = allOrders.find((o) => DRIVER_STATES.includes(o.state))
+    setVendorId(busy?.vendor_id ?? vendors[0]?.id ?? 1)
+  }, [allOrders, vendors, vendorId])
 
   useHighlightHandoff()
 
@@ -44,8 +62,9 @@ export default function Driver() {
       />
 
       <select
+        aria-label="Which vendor's route?"
         className="h-11 w-full rounded-md border border-input bg-card px-3 text-sm text-foreground shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background"
-        value={vendorId}
+        value={vendorId ?? ''}
         onChange={(e) => setVendorId(Number(e.target.value))}
       >
         {(vendors ?? []).map((v) => (
@@ -65,7 +84,7 @@ export default function Driver() {
           onComplete={setCompleted}
         />
       ))}
-      {jobs && jobs.length === 0 && (
+      {vendorId !== null && jobs && jobs.length === 0 && (
         <EmptyState
           icon={<Truck />}
           title="Route's clear"
@@ -188,24 +207,25 @@ function JobCard({
 
           {capturing && (
             <div className="space-y-4 rounded-xl border border-border bg-muted/30 p-3">
+              {/* Captions, not labels: each control below is a sibling, not a labelable child. */}
               <div className="space-y-2">
-                <label className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
                   <Camera className="size-3.5" /> Photo of the equipment
-                </label>
+                </div>
                 <PhotoInput onCapture={setPhoto} />
               </div>
 
               {!isPickup && (
                 <div className="space-y-2">
-                  <label className="text-xs font-semibold text-muted-foreground">
+                  <div className="text-xs font-semibold text-muted-foreground">
                     Condition attestation — uncheck anything that isn't true
-                  </label>
+                  </div>
                   <ConditionChecklist value={condition} onChange={setCondition} />
                 </div>
               )}
 
               <div className="space-y-2">
-                <label className="text-xs font-semibold text-muted-foreground">Signature</label>
+                <div className="text-xs font-semibold text-muted-foreground">Signature</div>
                 <SignaturePad onCapture={setSignature} />
               </div>
 

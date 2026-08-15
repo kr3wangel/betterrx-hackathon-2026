@@ -66,8 +66,11 @@ export default function Demo() {
 
 function EmrFeed({ patients }: { patients: Patient[] }) {
   const navigate = useNavigate()
+  const [busy, setBusy] = useState<number | null>(null)
 
   async function setStatus(patient: Patient, status: Exclude<PatientStatus, 'active'>) {
+    if (busy !== null) return
+    setBusy(patient.id)
     // Narrowed to the pickups this fires, so a vendor accepting inside the window still speaks.
     expectOwn([`patient:${patient.id}`], { types: ['pickup_triggered'] })
     try {
@@ -98,6 +101,8 @@ function EmrFeed({ patients }: { patients: Patient[] }) {
       toast.error('The EMR feed didn’t go through', {
         description: err instanceof Error ? err.message : 'Try again in a moment.',
       })
+    } finally {
+      setBusy(null)
     }
   }
 
@@ -126,10 +131,20 @@ function EmrFeed({ patients }: { patients: Patient[] }) {
                 </span>
                 {p.status === 'active' && (
                   <span className="flex shrink-0 gap-1.5">
-                    <Button size="sm" variant="outline" onClick={() => setStatus(p, 'discharged')}>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={busy !== null}
+                      onClick={() => setStatus(p, 'discharged')}
+                    >
                       Discharged
                     </Button>
-                    <Button size="sm" variant="secondary" onClick={() => setStatus(p, 'deceased')}>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      disabled={busy !== null}
+                      onClick={() => setStatus(p, 'deceased')}
+                    >
                       Passed away
                     </Button>
                   </span>

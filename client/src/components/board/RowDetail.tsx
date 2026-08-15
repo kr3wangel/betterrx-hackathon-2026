@@ -7,6 +7,7 @@ import { eventLabel, eventSourceNote } from '../../lib/domain'
 import { isPickup, plainItem } from '../../lib/board'
 import { mockEvidenceSource, isVerifiedEvidence } from '../../lib/mocks'
 import { EvidenceBadge } from '@/components/EvidenceBadge'
+import { PodImage } from '@/components/PodImage'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import type { Escalation, Message, Order, OrderEvent, Pod, PodCondition, Vendor } from '../../../../shared/types'
@@ -93,7 +94,12 @@ export function RowDetail({ order, vendor }: { order: Order; vendor?: Vendor }) 
 
       {isPickup(order) && vendor && (
         <div className="flex flex-wrap items-center gap-3 rounded-xl bg-muted px-4 py-3">
-          <span className="font-display text-base font-bold tabular-nums tracking-tight">{vendor.phone}</span>
+          <a
+            href={`tel:${vendor.phone.replace(/[^\d+]/g, '')}`}
+            className="rounded-md font-display text-base font-bold tabular-nums tracking-tight underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            {vendor.phone}
+          </a>
           <span className="text-muted-foreground">{vendor.contact_name}</span>
           <Button size="sm" variant="outline" className="ml-auto" disabled={nudging} onClick={nudge}>
             {nudging ? 'Sending…' : 'Send another nudge'}
@@ -156,16 +162,18 @@ function PodProof({ pods }: { pods: Pod[] }) {
         <div key={pod.id} className="rounded-xl border border-border bg-muted/40 p-2">
           <div className="flex gap-2">
             {pod.photo_path && (
-              <img
+              <PodImage
                 src={`/${pod.photo_path.replace(/^data\//, 'api/')}`}
                 alt="Delivery photo"
+                missing="Photo missing"
                 className="size-20 rounded-lg object-cover"
               />
             )}
             {pod.signature_path && (
-              <img
+              <PodImage
                 src={`/${pod.signature_path.replace(/^data\//, 'api/')}`}
                 alt="Signature"
+                missing="Signature missing"
                 className="size-20 rounded-lg border border-border bg-white object-contain"
               />
             )}

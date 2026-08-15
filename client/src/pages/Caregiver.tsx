@@ -43,9 +43,9 @@ interface Household {
 }
 
 export default function Caregiver() {
-  const { data: messages } = useLive(() => api.get<Message[]>('/api/messages'))
-  const { data: orders } = useLive(() => api.get<Order[]>('/api/orders'))
-  const { data: patients } = useLive(() => api.get<Patient[]>('/api/patients'))
+  const { data: messages, failed: messagesFailed } = useLive(() => api.get<Message[]>('/api/messages'))
+  const { data: orders, failed: ordersFailed } = useLive(() => api.get<Order[]>('/api/orders'))
+  const { data: patients, failed: patientsFailed } = useLive(() => api.get<Patient[]>('/api/patients'))
   const [patientId, setPatientId] = useState<number | null>(null)
 
   const households = useMemo<Household[]>(() => {
@@ -72,12 +72,23 @@ export default function Caregiver() {
 
   const selected = households.find((h) => h.patient.id === patientId)
 
+  // A phone has no chrome to hang a spinner on, so loading and failure both speak here —
+  // the fallback below tells you to go capture a POD, which is wrong advice mid-fetch.
+  if (messagesFailed || ordersFailed || patientsFailed) {
+    return (
+      <PhoneNotice>Can’t reach the server. Check the connection and reload.</PhoneNotice>
+    )
+  }
+  if (!messages || !orders || !patients) {
+    return <PhoneNotice>Loading…</PhoneNotice>
+  }
+
   if (!selected) {
     return (
-      <div className="flex h-[100dvh] items-center justify-center px-6 text-center text-sm text-slate-400">
+      <PhoneNotice>
         No household threads yet. Capture a proof of delivery on <b className="mx-1">/driver</b> and the check sends
         itself.
-      </div>
+      </PhoneNotice>
     )
   }
 
@@ -87,7 +98,8 @@ export default function Caregiver() {
       household={selected}
       picker={
         <select
-          className="max-w-[13rem] truncate rounded-md border-0 bg-transparent text-[11px] text-slate-400 outline-none"
+          aria-label="Switch household"
+          className="max-w-[13rem] truncate rounded-md border-0 bg-transparent text-[11px] text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
           value={patientId ?? ''}
           onChange={(e) => setPatientId(Number(e.target.value))}
         >
@@ -100,6 +112,14 @@ export default function Caregiver() {
         </select>
       }
     />
+  )
+}
+
+function PhoneNotice({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex h-[100dvh] items-center justify-center px-6 text-center text-sm text-slate-400">
+      {children}
+    </div>
   )
 }
 
@@ -198,9 +218,15 @@ function Thread({ household, picker }: { household: Household; picker: React.Rea
               >
                 {checkSent === 'sending' ? 'Sending…' : 'Send the condition check'}
               </button>
-              {checkSent === 'sent' && <div className="mt-1.5 text-[11px] text-slate-400">Sent</div>}
+              {checkSent === 'sent' && (
+                <div role="status" className="mt-1.5 text-[11px] text-slate-400">
+                  Sent
+                </div>
+              )}
               {checkSent === 'failed' && (
-                <div className="mt-1.5 text-[11px] text-red-600">Didn’t send — tap again</div>
+                <div role="alert" className="mt-1.5 text-[11px] text-red-600">
+                  Didn’t send — tap again
+                </div>
               )}
             </>
           )}
@@ -245,7 +271,9 @@ function Thread({ household, picker }: { household: Household; picker: React.Rea
       {reply && !rows.some((m) => m.id === reply.message_id) && <ReplyReceipt result={reply} />}
 
       {sendFailed && (
-        <div className="pt-1 text-right text-[11px] text-red-600">Didn’t send — try again</div>
+        <div role="alert" className="pt-1 text-right text-[11px] text-red-600">
+          Didn’t send — try again
+        </div>
       )}
 
       {/* Delivery-receipt style status, so the consequence reads as part of the conversation. */}

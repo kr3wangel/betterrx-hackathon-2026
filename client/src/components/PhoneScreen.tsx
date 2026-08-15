@@ -61,7 +61,11 @@ export function PhoneScreen({
         </div>
       </div>
 
-      <div className="shrink-0 border-t border-slate-200 bg-slate-50 px-4 py-2.5">
+      {/* 16px is the floor: iOS Safari zooms the whole page on focus for anything smaller. */}
+      <div
+        className="shrink-0 border-t border-slate-200 bg-slate-50 px-4 pt-2.5"
+        style={{ paddingBottom: 'calc(0.625rem + env(safe-area-inset-bottom))' }}
+      >
         <form
           className="mx-auto flex max-w-md items-center gap-2"
           onSubmit={(e) => {
@@ -69,8 +73,12 @@ export function PhoneScreen({
             onSend()
           }}
         >
+          <label className="sr-only" htmlFor="phone-composer">
+            Text message
+          </label>
           <input
-            className="w-full rounded-full border border-slate-300 bg-white px-4 py-2 text-[14px] outline-none focus:border-slate-400"
+            id="phone-composer"
+            className="min-h-11 w-full rounded-full border border-slate-300 bg-white px-4 py-2 text-[16px] outline-none focus:border-slate-400"
             placeholder="Text Message"
             value={draft}
             onChange={(e) => onDraft(e.target.value)}
@@ -79,7 +87,7 @@ export function PhoneScreen({
           <button
             type="submit"
             disabled={sending || !draft.trim()}
-            className="shrink-0 rounded-full bg-blue-600 px-4 py-2 text-[13px] font-semibold text-white disabled:opacity-40"
+            className="min-h-11 shrink-0 rounded-full bg-blue-600 px-5 text-[14px] font-semibold text-white disabled:opacity-40"
           >
             {sending ? '…' : 'Send'}
           </button>
@@ -112,9 +120,9 @@ export function Bubble({
   const sent = side === 'sent'
   return (
     <div className={`flex ${sent ? 'justify-end' : 'justify-start'}`} style={{ animation: 'bubbleIn .22s ease-out both' }}>
-      <div className="max-w-[82%]">
+      <div className="min-w-0 max-w-[82%]">
         <div
-          className={`whitespace-pre-wrap rounded-2xl px-3.5 py-2 text-[14px] leading-snug ${
+          className={`whitespace-pre-wrap break-words rounded-2xl px-3.5 py-2 text-[14px] leading-snug ${
             sent ? 'rounded-br-md bg-blue-600 text-white' : 'rounded-bl-md bg-slate-100 text-slate-800'
           }`}
         >

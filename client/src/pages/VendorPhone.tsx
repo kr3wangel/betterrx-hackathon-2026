@@ -3,6 +3,7 @@ import { api } from '../lib/api'
 import { useLive } from '../lib/useLive'
 import { Bubble, Linkify, PhoneScreen, ThreadEmpty } from '../components/PhoneScreen'
 import { ReplyReceipt, answeredQuestion, digitLabel, isOpenQuestion } from '../components/QuickReplies'
+import { intentLabel } from '../lib/domain'
 import type { Message, SmsReplyResult, Vendor } from '../../../shared/types'
 
 /**
@@ -38,6 +39,14 @@ const INTENT_TONE: Record<string, string> = {
 
 const time = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
 
+function PhoneNotice({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex h-[100dvh] items-center justify-center px-6 text-center text-sm text-slate-400">
+      {children}
+    </div>
+  )
+}
+
 /** What happened to a reply the vendor sent: a tapped digit, parsed prose, or neither. */
 function replyMeta(m: Message, label: string | null) {
   if (label) {
@@ -55,7 +64,7 @@ function replyMeta(m: Message, label: string | null) {
       <>
         {' · '}
         <span className={INTENT_TONE[m.parsed.intent] ?? 'text-slate-400'}>
-          read as {m.parsed.intent.replace(/_/g, ' ')}
+          read as {intentLabel(m.parsed.intent).toLowerCase()}
         </span>
         {' · '}
         {Math.round((m.parsed.confidence ?? 0) * 100)}%
@@ -72,11 +81,15 @@ function replyMeta(m: Message, label: string | null) {
 }
 
 export default function VendorPhone() {
-  const { data: vendors } = useLive(() => api.get<Vendor[]>('/api/vendors'))
+  const { data: vendors, failed } = useLive(() => api.get<Vendor[]>('/api/vendors'))
   const [vendorId, setVendorId] = useState(1)
-  const vendor = vendors?.find((v) => v.id === vendorId)
+  // Falls back to the first seeded vendor: a reseed can renumber, and a phone with no
+  // chrome has nowhere else to say "vendor 1 doesn't exist".
+  const vendor = vendors?.find((v) => v.id === vendorId) ?? vendors?.[0]
 
-  if (!vendor) return <div className="flex h-[100dvh] items-center justify-center text-sm text-slate-400">Loading…</div>
+  if (failed) return <PhoneNotice>Can’t reach the server. Check the connection and reload.</PhoneNotice>
+  if (!vendors) return <PhoneNotice>Loading…</PhoneNotice>
+  if (!vendor) return <PhoneNotice>No vendors seeded yet. Run the seed and reload.</PhoneNotice>
 
   return (
     <Thread
@@ -84,8 +97,9 @@ export default function VendorPhone() {
       vendor={vendor}
       picker={
         <select
-          className="max-w-[15rem] truncate rounded-md border-0 bg-transparent text-[11px] text-slate-400 outline-none"
-          value={vendorId}
+          aria-label="Switch vendor"
+          className="max-w-[15rem] truncate rounded-md border-0 bg-transparent text-[11px] text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+          value={vendor.id}
           onChange={(e) => setVendorId(Number(e.target.value))}
         >
           {(vendors ?? []).map((v) => (
@@ -184,7 +198,11 @@ function Thread({ vendor, picker }: { vendor: Vendor; picker: React.ReactNode })
         </Bubble>
       )}
 
-      {sendFailed && <div className="pt-1 text-right text-[11px] text-red-600">Didn’t send — try again</div>}
+      {sendFailed && (
+        <div role="alert" className="pt-1 text-right text-[11px] text-red-600">
+          Didn’t send — try again
+        </div>
+      )}
     </PhoneScreen>
   )
 }

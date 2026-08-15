@@ -194,8 +194,15 @@ function OrderRequestCard({
             </Button>
           ) : (
             <div className="space-y-2 rounded-xl border border-border bg-muted/30 p-3">
-              <label className="text-xs font-semibold text-muted-foreground">When will it arrive?</label>
-              <Input type="datetime-local" value={etaValue} onChange={(e) => setEtaValue(e.target.value)} />
+              <label className="text-xs font-semibold text-muted-foreground" htmlFor={`eta-${order.id}`}>
+                When will it arrive?
+              </label>
+              <Input
+                id={`eta-${order.id}`}
+                type="datetime-local"
+                value={etaValue}
+                onChange={(e) => setEtaValue(e.target.value)}
+              />
               <div className="flex gap-2">
                 <Button variant="ghost" className="flex-1" disabled={busy} onClick={() => setShowEta(false)}>
                   Cancel

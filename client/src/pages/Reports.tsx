@@ -32,6 +32,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { api } from '@/lib/api'
 import { useLive } from '@/lib/useLive'
 import { selectBoardOrders } from '@/lib/atRisk'
+import { byCode } from '@/lib/domain'
 import {
   COST_APPROVAL_THRESHOLD_USD,
   mockApprovals,
@@ -74,7 +75,7 @@ const pct = (rate: number) => `${Math.round(rate * 100)}%`
 
 export default function Reports() {
   const navigate = useNavigate()
-  const { data } = useLive<ReportsData>(loadReports)
+  const { data, failed, reload } = useLive<ReportsData>(loadReports)
 
   return (
     <div className="space-y-7">
@@ -89,10 +90,28 @@ export default function Reports() {
         }
       />
 
-      {!data ? (
+      {failed && !data ? (
+        <EmptyState
+          title="Couldn't load the reports"
+          description="We can't reach the server right now. Nothing is lost — try again in a moment."
+          action={
+            <Button variant="outline" className="rounded-xl" onClick={reload}>
+              Try again
+            </Button>
+          }
+        />
+      ) : !data ? (
         <ReportsSkeleton />
       ) : (
         <>
+          {failed && (
+            <div
+              role="alert"
+              className="rounded-[14px] bg-destructive/10 px-5 py-4 text-sm font-semibold text-destructive"
+            >
+              Can't reach the server — these numbers may be out of date. Still trying.
+            </div>
+          )}
           <KpiRow data={data} />
           <div className="grid gap-6 lg:grid-cols-[1.5fr_1fr]">
             <VendorScorecards scorecards={data.scorecards} conditions={data.conditions} />
@@ -242,11 +261,17 @@ function VendorScorecards({
     [scorecards],
   )
 
-  // The lagging vendor's worst equipment × weekday cell — a human routing hint.
+  // The lagging vendor's worst equipment × weekday cell — a human routing hint. Cells the
+  // seed couldn't support carry sample_size 0, and a routing recommendation off no
+  // deliveries is exactly the manufactured precision FAQ §6 penalises.
   const worst = rows[0]
   const worstCell = useMemo(() => {
     if (!worst) return null
-    return [...worst.stats].sort((a, b) => a.on_time_rate - b.on_time_rate)[0] ?? null
+    return (
+      [...worst.stats]
+        .filter((s) => s.sample_size > 0)
+        .sort((a, b) => a.on_time_rate - b.on_time_rate)[0] ?? null
+    )
   }, [worst])
 
   return (
@@ -279,7 +304,7 @@ function VendorScorecards({
                   <TableCell className="font-medium text-foreground">
                     {s.vendor.name}
                     <div className="text-xs font-normal text-faint">
-                      {s.total_samples} deliveries measured
+                      {s.total_samples} {s.total_samples === 1 ? 'delivery' : 'deliveries'} measured
                     </div>
                   </TableCell>
                   <TableCell className="text-right tabular-nums">
@@ -305,8 +330,10 @@ function VendorScorecards({
         {worst && worstCell && worstCell.on_time_rate < 0.75 && (
           <p className="mt-4 text-[13px] leading-relaxed text-muted-foreground">
             <span className="font-semibold text-foreground">{worst.vendor.name}</span> runs late on{' '}
-            {DAYS[worstCell.day_of_week]} {worstCell.hcpcs_code} orders (
-            {pct(worstCell.on_time_rate)} on-time) — consider routing urgent{' '}
+            {DAYS[worstCell.day_of_week]}{' '}
+            {byCode(worstCell.hcpcs_code)?.equipment_name.toLowerCase() ?? worstCell.hcpcs_code}{' '}
+            orders ({pct(worstCell.on_time_rate)} on-time across {worstCell.sample_size}{' '}
+            {worstCell.sample_size === 1 ? 'delivery' : 'deliveries'}) — consider routing urgent{' '}
             {DAYS[worstCell.day_of_week]} discharges elsewhere.
           </p>
         )}
@@ -517,7 +544,7 @@ function CostApprovals({ orders }: { orders: Order[] }) {
               {rows.map((a) => (
                 <TableRow key={a.order_id}>
                   <TableCell className="font-medium tabular-nums text-faint">
-                    DME-{String(a.order_id).padStart(4, '0')}
+                    #{a.order_id}
                   </TableCell>
                   <TableCell className="text-foreground">
                     {a.equipment_name}
