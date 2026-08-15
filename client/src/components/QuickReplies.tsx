@@ -25,6 +25,7 @@ const VENDOR_LABELS: Partial<Record<VendorTemplate, readonly [string, string]>> 
   v_ack_nag: ['Accept', "Can't fill"],
   v_eta_check: ['On schedule', 'Delayed'],
   v_pickup_request: ['Today', 'Later'],
+  v_pickup_group: ['Yes — the whole stop', 'Give us a window'],
 }
 
 const FAMILY_LABELS: Partial<Record<FamilyTemplate, Record<string, string>>> = {
@@ -88,9 +89,12 @@ export function ReplyReceipt({ result }: { result: SmsReplyResult }) {
   const digit = result.digit ? `${result.digit}${label ? ` · ${label}` : ''} — ` : ''
 
   if (result.outcome === 'applied') {
+    const group = result.group_order_ids?.length ?? 0
     return (
       <div className="pt-1 text-right text-[11px] text-green-600">
-        {digit}applied{result.digit ? ' · no model needed' : ''}
+        {digit}
+        {group > 1 ? `applied to ${group} orders` : 'applied'}
+        {result.digit ? ' · no model needed' : ''}
       </div>
     )
   }

@@ -100,6 +100,7 @@ export function eventSourceNote(event: OrderEvent): string | null {
     if (event.actor === 'hospice') return 'vendor text · confirmed by a human'
     return 'digit reply · no model'
   }
+  if (source === 'group reply') return 'group reply · no model'
   if (source === 'portal') return 'magic link · no model'
   if (source === 'nurse') return 'nurse tap · no model'
   if (source === 'emr') return 'EMR webhook · no model'
