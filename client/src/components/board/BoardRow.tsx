@@ -4,6 +4,7 @@ import type { BoardRow as Row, Pill } from '../../lib/board'
 import { RowDetail } from './RowDetail'
 import { SwapVendorDialog } from './SwapVendorDialog'
 import { cn } from '@/lib/utils'
+import { useHighlight } from '../../lib/highlight'
 import type { Order, Vendor } from '../../../../shared/types'
 
 const PILL_TONE: Record<Pill['tone'], string> = {
@@ -49,6 +50,7 @@ export function BoardRow({ row, vendors, lead }: { row: Row; vendors: Vendor[]; 
   const [swapping, setSwapping] = useState(false)
   const single = row.orders.length === 1 ? row.orders[0] : null
   const red = row.atRisk || (row.when?.overdue ?? false)
+  const acked = useHighlight().isPulsing(row.orders.map((o) => o.id))
 
   const onPill = () => {
     if (row.pill.action === 'swap') setSwapping(true)
@@ -59,7 +61,8 @@ export function BoardRow({ row, vendors, lead }: { row: Row; vendors: Vendor[]; 
     <div
       className={cn(
         'mb-2.5 rounded-[14px] bg-card px-5',
-        lead ? 'py-4 text-[15px] shadow-[0_1px_4px_rgba(38,50,64,.08)]' : 'py-[15px] text-[14.5px] shadow-[0_1px_3px_rgba(38,50,64,.06)]'
+        lead ? 'py-4 text-[15px] shadow-[0_1px_4px_rgba(38,50,64,.08)]' : 'py-[15px] text-[14.5px] shadow-[0_1px_3px_rgba(38,50,64,.06)]',
+        acked && 'row-ack'
       )}
     >
       <div

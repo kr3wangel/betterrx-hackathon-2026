@@ -66,6 +66,7 @@ export const EVENT_TYPE_LABEL: Record<string, string> = {
   cancelled: 'Cancelled',
   risk_updated: 'Risk updated',
   family_notified: 'Family notified',
+  family_confirmed: 'Family confirmed arrival',
 }
 
 export function eventLabel(type: string): string {

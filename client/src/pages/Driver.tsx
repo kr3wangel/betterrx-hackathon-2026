@@ -11,6 +11,7 @@ import { ConditionChecklist, ALL_ATTESTED, type ConditionState } from '@/compone
 import { SignaturePad } from '../components/SignaturePad'
 import { PhotoInput } from '../components/PhotoInput'
 import { PersonaHeader } from '@/components/PersonaHeader'
+import { useHighlight } from '../lib/highlight'
 import type { Order, OrderEvent, Patient, Pod, PodKind, Vendor } from '../../../shared/types'
 
 interface CompletedJob {
@@ -97,6 +98,7 @@ function JobCard({
   const [submitting, setSubmitting] = useState(false)
   const [starting, setStarting] = useState(false)
   const isPickup = job.state === 'pickup_pending' || job.state === 'pickup_overdue'
+  const acked = useHighlight().isPulsing([job.id])
 
   async function startDelivery() {
     setStarting(true)
@@ -136,7 +138,7 @@ function JobCard({
   }
 
   return (
-    <Card>
+    <Card className={acked ? 'row-ack' : undefined}>
       <CardContent className="space-y-3 pt-6">
         <div className="flex items-start justify-between gap-3">
           <div>
