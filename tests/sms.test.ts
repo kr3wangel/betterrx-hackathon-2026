@@ -3,10 +3,12 @@ import { db } from '../server/db'
 import {
   ackNagText,
   applyParsed,
+  deliveredThanksText,
   deliveryConfirmText,
   etaCheckText,
   householdGate,
   orderRequestText,
+  pickedUpThanksText,
   pickupNoticeText,
   pickupRequestText,
   sendToFamily,
@@ -29,7 +31,7 @@ import { applyEvent } from '../server/statemachine'
 import { getOrder, rowToMessage } from '../server/store'
 import { tick } from '../server/watchdog'
 import { seedFixtures, seedOrder } from './helpers'
-import type { MessageTemplate, ParsedMessage, VendorTemplate } from '../shared/types'
+import type { FamilyTemplate, MessageTemplate, ParsedMessage, VendorTemplate } from '../shared/types'
 
 beforeEach(() => {
   seedFixtures()
@@ -457,6 +459,75 @@ describe('householdGate', () => {
     expect(body).toMatch(/nothing you need to do/i)
     expect(body).not.toMatch(/reply/i)
     expect(body).not.toContain(`#${id}`)
+  })
+})
+
+// One truck visit closes every item on the stop, so the closing text is scoped to the
+// visit and not to the order the POD happened to ride in on.
+describe('one visit, one thanks', () => {
+  function backdate(template: FamilyTemplate, hoursAgo: number) {
+    db.prepare("UPDATE messages SET created_at = ? WHERE template = ?").run(
+      new Date(Date.now() - hoursAgo * 3_600_000).toISOString(),
+      template,
+    )
+  }
+
+  it('thanks the household once for a two-item pickup trip', () => {
+    const bed = seedOrder({ state: 'pickup_pending' })
+    const oxygen = seedOrder({ state: 'pickup_pending', equipment_name: 'Oxygen concentrator, portable' })
+
+    expect(sendToFamily(1, bed, pickedUpThanksText(), 'f_picked_up_thanks')).not.toBeNull()
+    expect(sendToFamily(1, oxygen, pickedUpThanksText(), 'f_picked_up_thanks')).toBeNull()
+    expect(householdGate(getOrder(oxygen)!, 'f_picked_up_thanks').reason).toMatch(/visit/i)
+    expect(messages().filter((m) => m.template === 'f_picked_up_thanks')).toHaveLength(1)
+  })
+
+  it('thanks again when the truck comes back hours later', () => {
+    const first = seedOrder({ state: 'pickup_pending' })
+    const second = seedOrder({ state: 'pickup_pending', equipment_name: 'Walker, folding' })
+
+    expect(sendToFamily(1, first, pickedUpThanksText(), 'f_picked_up_thanks')).not.toBeNull()
+    backdate('f_picked_up_thanks', 3)
+
+    expect(sendToFamily(1, second, pickedUpThanksText(), 'f_picked_up_thanks')).not.toBeNull()
+    expect(messages().filter((m) => m.template === 'f_picked_up_thanks')).toHaveLength(2)
+  })
+
+  it('still refuses a repeat thanks for the same order after the window', () => {
+    const id = seedOrder({ state: 'pickup_pending' })
+    expect(sendToFamily(1, id, pickedUpThanksText(), 'f_picked_up_thanks')).not.toBeNull()
+    backdate('f_picked_up_thanks', 3)
+    expect(sendToFamily(1, id, pickedUpThanksText(), 'f_picked_up_thanks')).toBeNull()
+  })
+
+  it('dedupes a multi-item delivery drop the same way', () => {
+    const bed = seedOrder({ state: 'delivered' })
+    const oxygen = seedOrder({ state: 'delivered', equipment_name: 'Oxygen concentrator, portable' })
+
+    expect(sendToFamily(1, bed, deliveredThanksText(getOrder(bed)!), 'f_delivered_thanks')).not.toBeNull()
+    expect(sendToFamily(1, oxygen, deliveredThanksText(getOrder(oxygen)!), 'f_delivered_thanks')).toBeNull()
+    expect(messages().filter((m) => m.template === 'f_delivered_thanks')).toHaveLength(1)
+  })
+
+  it('never lets one household mute another', () => {
+    db.prepare(
+      "INSERT INTO patients (id, name, market, caregiver_name, caregiver_phone, contact_ok) VALUES (3, 'Other Patient', 'SLC', 'Other Caregiver', '801-555-0303', 1)",
+    ).run()
+    const mine = seedOrder({ state: 'pickup_pending' })
+    const theirs = seedOrder({ patient_id: 3, state: 'pickup_pending' })
+
+    expect(sendToFamily(1, mine, pickedUpThanksText(), 'f_picked_up_thanks')).not.toBeNull()
+    expect(sendToFamily(3, theirs, pickedUpThanksText(), 'f_picked_up_thanks')).not.toBeNull()
+    expect(messages().filter((m) => m.template === 'f_picked_up_thanks')).toHaveLength(2)
+  })
+
+  it('leaves the pickup notice keyed to the order, not the visit', () => {
+    const bed = seedOrder({ state: 'pickup_pending' })
+    const oxygen = seedOrder({ state: 'pickup_pending', equipment_name: 'Walker, folding' })
+
+    expect(sendToFamily(1, bed, pickupNoticeText(), 'f_pickup_notice')).not.toBeNull()
+    expect(sendToFamily(1, oxygen, pickupNoticeText(), 'f_pickup_notice')).not.toBeNull()
+    expect(messages().filter((m) => m.template === 'f_pickup_notice')).toHaveLength(2)
   })
 })
 

@@ -187,6 +187,8 @@ export function sendToFamily(
 }
 
 const FAMILY_QUESTIONS: FamilyTemplate[] = ['f_delivery_confirm', 'f_condition_check']
+const FAMILY_THANKS: FamilyTemplate[] = ['f_delivered_thanks', 'f_picked_up_thanks']
+const THANKS_WINDOW_HOURS = Number(process.env.THANKS_WINDOW_HOURS ?? 2)
 
 interface HouseholdContact {
   status: string
@@ -196,7 +198,8 @@ interface HouseholdContact {
 
 /**
  * One gate for every family send. Questions need a living patient and an empty thread;
- * notices are permitted after a death but carry no digits and go out once per order.
+ * notices are permitted after a death but carry no digits and go out once per order, and a
+ * closing thanks once per visit.
  */
 export function householdGate(order: Order, template: FamilyTemplate): { ok: boolean; reason?: string } {
   const patient = db
@@ -219,6 +222,19 @@ export function householdGate(order: Order, template: FamilyTemplate): { ok: boo
       .get(order.patient_id)
     if (open) return { ok: false, reason: 'a question is already open in this household thread' }
     return { ok: true }
+  }
+
+  // A thanks closes a visit, not an order. One truck emptying a house files a POD per item,
+  // so scoping this to the order would text a grieving household once per box on the truck.
+  if (FAMILY_THANKS.includes(template)) {
+    const since = new Date(Date.now() - THANKS_WINDOW_HOURS * 3_600_000).toISOString()
+    const recent = db
+      .prepare(
+        `SELECT id FROM messages WHERE patient_id = ? AND direction = 'out' AND recipient_type = 'family'
+           AND template = ? AND created_at >= ?`,
+      )
+      .get(order.patient_id, template, since)
+    if (recent) return { ok: false, reason: 'the household already heard about this visit' }
   }
 
   const already = db
