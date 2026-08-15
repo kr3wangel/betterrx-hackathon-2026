@@ -41,6 +41,22 @@ real inbound messages. No telephony provider. The magic links in the bubbles are
 > what a real gateway delivers; before this, the deterministic path only worked for a caller that
 > already knew which message it was answering, and a real "1" reached a model.
 
+> **Amended 08-15 — a fifth vendor template, `v_pickup_group`: one text for a whole stop.** This
+> spec sends one `v_pickup_request` per order, so a patient with a bed and a concentrator produced
+> two near-identical texts and spent two of that vendor's five reply pairs. `setPatientStatus()`
+> now groups its pickups per vendor: one item still sends `v_pickup_request` unchanged, several
+> items from one home send a single `v_pickup_group` whose manifest rides in a new
+> `message_orders(message_id, order_id)` join table and whose anchor is the first order id on the
+> `messages` row. The affirmative applies `pickup_scheduled` to **every** order on the manifest —
+> one physical decision, one reply, N per-order commitments — each stamped
+> `payload.source: 'group reply'`. Everything §6 says about `template × position → action` is
+> unchanged; the fan-out lives in the action, not in the addressing, so `routeDigit()` resolves a
+> group pair exactly as it resolves a single order's. Rows added below in §3.1, §5.2, §6, §8 and
+> §10.3. Design rationale and the invariants this must not trade away: `docs/SMS-BATCHING-SPEC.md`
+> (tier 2, built 08-15). One thing to know reading the union below: the shipped `VendorTemplate`
+> also carries `v_backlog_digest`, which arrived with rotating reply codes and never got a row in
+> this spec — it is informational, holds no pair, and by design has no route-table entry.
+
 **Scope note:** the emulator UI is owned by another dev and already built. This spec covers the
 backend — schema, templates, the routing table, triggers — plus the integration contract the
 emulator consumes (§10). No component, layout, or interaction design appears here.
@@ -244,8 +260,9 @@ the record.*
 
 ## 3 · Message matrix
 
-Eight templates. Four to vendors (all four extend or reuse text that already exists), four to
-households, plus the condition check inherited from `condition.ts`.
+Eight templates as originally specced — four to vendors (all four extend or reuse text that
+already exists), four to households, plus the condition check inherited from `condition.ts`. A
+fifth vendor template, `v_pickup_group`, was added 08-15 and is marked V5 throughout.
 
 ### 3.1 Vendor thread — `recipient_type = 'vendor'`
 
@@ -254,10 +271,13 @@ households, plus the condition check inherited from `condition.ts`.
 | `v_order_request` | V1 | `orderRequestText()` — extended | `POST /orders`, `POST /orders/:id/swap-vendor` | 1 = accept · 2 = can't fill |
 | `v_ack_nag` | V2 | `ackNagText()` — extended | `watchdog.tick()` silence ladder | 1 = accept · 2 = can't fill |
 | `v_eta_check` | V3 | **new** `etaCheckText()` | `watchdog.tick()`, morning of `target_at` | 1 = on schedule · 2 = delayed |
-| `v_pickup_request` | V4 | `pickupRequestText()` — extended | `setPatientStatus()` | 1 = today · 2 = later |
+| `v_pickup_request` | V4 | `pickupRequestText()` — extended | `setPatientStatus()`, single-item stop | 1 = today · 2 = later |
+| `v_pickup_group` | V5 *(added 08-15)* | **new** `pickupGroupText()` | `setPatientStatus()`, multi-item stop | 1 = the whole stop today · 2 = give us a window |
 
 All four carry the magic link they already carry (V3 gains one). The digit line is appended, never
-substituted — **the tap and the digit are two doors to the same room, and the vendor picks.**
+substituted — **the tap and the digit are two doors to the same room, and the vendor picks.** V5
+is the exception on the link: it points at the vendor portal rather than a per-order `/o/` page,
+because a message about a stop has no single order to point at.
 
 ```
 V1  New order #1042: 1x Hospital bed, semi-electric (E0260), deliver by Aug 15, 2:00 PM,
@@ -273,7 +293,17 @@ V3  Order #1042 (Hospital bed, semi-electric) is due today by 2:00 PM. Reply 1 i
 V4  Pickup needed for order #1050 (Hospital bed, semi-electric), area Ogden. Reply 1 if
     you can get it today, 2 to give us a window:
     http://localhost:5173/portal/0ba1ed9f8fc6b1e9a57f
+
+V5  Pickup needed — 2 items from one home (hospital bed, oxygen concentrator), area Ogden.
+    Family is present — please schedule promptly. Reply 1 if you can get both today, 2 to
+    give us a window: http://localhost:5173/portal/0ba1ed9f8fc6b1e9a57f
 ```
+
+V5 names a count and the items, never an order number and never a patient — "2 items from one
+home" identifies no one. Items are the equipment names cut at the first comma and lower-cased,
+and the quantifier is "both" at two, "all N" above that. The V4 tone note below applies in
+reverse to V5: *"Family is present — please schedule promptly"* was cut from V4 and deliberately
+kept here, because on a multi-item stop it is the scheduling constraint rather than colour.
 
 **PHI:** order number, equipment, deadline, area. No patient name, no street address — matching
 `orderRequestText`'s existing `area ${patientArea}` convention and the minimum-necessary rule in
@@ -368,6 +398,25 @@ added at the bottom of `db.ts` for the caregiver columns:
 …plus the same four columns in the `CREATE TABLE IF NOT EXISTS messages` body for fresh databases.
 Both are required: the `CREATE` covers new DBs, the `ALTER` loop covers teammates' existing ones.
 
+**Added 08-15 — `message_orders`, the group manifest.** `messages.order_id` stays single. A
+`v_pickup_group` row keeps its anchor there (the first order on the stop) and lists the whole trip
+in a new table, created alongside `messages` in `db.ts`:
+
+```sql
+CREATE TABLE IF NOT EXISTS message_orders (
+  message_id INTEGER NOT NULL REFERENCES messages(id),
+  order_id INTEGER NOT NULL REFERENCES orders(id),
+  PRIMARY KEY (message_id, order_id)
+);
+```
+
+A join table rather than a JSON column because the reply has to fan out per order
+transactionally, and the rows are written inside the message insert's own transaction — a manifest
+that outlived a failed insert would fan a reply out to orders nobody was ever asked about. Single-
+order messages write no rows here, and the reader falls back to `messages.order_id` when the
+manifest is empty, so every existing message keeps routing untouched. New table, not a new column,
+so the `ALTER` loop is unaffected and no `db:reset` ping is needed for it either.
+
 **Because every column is additive with a default, no `db:reset` ping is needed.** That is the
 deviation in §0.1 paying for itself: the whole feature is now a normal same-session push to `main`
 under the ordinary workflow, not a schema branch. (If the team later insists on the strict
@@ -395,7 +444,10 @@ export type OrderEventType =
 
 export type RecipientType = 'vendor' | 'family'
 
-export type VendorTemplate = 'v_order_request' | 'v_ack_nag' | 'v_eta_check' | 'v_pickup_request'
+export type VendorTemplate =
+  | 'v_order_request' | 'v_ack_nag' | 'v_eta_check' | 'v_pickup_request'
+  | 'v_pickup_group'            // added 08-15 — one question, N orders
+  | 'v_backlog_digest'          // arrived with rotating reply codes; informational, no pair
 export type FamilyTemplate =
   | 'f_delivery_confirm' | 'f_condition_check' | 'f_eta_notice'
   | 'f_pickup_notice' | 'f_delivered_thanks' | 'f_picked_up_thanks'
@@ -495,6 +547,8 @@ export const REPLY_ROUTES: Partial<Record<MessageTemplate, Record<string, ReplyA
 | `v_eta_check` | 2 | `prompt` | *"When do you expect to deliver? Text back a day and time."* |
 | `v_pickup_request` | 1 | `apply` `pickup_scheduled`, `eta: null` | `eta_set` with notes, **`eta_at` untouched** (§6.4) |
 | `v_pickup_request` | 2 | `prompt` | *"When can you collect it? Text back a day and time."* |
+| `v_pickup_group` | 1 | `apply` `pickup_scheduled`, `eta: null` | the same `eta_set`, **once per order on the manifest**, `payload.source: 'group reply'` (§6.6) |
+| `v_pickup_group` | 2 | `prompt` | *"When can you collect them? Text back a day and time."* — applies nothing to any order |
 | `f_delivery_confirm` | 1 | `family_confirm` true | `family_confirmed` event + resolve the no-POD escalation + chain the condition check |
 | `f_delivery_confirm` | 2 | `family_confirm` false | replace the escalation with the sharper reason (§6.3) |
 | `f_condition_check` | 1-5 | `delegate` condition | `handleCaregiverReply(orderId, body)` verbatim |
@@ -580,6 +634,31 @@ sends an outbound message with **`template: NULL`**. A null template has no digi
 digit against a prompt lands in review by the same rule as everything else. The *content* the vendor
 then texts is the reviewable artifact, and it goes through the confidence gate as its own message.
 
+### 6.6 One digit, N orders — the group fan-out *(added 08-15)*
+
+`v_pickup_group` is the only row in the table whose action touches more than one order, and the
+difference is entirely inside `apply`. Ownership resolution, the answered-check (§6.1), the
+already-answered rule, and the pair arithmetic are all identical — the group's pair is one pair
+like any other, and a group that allocated a pair per item would spend a vendor's whole code space
+on one stop.
+
+- **Manifest, then anchor.** The fan-out reads `message_orders` for the question, and falls back to
+  `messages.order_id` when there are no rows — so a `v_pickup_group` fired by hand through
+  `POST /api/messages/send` (§7.2) against a single order still applies.
+- **Skip-and-record on partial failure.** An order whose state refuses `pickup_scheduled` is left
+  alone and named in the stored `parsed.notes` (*"— not applied to #1051 (picked_up)"*) rather than
+  aborting the trip; "yes to both" when one was already collected is still a true answer about the
+  other. The row is `auto_applied` if anything applied, `needs_review` if nothing did.
+- **One household notice.** `f_pickup_notice` fires once for the stop, off the first order that
+  applied — the household hears about the visit, not the manifest.
+- **`eta` stays null**, exactly as V4 (§6.4), and it matters more here: a gamed digit would
+  otherwise hold N orders out of overdue instead of one.
+- **The reply payload carries the fan-out.** `SmsReplyResult` gains `group_order_ids` — the orders
+  that actually took the transition — which is what the emulator's receipt counts (§10.2).
+
+Per-order state, events, clocks and escalations are untouched by any of this: a trip is a
+messaging concept, and there is no `trips` table. *We batch the asking, never the answering.*
+
 ---
 
 ## 7 · Endpoints
@@ -643,7 +722,8 @@ unfiltered fetch is small. Full contract in §10.
 | `v_order_request` | `routes.ts` `POST /orders` · `POST /orders/:id/swap-vendor` | existing — unchanged except the template argument |
 | `v_ack_nag` | `watchdog.ts` `tick()` | existing silence ladder — unchanged except the template argument |
 | `v_eta_check` | `watchdog.ts` `tick()` | **new**: state ∈ {`dispatched`, `in_transit`}, `target_at` is today (local), `now.getHours() >= ETA_CHECK_HOUR` (default 8), and no `v_eta_check` row for this order since local midnight |
-| `v_pickup_request` | `pickups.ts` `setPatientStatus()` | existing — unchanged except the template argument |
+| `v_pickup_request` | `pickups.ts` `setPatientStatus()` | existing — unchanged except the template argument. **08-15: now only when the vendor owes exactly one item from that home** |
+| `v_pickup_group` | `pickups.ts` `setPatientStatus()` | **new 08-15**: the vendor owes 2+ items from the same home in this call — one question per (vendor × stop), manifest written with the message |
 | `f_delivery_confirm` | `messaging.ts` `applyParsed()`, `intent === 'delivered'` branch | **new**: right after the existing `escalate(… without proof of delivery)`, gated on `!order.delivery_verified` and `householdGate()` |
 | `f_condition_check` | `routes.ts` POD route (existing) **or** F1 digit-1 handler (new) | `sendConditionCheck()` unchanged; only the call site is new |
 | `f_eta_notice` | `messaging.ts` `applyParsed()` · `portal.ts` `portalConfirm`/`portalSetEta` | **new**: `eta_at` newly set, state pre-delivery, once per order |
@@ -790,7 +870,8 @@ One endpoint for every inbound the emulator produces (§7.1):
 POST /api/messages/reply
   { reply_to_message_id: number, digit?: string }   // quick reply
   { reply_to_message_id: number, body?: string }    // free text
-→ 200 SmsReplyResult { message_id, in_reply_to, template, digit, outcome, prompt, order }
+→ 200 SmsReplyResult { message_id, in_reply_to, template, digit, slot, outcome, prompt, order,
+                       group_order_ids? }   // group_order_ids added 08-15, §6.6
   400 digit or body required · 404 message not found · 409 TransitionError
 ```
 
@@ -801,7 +882,9 @@ order, and template are all derived server-side from that row.
 `outcome` tells the emulator what happened without it having to re-derive anything:
 `applied` (state moved — the board will already be updating) · `prompt` (we texted back a question;
 `prompt` carries the text) · `review` (stored, needs a human — e.g. a second answer to an already
-answered question) · `unmapped` (no template/digit match; stored, nothing applied).
+answered question) · `unmapped` (no template/digit match; stored, nothing applied). On a
+`v_pickup_group` reply, `group_order_ids` lists the orders that actually moved, which is what the
+receipt line counts: *"1 · Yes — the whole stop — applied to 2 orders · no model needed"*.
 
 `POST /api/messages/inbound` remains unchanged for the older `Vendor.tsx` simulator.
 
@@ -815,6 +898,7 @@ hard-code them:
 | `v_order_request`, `v_ack_nag` | Accept | Can't fill | — |
 | `v_eta_check` | On schedule | Delayed | — |
 | `v_pickup_request` | Today | Later | — |
+| `v_pickup_group` | Yes — the whole stop | Give us a window | — |
 | `f_delivery_confirm` | Yes, it's here | No, not yet | — |
 | `f_condition_check` | Unusable | Poor | 3 Acceptable · 4 Good · 5 Like new |
 | *(informational templates)* | — | — | no buttons |

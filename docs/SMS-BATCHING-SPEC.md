@@ -1,12 +1,14 @@
 # Trip Batching & the Vendor-Side Question Gate — Design Spec
 
-> **STATUS: SPEC'D, NOT BUILT** *(true when written; partly overtaken the same night — see the
-> amendment below)*. Team decision (Angel, 2026-08-14 night): this is a design
-> document only. Nothing in this file exists in code, and nothing in the demo depends on it.
-> It exists because (a) the failure it fixes is real and visible today (§1), and (b) "what
-> happens when a vendor has twenty of these?" is a judge question that deserves a designed
-> answer, not an improvised one. In the pitch this is a production-path item, framed exactly
-> like the IVR fork: *spec'd, cut on purpose.* FAQ §6 register throughout.
+> **STATUS: TIER 2 (TRIP GROUPING) IS BUILT — 08-15. Everything else here is still design.**
+> *(This line read SPEC'D, NOT BUILT when written; it has been overtaken twice — see both
+> amendments below.)* The 08-14 team decision made this a design document only; the team approved
+> the tier-2 build on 08-15 (§10) and it shipped. **In code today:** one grouped pickup question
+> per multi-item stop, its per-order fan-out, and the §7 invariants pinned by tests. **Not in
+> code:** the tier-3 burst trigger, `v_pickup_digest`, the group nag (§10.3), and the driver stop
+> view (§6). Those stay production-path items, framed exactly like the IVR fork: *spec'd, cut on
+> purpose.* FAQ §6 register throughout — the built half is strong enough that the unbuilt half
+> does not need borrowing from.
 
 > **Amended 08-14 late — rotating reply codes shipped (`ae91367`), and they change half of
 > this document.** Each open vendor question now owns a digit **pair** — (1,2) (3,4) (5,6)
@@ -25,6 +27,18 @@
 > this spec worth building, and tier 2 is still the best idea in it. Nothing below about
 > trips, per-order invariants, or the driver stop view is affected.
 
+> **Amended 08-15 — tier 2 shipped, and §1 defect 1 is closed for the pickup burst.**
+> `setPatientStatus()` now groups its own `pickups_triggered` per vendor and sends **one**
+> `v_pickup_group` question per multi-item stop instead of one per order (`server/pickups.ts`).
+> The body is `pickupGroupText()` (`server/messaging.ts`) and links to the vendor portal; the
+> manifest rides in `message_orders` (`server/db.ts`) written inside the message's own
+> transaction; the anchor is the first order id on the message row. The affirmative position of
+> `VENDOR_ROUTES.v_pickup_group` (`server/sms.ts`) fans `pickup_scheduled` out to every order on
+> the manifest, each stamped `payload.source: 'group reply'` with `eta` null, and one
+> `f_pickup_notice` goes to the household. Pinned by `tests/pickups.test.ts` (*trip batching*)
+> and `tests/sms.test.ts` (*trip batching replies*). Read §3 tier 2, §5 and §8's send-path bullet
+> as **built**; §3 tier 3, §6 and §10.3 as still designed.
+
 ## 1 · The failure, observed
 
 Seed a world where one vendor owes several pickups and open `/vendor-phone`: four near-identical
@@ -38,14 +52,18 @@ Reproduce it today and you get four bubbles still, but reading "Reply 1", "Reply
 
 Two distinct defects wearing one costume:
 
-1. **The spam wall. STILL TRUE — this is the live defect.** `setPatientStatus()` loops
+1. **The spam wall. FIXED for the pickup burst in the 08-15 tier-2 build; still true anywhere
+   else a vendor accumulates questions.** As written: `setPatientStatus()` loops
    `sendVendorQuestion(…, 'v_pickup_request')` once per order (`server/pickups.ts:29-33`), and the
    watchdog nags per order too. A dispatcher's eyes glaze by bubble two; "please schedule
    promptly" repeated four times reads as noise, and the channel trains its own audience to
    ignore it. This is the adoption-risk failure mode from the IVR brainstorm, reproduced in SMS.
 
    Rotating codes made the four bubbles *distinguishable*, not *fewer*. Ruth's bed and
-   concentrator still cost two texts and two of the vendor's five codes. Everything below stands.
+   concentrator still cost two texts and two of the vendor's five codes. Everything below stands —
+   and tier 2 (§3) is what closed it: those two now cost **one** text and **one** code. A
+   multi-patient burst still lands as one text per stop, which is the vendor's real unit; past
+   five stops the shipped exhaustion digest takes over (§10.4).
 2. **The reply ambiguity. FIXED in `ae91367`, by addressing rather than gating.** Recorded as
    written because the diagnosis was correct and the reasoning is what produced the fix.
 
@@ -106,17 +124,30 @@ One order in the burst → the existing per-order template, digits and all:
 
 Correct at this volume; the gate (§4) is the only change it inherits.
 
-### Tier 2 — one household, several items (the Ruth case)
+### Tier 2 — one household, several items (the Ruth case) — **BUILT 08-15**
 
 All orders in the burst share a patient → **one message for the stop**. The batch is already
 computed: `setPatientStatus()` returns `pickups_triggered: [1050, 1051]` in a single call.
 
+Shipped exactly as specced. `setPatientStatus()` groups `delivered` orders per vendor
+(`server/pickups.ts`); a stop of one keeps `v_pickup_request`, a stop of several sends one
+`v_pickup_group` rendered by `pickupGroupText()` (`server/messaging.ts`). Real body, off a
+scenario-2 smoke run:
+
 > Pickup needed — **2 items from one home** (hospital bed, oxygen concentrator), area Ogden.
 > Family is present — please schedule promptly. Reply 1 if you can get **both** today, 2 to give
-> us a window: `<link>`
+> us a window: `http://localhost:5173/portal/<token>`
+
+Two details the code settled that the draft left open: the items are the equipment names truncated
+at the first comma and lower-cased ("hospital bed", not "Hospital bed, semi-electric"), and the
+link is the **vendor portal**, not a per-order `/o/` link — a message about a stop has no single
+order to point at. The "family is present" line survives here (it was cut from the single-order
+`pickupRequestText()`), because on a multi-item stop it is the scheduling constraint, not colour.
 
 The digit means "yes to the whole stop" and fans out per order (§5). Demo language this buys:
-*"one death, one text, one trip."*
+*"one death, one text, one trip."* Pinned by *asks once for a two-item stop, anchored on the first
+order*, *names the count and every item, and no patient*, and *stays on the single template when
+two vendors owe one item each* in `tests/pickups.test.ts`.
 
 ### Tier 3 — multi-patient burst (the §1 screenshot)
 
@@ -207,14 +238,34 @@ question is ownership. The corrected rule, which is **already in code**:
 can have more than five open questions. That is what §3's tier 3 and the shipped digest are both
 answers to, and it is the one place the two specs still have to be reconciled (§10.4).
 
-## 5 · Reply semantics & provenance
+## 5 · Reply semantics & provenance — **BUILT 08-15**
 
-A tier-2 group message keys one `VENDOR_ROUTES` entry (e.g. `v_pickup_group`) whose **affirmative
-position** applies `pickup_scheduled` to **every order in the group**, each event stamped
-`payload.source: 'group reply'` — rendering in the ledger as *"group reply · no model"* and on
-the badge as **vendor-reported**. Same for the problem position's prompt. The family-side
-`f_pickup_notice` side effect fires once per household, not once per order — the household hears
-about the visit, not the manifest.
+A tier-2 group message keys one `VENDOR_ROUTES` entry (`v_pickup_group`, `server/sms.ts`) whose
+**affirmative position** applies `pickup_scheduled` to **every order in the group**, each event
+stamped `payload.source: 'group reply'` — rendering in the ledger as *"group reply · no model"*
+(`client/src/lib/domain.ts` `eventSourceNote()`) and on the badge as **vendor-reported**. The
+problem position prompts *"When can you collect them? Text back a day and time."* and applies
+nothing. The family-side `f_pickup_notice` side effect fires once per household, not once per
+order — the household hears about the visit, not the manifest.
+
+As built, the fan-out reads the manifest out of `message_orders` and falls back to the message's
+own `order_id` when there is none, so a `v_pickup_group` fired by hand through `sendTemplate()`
+still routes. Two behaviours the code had to decide and the draft did not:
+
+- **Partial failure skips and records, never aborts.** An order whose state refuses the transition
+  is left alone and named in the inbound row's notes (*"— not applied to #1051 (picked_up)"*).
+  "Yes to both" when the bed was already collected is still a true answer about the concentrator,
+  and throwing would discard it along with the pair. The reply resolves `applied` if anything
+  applied, `needs_review` if nothing did.
+- **The client says what happened.** The vendor phone labels the pair *"Yes — the whole stop"* /
+  *"Give us a window"* (`client/src/components/QuickReplies.tsx`) and the delivery receipt reads
+  *"applied to 2 orders · no model needed"* — the fan-out is visible to the person who caused it.
+
+Pinned by *fans one digit out to every item, with group provenance and no eta*, *tells the
+household once, not once per item, and retires one pair*, *skips an item whose state refuses the
+transition and records it*, *leaves the evidence ladder exactly where it was*, *asks for one
+window for the whole stop and applies nothing*, and *falls back to the anchor when the question
+carries no manifest* (`tests/sms.test.ts`).
 
 > Note the table is now indexed by **position, not digit**: `REPLY_ROUTES` split into
 > `VENDOR_ROUTES` (a `[affirmative, problem]` tuple per template, because vendor digits rotate)
@@ -354,17 +405,20 @@ Stated as invariants so a future implementer can't trade them away:
 
 ## Pitch integration
 
-- **Q&A pocket** (do not volunteer): *"When a vendor has twenty of these, texts collapse into one
-  digest and the portal becomes the workspace — but we batch the asking, never the answering:
-  every order keeps its own confirmation, its own clock, and its own escalation, no matter how we
-  packaged the text. The digest is built; the trip grouping above it is designed, not built this
-  weekend — same status as the voice fork, and I'll say so."*
-- **Split the claim carefully now that half of this shipped.** Built: rotating reply codes, the
-  unowned-digit bounce, and the backlog digest — those belong on stage and in the SLIDES show-off
-  inbox, and one line is already there. Designed only: trip grouping (tiers 1–2), the burst-size
-  trigger, and the driver stop view. Claiming the trip story as built would be exactly the
-  manufactured precision FAQ §6 penalises, and the built half is strong enough not to need it.
-- If a judge notices the flooded thread on a phone sim, this spec is the answer, by name — and
-  the honest version of that answer is "the four texts are now individually answerable, and
-  collapsing them into one is designed and next."
-- Do **not** add the unbuilt tiers to the SLIDES show-off inbox — that list is for built things.
+- **Q&A pocket** (do not volunteer): *"When a vendor has twenty of these, the asking collapses —
+  one text per stop, and past five stops one digest and the portal becomes the workspace. But we
+  batch the asking, never the answering: every order keeps its own confirmation, its own clock,
+  and its own escalation, no matter how we packaged the text. Both of those are built. What's
+  designed and not built is the driver's stop view at the other end of the truck — same status as
+  the voice fork, and I'll say so."*
+- **Split the claim carefully now that most of this shipped.** Built: rotating reply codes, the
+  unowned-digit bounce, the backlog digest, and **trip grouping (tiers 1–2) with its per-order
+  fan-out**. Designed only: the burst-size trigger (deliberately dropped — §10.4), the group nag
+  (§10.3), and **the driver stop view (§6)**. That last one is the line to guard: claiming a
+  grouped stop card on `/driver` would be exactly the manufactured precision FAQ §6 penalises, and
+  scenario 2 still shows two per-order PICK UP cards.
+- If a judge notices a flooded thread on a phone sim, this spec is the answer, by name — and the
+  honest version of that answer is now "a stop is one text and one code; a vendor's five codes
+  count stops, not items; past that, one digest and the portal."
+- The SLIDES show-off inbox is for built things. Trip grouping earned its line there on 08-15;
+  the driver stop view has not.

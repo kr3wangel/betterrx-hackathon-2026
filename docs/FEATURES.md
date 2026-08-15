@@ -18,12 +18,13 @@ grep -n "roles:" client/src/lib/surfaces.ts                          # who sees 
 npm run typecheck && npm test                                        # it all still holds
 ```
 
-**Last verified against `main` on 2026-08-15**, after the overnight run (narration + handoffs +
-front door + P1/P2 sweep) merged with the contract-leverage panel and rotating reply codes.
-`/` is a real landing page now, `surfaceLinks` lives in `client/src/lib/surfaces.ts` (the third
-command's file changed), and the counts above were re-derived by running the commands on the
-merged tree, not by arithmetic. Test count: re-run the suite rather than trusting any doc — it
-moved four times tonight.
+**Last verified against `main` on 2026-08-15**, after trip batching (tier 2) merged on top of the
+overnight run (narration + handoffs + front door + P1/P2 sweep), the contract-leverage panel, and
+rotating reply codes. `/` is a real landing page now, `surfaceLinks` lives in
+`client/src/lib/surfaces.ts` (the third command's file changed), and the counts above were
+re-derived by running the commands on the merged tree, not by arithmetic: **33 endpoints, 14
+pages, 15 test files, 224 tests**, typecheck clean. Test count: re-run the suite rather than
+trusting any doc — it has moved most of the times anyone has looked.
 
 ---
 
@@ -88,6 +89,7 @@ suppresses itself on real handsets.
 | Watchdog | `watchdog.ts` | 30s tick: recompute risk, escalate threshold crossings, flag overdue pickups, silence ladder |
 | Vendor SMS parsing | `messaging.ts` + `llm.ts` | Claude, with a confidence gate — ≥0.8 auto-applies, below lands in the human review queue. Prompt carries the vendor's open orders plus a focus hint (the newest unanswered question) so bare prose like "ok" can be placed |
 | Rotating reply codes | `slots.ts` + `shared/slots.ts` | **Five open questions per vendor, each owning a digit pair** — (1,2) (3,4) (5,6) (7,8) (9,0), odd = affirmative. Each message states its own pair, so a question buried five texts back is still answerable, in any order, days apart. A follow-up reuses its order's pair rather than spending a new one. Sixth question → one rate-limited digest with a portal link, never a recycled code |
+| Trip batching (tier 2) | `pickups.ts` + `sms.ts` + `message_orders` | **One text per stop, not per order.** A death that owes a vendor a bed and a concentrator from the same home sends one `v_pickup_group` question spending one reply pair; the manifest rides in `message_orders`, and the affirmative fans `pickup_scheduled` out to every order on it (`payload.source: 'group reply'`, ledger reads *"group reply · no model"*, receipt reads *"applied to 2 orders"*). An order whose state refuses the transition is skipped and named in the notes rather than aborting the trip, and the household gets one `f_pickup_notice`, not one per item. **We batch the asking, never the answering** — per-order events, clocks, escalations and evidence are untouched, and there is no `trips` table. Past five stops the existing exhaustion digest takes over. Spec + what stayed unbuilt: `docs/SMS-BATCHING-SPEC.md` |
 | Caregiver condition parsing | `condition.ts` | **Deterministic regex, no model.** A digit is a digit |
 | Household messaging | `messaging.ts` | `sendToFamily` with a gate — silent after a death, one open question at a time |
 | Magic-link tokens | `portal.ts` | Vendor access with no account. `portalOrders()` lists only what the vendor still owes something on — unaccepted, in flight, awaiting pickup — not their delivered history (that was 39 of Beehive's 45 rows) |
@@ -113,13 +115,8 @@ these up or don't claim them.
 | Thing | Evidence | Status |
 |---|---|---|
 | `POST /api/messages/send` — send any templated message | `sms.ts` `sendTemplate` | **Now called** by `/demo`'s send-a-text form (`Demo.tsx`) and RowDetail's "Send another nudge" |
-<<<<<<< HEAD
 | Cost-threshold approvals on `/reports` | `Reports.tsx` `decide()` | **UI only.** Local `useState` — no API call, no persistence, no ledger event, and **nothing gates dispatch**. The card now says so on screen: a `synthetic` badge in its header and "Design preview — decisions aren't saved yet" under the title |
-| Roles / sign-in | `App.tsx:47` is the only `useAuth` consumer | **Nav filtering only.** No page branches on role, no route guards, and `Actor` on the server has no matching split |
-=======
-| Cost-threshold approvals on `/reports` | `Reports.tsx:450` `decide()` | **UI only.** Local `useState` — no API call, no persistence, no ledger event, and **nothing gates dispatch** |
 | Roles / sign-in | `App.tsx:47` is the only `useAuth` consumer | **Nav filtering plus ledger attribution** (08-15): every request carries an `X-Role` header and internally-acted events record `actor_role`, so the timeline reads "Cancelled · by Case Manager". Still no route guards and no page branches on role — that part is deliberate (see §1) |
->>>>>>> origin/main
 
 **`/api/messages/reply` is now wired** (08-14). `VendorPhone` renders tappable quick replies under
 the most recent unanswered question and POSTs the digit; the reply resolves through `sms.ts`'s
@@ -129,9 +126,9 @@ just typechecked — all four branches exercised: `applied` (digit 1 on a pickup
 time."*), `review` (re-answering an already-answered question does **not** re-apply), and
 `unmapped` (digit 9 goes to the review queue rather than being guessed at).
 
-`sendTemplate` is still unreached — it's the presenter's "fire any template on demand" button,
-which no screen exposes. That one may genuinely be a spare tyre; the reply half was the missed
-integration.
+**`sendTemplate` is reached too** (re-checked 08-15): `/demo`'s send-a-text form and RowDetail's
+"Send another nudge" both POST `/api/messages/send` (`Demo.tsx:173`, `RowDetail.tsx:50`). Older
+lines in §8.3 calling it unreached are stale.
 
 **The approvals row is the one most likely to bite on stage.** An order over the $150/mo threshold
 ships to the vendor whether or not the DON ever looks at it. Demo the queue as a *design*, not as a
@@ -156,7 +153,7 @@ and FAQ §6 penalises manufactured precision.
 | Live inventory check | `INTEGRATION-SKETCH.md` | FAQ §9 says it won't exist in practice; designed as a hook with graceful fallback |
 | eRx / EMR integration | `INTEGRATION-SKETCH.md`, 305 lines | Diagram only, which is all Deliverable D asks for |
 | Server-side approval gate | `docs/UX-FLOWS.md` §6 | `pending_approval` state, persistence, and approval-latency reporting are specified but not built |
-| Trip batching + vendor-side question gate | `docs/SMS-BATCHING-SPEC.md` | One text per trip instead of per order (Ruth's two pickups = one message), volume-adaptive digests, and a one-open-question gate so a bare "1" can never be ambiguous on a real gateway. **Batches the asking, never the answering** — per-order events, clocks, and escalations untouched. The answer to "what happens when a vendor has twenty of these?" |
+| Driver's stop view | `docs/SMS-BATCHING-SPEC.md` §6 | The other end of the trip: `/driver` grouping jobs into one card per (household × direction), one signature for the visit but per-item condition and completion. Not built — it touches the POD flow, and scenario 2 demos on the two per-order cards. **Trip batching itself is built** — see §1. Also unbuilt from that spec, on purpose: the tier-3 burst trigger (§10.4 — the shipped exhaustion digest subsumes it) and the group nag (§10.3) |
 | Real SMS gateway (Twilio) | `deliverables/ASSUMPTIONS.md` → *Simulated, not sent* | **Scoped and deliberately declined.** No dependency, no key, no webhook. The routing and the gate are what earn the AI row; a live carrier on conference wifi is a failure mode with no upside. Delivery is the only thing simulated — the magic links in the bubbles are real `/portal/<token>` URLs |
 
 ---
@@ -185,7 +182,7 @@ verified-vs-vendor-reported badges · measured token costs · **role-filtered na
 | **Medication spend on the cost card is invented** | — | *DME pricing is already real* — `mockHcpcsPricing` reads CMS allowed amounts from `shared/catalog.ts` despite the "mock" name. What is fabricated is `med_spend_usd`, and BetterRX is a pharmacy company, so that is the number they would recognise. No public per-patient figure exists — hospice drugs sit inside the per-diem like DME — so both bars are provenance-badged (`CMS data` / `synthetic`) rather than faked better |
 | **Live-test the AI parse** | S–M | Needs `ANTHROPIC_API_KEY` and a run of the six spec messages through the vendor simulator. Untested prompts are a bad thing to discover on stage |
 | **Risk engine credibility pass** | M | Tune weights and threshold in `server/risk.ts`, keep tests green |
-| **`sms.ts` has no UI path** | ? | 331 lines, 33 tests, two endpoints nothing calls — see §2. Wire it or drop the claim |
+| ~~**`sms.ts` has no UI path**~~ | — | **Closed 08-14** — see §8.3. Both phones POST to `/api/messages/reply`; only `sendTemplate` was left unreached, and `/demo` now calls that too. 521 lines, 64 tests |
 | **Demo-seed polish** | S | Names, timings, and data that read well projected |
 | **Visual polish pass** | M | Spacing, hierarchy, at-risk treatment, empty states (favicon done — inline coral-pill SVG in `client/index.html`) |
 
@@ -241,33 +238,26 @@ as on-time anyway (per-vendor `pod_rate` / `fudge_rate` in the seed).
 
 ## 7 · Test coverage
 
-<<<<<<< HEAD
-**15 files, 199 tests** (re-derived 08-15 by running the suite, after rotating reply codes +
-narration). Core logic is covered; UI and routes deliberately are not.
-=======
-**14 files, 191 tests** (re-derived 08-15, after contract leverage, vendor responsiveness, and
-the actor-role split). Core logic is covered; UI and routes deliberately are not.
->>>>>>> origin/main
+**15 files, 224 tests** (re-derived 08-15 by running the suite on the merged tree, after contract
+leverage, the actor-role split, narration, and trip batching). Core logic is covered; UI and
+routes deliberately are not. Two earlier counts — "15 files, 199 tests" and "14 files, 191 tests" —
+sat here as an unresolved merge conflict; neither was right, and the number below came off a run.
 
 | File | Tests | Covers |
 |---|---:|---|
-| `sms.test.ts` | 53 | SMS templates, reply handling, route-table integrity, rotating reply codes, gateway-shaped inbound |
-<<<<<<< HEAD
-| `narration.test.ts` | 22 | Which events narrate and which never do, enrichment, own-action suppression, collapse |
-| `reports.test.ts` | 15 | Scorecards, calls avoided, latency |
-=======
+| `sms.test.ts` | 64 | SMS templates, reply handling, route-table integrity, rotating reply codes, trip-batching replies, gateway-shaped inbound |
 | `reports.test.ts` | 28 | Scorecards, calls avoided, latency, contract leverage (trust gap, cohort minimum, interventions, median answer time, never-answered rate) |
->>>>>>> origin/main
-| `portal.test.ts` | 13 | Magic-link flows |
+| `narration.test.ts` | 22 | Which events narrate and which never do, enrichment, own-action suppression, collapse |
+| `portal.test.ts` | 15 | Magic-link flows |
 | `condition.test.ts` | 12 | Caregiver rating parser, including the ambiguity cases |
 | `risk.test.ts` | 12 | Risk scoring and thresholds |
 | `messaging.test.ts` | 11 | Parse pipeline, confidence gate, decline handling |
-| `at-risk.test.ts` | 9 | Board selectors |
 | `statemachine.test.ts` | 10 | Transition guards, actor-role attribution |
+| `at-risk.test.ts` | 9 | Board selectors |
+| `pickups.test.ts` | 9 | Pickup triggers, trip grouping per vendor |
 | `silence.test.ts` | 8 | Silence ladder |
 | `evidence.test.ts` | 7 | Verified vs reported |
 | `pickup-clock.test.ts` | 6 | Pickup clocks |
-| `pickups.test.ts` | 6 | Pickup triggers |
 | `pods.test.ts` | 6 | POD capture and conditions |
 | `sla.test.ts` | 5 | SLA defaults |
 

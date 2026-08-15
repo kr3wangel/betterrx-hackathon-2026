@@ -342,7 +342,7 @@ board at all. They are inside **Done · N this week** (open `history ▸` if you
 | # | Click | What the audience sees | Presenter says |
 |---|---|---|---|
 | 1 | Tab 3 `/nurse` → **Ruth Nakamura** → **Passed away** → **Confirm, with care** | A phone-shaped screen: *"Who has a change to report?"*, then *"What changed for Ruth Nakamura?"* with two choices — *Went home / discharged* and *Passed away*. The confirm card reads *"We'll schedule the equipment pickup with care and a note for the family. Take your time — this is the only step you need to do."* Then a toast: *"Recorded, with care."* | "The nurse is standing in the living room. She taps this once. That's the whole trigger — the sponsor told us their own discovery found the EMR-only path fail: someone dies and the vendor never finds out." |
-| 2 | *(switch to tab 1 — no click)* | Ruth's two orders leave **Done** and appear in **On the way** as **one grouped row**: `Ruth Nakamura · Pickup · 2 items · — · 0 of 2 moving` (no date, because a pickup has no deadline of its own). Two pickup texts land in Wasatch's thread, each with a magic link | "Two pickups scheduled. Zero phone calls made by anyone in that house." |
+| 2 | *(switch to tab 1 — no click)* | Ruth's two orders leave **Done** and appear in **On the way** as **one grouped row**: `Ruth Nakamura · Pickup · 2 items · — · 0 of 2 moving` (no date, because a pickup has no deadline of its own). **One** pickup text lands in Wasatch's thread, with a magic link — *"Pickup needed — 2 items from one home (hospital bed, oxygen concentrator), area Ogden. Family is present — please schedule promptly. Reply 1 if you can get both today, 2 to give us a window: `…/portal/<token>`"* | "Two pickups scheduled. Zero phone calls made by anyone in that house — **one death, one text, one trip.**" |
 | 3 | Tab 2 `/driver` → vendor **Wasatch** *(already the default — no switch needed here)* | Two **PICK UP** job cards, each carrying *"**The family is grieving.** Call ahead, be brief and kind."* | "The dispatcher sees logistics. Never the death." |
 | 4 | **Complete pickup** → sign → **Confirm pickup** | The job card is replaced by a green completion card — and inside it, a coral **Family notified** panel quoting the **actual sentence** sent to the household: *"Your hospice team: the equipment has been picked up. There's nothing else you need to do. We're thinking of your family."* (`Driver.tsx:73-81,221-226`) | **"Ruth's family made zero phone calls. That's the product."** |
 | 5 | *(optional, if you have the slack)* tab 6 `/caregiver` → Ken Nakamura's thread | The same sentence, in the household's own thread | — |
@@ -360,6 +360,20 @@ board at all. They are inside **Done · N this week** (open `history ▸` if you
 - "Two pickups" is now literally two: the trigger returns `pickups_triggered: [1050, 1051]`. Before
   the seed fix it returned **13** — Ruth's share of the synthetic year was still sitting in
   `delivered`, and every one of them fired a pickup text into Wasatch's thread.
+- **Two pickups, one text — that's trip batching, built 08-15, and it's worth the extra beat.**
+  Both orders go to Wasatch from the same home, so `setPatientStatus()` sends a single
+  `v_pickup_group` question spending **one** of Wasatch's five reply pairs instead of two.
+  Optional detour if you have the slack and tab 7 is open: type the affirmative digit **the text
+  itself names** (read it off the bubble — it is whichever pair the question was allocated) and the
+  receipt reads *"… · Yes — the whole stop — applied to 2 orders · no model needed"* — one digit,
+  two per-order commitments, the ledger stamps both *"group reply · no model"*, and the family
+  gets **one** notice, not two. The line: *"We batch the asking, never the answering — every order
+  still keeps its own clock and its own proof."* **Don't take this detour and then also do step 4's
+  POD on those orders without re-seeding** — the pickup is already scheduled by then, which is
+  fine, but the driver card copy shifts under you.
+- **The driver still sees two cards, and that's honest.** Grouping the *asking* is built; grouping
+  the driver's *stop view* is designed only (`docs/SMS-BATCHING-SPEC.md` §6). Don't imply
+  otherwise at step 3.
 - **Fallback today:** tab 5 `/demo` → the **EMR feed (fallback path)** card → Ruth Nakamura →
   **Passed away** (`Demo.tsx:65-128`, `POST /api/emr/patient-status`, actor `system`, source `emr`).
   It produces the identical pickup cascade and toasts the count. **This card is on `/demo` — it is
@@ -367,9 +381,13 @@ board at all. They are inside **Done · N this week** (open `history ▸` if you
   EMR fallback firing — in the real product the nurse's tap gets there first, and this is the
   belt-and-suspenders behind her."* Do not call an EMR button a nurse tap on stage; a judge who read
   the FAQ will catch it.
-- ~~`[QUIRK]` pickup-text tone~~ **FIXED** — the pickup request now reads *"Reply 1 if you can
-  get it today, 2 to give us a window"* with no mention of the family. Safe to open Wasatch's
-  thread on stage.
+- ~~`[QUIRK]` pickup-text tone~~ **FIXED, with one caveat re-checked 08-15.** The *single-order*
+  pickup request (`pickupRequestText()`) reads *"Reply 1 if you can get it today, 2 to give us a
+  window"* with no mention of the family. The *grouped* text scenario 2 actually sends
+  (`pickupGroupText()`) does keep one line — *"Family is present — please schedule promptly"* —
+  deliberately, because on a multi-item stop that is the scheduling constraint. It names no
+  patient, no address, and no death. Still safe to open Wasatch's thread on stage; just don't
+  claim the text says nothing about the family, because a judge can read it on the projector.
 - Optional one-liner if you have slack: *"and if that pickup sits past the window, the watchdog
   escalates it on its own — the hospice knows before the family has to look at that bed another
   day."* (`server/watchdog.ts:107-113`.)

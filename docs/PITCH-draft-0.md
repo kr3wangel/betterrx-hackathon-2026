@@ -100,7 +100,9 @@ Confirm delivery. Back to tab 1 as the badge flips.*
 
 ▶ *Tab 1 — no click. Ruth's two orders appear as one pickup row.*
 
-> Two pickups scheduled. Zero phone calls made by anyone in that house.
+> Two pickups scheduled. Zero phone calls made by anyone in that house. And the vendor got one
+> text, not two — a bed and a concentrator in the same living room is one truck at one door.
+> **One death. One text. One trip.**
 
 ▶ *Tab 2, driver — two PICK UP cards.*
 
@@ -176,10 +178,11 @@ Confirm delivery. Back to tab 1 as the badge flips.*
 |---|---|
 | "Where's the AI?" | Exactly one place: reading a vendor's free-text reply — which order, and when is "Thursday morning." Haiku 4.5, ~620 in / ~50 out tokens, ~$0.003–0.006 per order, measured. Auto-applies only at confidence ≥ 0.8 with a resolved order; everything else lands in a human review queue. No API key at all → it degrades *to the queue*, not to guessing. Risk scoring is deliberately rules — a score has to be a sentence a case manager can argue with. |
 | "What about vendors on landlines?" | Half a rolodex is office landlines, which can't receive a text. The ladder's first rung is channel-agnostic: carrier lookup routes to SMS or a 30-second check-in call where pressing 1 is deterministic. Spec'd (`docs/IVR-SIM-SPEC.md`), not built this weekend — production path, said plainly. |
+| "What happens when a vendor has twenty of these?" | The asking collapses; the answering never does. **Built:** a stop is one text and one reply code, not one per item — so a vendor's five live codes count *stops*, which is their actual unit of work — and once those five are spent, one rate-limited digest points at the portal instead of a sixth text. **Also built:** the fan-out underneath. One digit against a two-item stop writes two per-order commitments, and every order keeps its own confirmation, its own clock, its own escalation, and its own proof — there is no group row anywhere in the ledger. *We batch the asking, never the answering.* What's designed and **not** built is the driver's grouped stop view at the other end of the truck — `docs/SMS-BATCHING-SPEC.md` §6, same status as the voice fork, and I'll say so. |
 | "How does this integrate with BetterRX?" | A DME order rides the pipe medications already ride: sibling of `newMedications`, same envelope, HCPCS where meds carry NDC; patient status from your eRx ADT events as the fallback behind the nurse. The built-vs-sketched table in `deliverables/INTEGRATION-SKETCH.md` lets you check every claim. |
 | "Who pays?" | Your §5: the hospice, per-patient-day, bundled with the pharmacy PPD they already pay. We quote you rather than model it. |
 | "Is this data real?" | No — synthetic, generated, and labeled synthetic on every surface it appears. CMS DMEPOS grounds utilization and cost; it's billing data, not logistics, so we drew no timeliness conclusions from it. Your §6 asked for honesty over manufactured precision. |
-| "What happens after this weekend?" | It was built to be picked up: state machine, risk engine, and the parse gate are test-covered (155 tests), every assumption is in a register with what breaks if it's wrong, and the simulator seams (EMR feed, channel, inventory) swap transport, not architecture. |
+| "What happens after this weekend?" | It was built to be picked up: state machine, risk engine, and the parse gate are test-covered (224 tests, re-counted 08-15), every assumption is in a register with what breaks if it's wrong, and the simulator seams (EMR feed, channel, inventory) swap transport, not architecture. |
 
 ## Cut order (if behind at 3:00)
 
