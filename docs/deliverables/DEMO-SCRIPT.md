@@ -171,12 +171,13 @@ and you are back on the handset with the numbering intact.
 
 **`/vendor` is not in the list, on purpose.** It is the **dispatcher's own board** — open orders
 plus an in-page free-text simulator (`Vendor.tsx:24,48`). It has no digit quick-reply buttons.
-Every vendor-facing beat in this script happens on the handset at tab 7, where the taps live.
+Every vendor-facing beat in this script happens on the handset at tab 7.
 
-**What each phone is.** Tab 7 is the DME dispatcher's phone: a vendor picker in the header, the
-real thread, and — under the **newest unanswered question only** — tappable `1 · Accept` /
-`2 · Can't fill` buttons with an *"applied · no model needed"* receipt (`QuickReplies.tsx:15-31`,
-`VendorPhone.tsx:115,162`). Tab 6 is the family's phone, one thread per household: submitting a
+**What each phone is.** Tab 7 is the DME dispatcher's phone: a vendor picker in the header and the
+real thread. **There are no tap-buttons — SMS has none.** You TYPE the digit the question's own
+body names (pairs rotate: one text says "reply 1", the next "reply 3") into the composer, and the
+receipt reads *"applied · no model needed"* (`QuickReplies.tsx` is the read side only;
+`VendorPhone.tsx` posts a gateway-shaped `{vendor_id, body}`). Tab 6 is the family's phone, one thread per household: submitting a
 **delivery** POD fires the condition check automatically (`routes.ts:144-146`), so it lights up on its
 own during S1 step 5, and a 1–5 reply rolls into the condition stats behind `/reports`. That's the
 beat the CEO asked for by name at the briefing.
@@ -321,8 +322,8 @@ Now open tab 1.
 - The badge says **Verified** / **Reported** — a green check icon and the word, no `✓` in the text
   (`components/EvidenceBadge.tsx`). Before the POD the detail header already reads **Reported**,
   which is the setup for the line in step 5: *"right now that's a claim; watch it become proof."*
-- **Don't tap the digit buttons in step 3.** The same order-request bubble on tab 7 also carries
-  `1 · Accept` / `2 · Can't fill` — that is scenario 3's beat. Tapping here skips the portal.
+- **Don't type the digit reply in step 3.** The order-request bubble on tab 7 names its own reply
+  pair — answering by digit is scenario 3's beat. Typing it here skips the portal.
 - The `/portal/:token` page, the plain-language state labels and the evidence badge have all
   **shipped** (`pages/VendorPortal.tsx`, `lib/domain.ts:9-18`, `components/EvidenceBadge.tsx`).
   Steps 4 and 5 are clicks now, not narration.
@@ -459,7 +460,7 @@ one, so this is a stage direction, not a problem.
 
 | # | Click | What the audience sees | Presenter says |
 |---|---|---|---|
-| 5 | Tab 7 → picker → **Beehive DME Co · Marcus** | The order request for #1061 — and, after the first watchdog tick, an automatic second message: *"Order #1061 (Standard wheelchair) hasn't been confirmed — reply 1 to accept, 2 if you can't fill it, or tap to accept or decline: …"*, with `1 · Accept` / `2 · Can't fill` buttons under it | "Nobody tapped this one. So the software nagged them. The case manager didn't." |
+| 5 | Tab 7 → picker → **Beehive DME Co · Marcus** | The order request for #1061 — and, after the first watchdog tick, an automatic second message: *"Order #1061 (Standard wheelchair) hasn't been confirmed — reply N to accept, N+1 if you can't fill it, or tap to accept or decline: …"* (the digits are the pair the nag's own body names — it reuses the original request's pair) | "Nobody tapped this one. So the software nagged them. The case manager didn't." |
 | 6 | Tab 1 | **Eleanor Vance's row jumps out of On the way and into `Needs you`**, on its own, live — the section header turns red and the row's pill is now a coral **`Swap vendor`** | "In the phone world, silence is ambiguous — did the fax go through? Here silence is a reading. An untapped link is exactly as loud as an unanswered text, and it reaches a human before the deadline does, not after." |
 | 7 | **Click that row open** | *"The vendor has not replied yet · nudged Xm ago"* — the nag is on the record, in the row, with a clock on it | "And the case manager's next move is already sitting on the row." *(gesture at the coral pill — the same one-action escape hatch from scenario 1)* |
 
