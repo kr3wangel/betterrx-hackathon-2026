@@ -421,7 +421,12 @@ pickups, one text" clause.
 
 ## Punch list
 
-**T-1 · The board's pickup pill never moves when a vendor commits.** `statePill()`
+**T-1 · The board's pickup pill never moves when a vendor commits. — FIXED (08-15, `6c5032c`):**
+`Order.pickup_committed` is now derived in `server/store.ts` (an `eta_set` event after the latest
+`pickup_triggered`) and `statePill()` reads it alongside `eta_at` → green `Confirmed ✓`, exactly
+as BOARD-REDESIGN-SPEC:56 always prescribed. `eta_at` stays null (anti-gaming intact) and
+`tests/pickup-clock.test.ts` pins that a committed pickup still goes `pickup_overdue` on schedule.
+Original finding, as measured: `statePill()`
 (`client/src/lib/board.ts:118-121`) reads a pickup's commitment off `order.eta_at`. The pickup
 affirmative — group *and* single — deliberately writes `eta: null` (spec §5 anti-gaming), and
 `applyEvent` only writes `eta_at` when `payload.eta_iso` is truthy
@@ -443,7 +448,11 @@ latest `eta_set` event rather than `eta_at`.
 **T-2 · See S-2** — the group body reintroduces a family mention the demo script recorded as
 removed. Spec-conformant; a doc conflict, not a bug.
 
-**T-3 · The trip is batched outbound but not on the way back.** One `f_pickup_notice` goes to the
+**T-3 · The trip is batched outbound but not on the way back. — FIXED (08-15, `1d27c5b`):**
+`householdGate()` now refuses a thanks template when the same template reached that patient within
+2h (`THANKS_WINDOW_HOURS`) — one closing text per truck visit, for pickups *and* multi-item
+deliveries; the POD route also stopped writing `family_notified` for texts the gate refused.
+Original finding, as measured: One `f_pickup_notice` goes to the
 household for the whole trip (correct, and the anchor-only send is what makes it one). But each POD
 still fires its own `f_picked_up_thanks` — Ruth's household got **two identical** closing texts
 (`[299]` order 1051, `[300]` order 1050) for one truck visit. Out of scope for the tier-2 plan
@@ -465,7 +474,10 @@ usually surface as the overflow line** on a busy board. Cosmetic note: the copy 
 while `order.eta_at` is null, so no time is ever appended (`narration.ts:191-192`), and the board
 pill simultaneously says `Waiting on vendor` — same root cause as T-1.
 
-**T-5 · Group body doesn't dedupe the manifest.** Gerald's 9-item group rendered
+**T-5 · Group body doesn't dedupe the manifest. — FIXED (08-15, `471d865`):** `manifestText()`
+rolls repeats into counts (`4× portable oxygen system`), sorts by frequency, and drops the
+parenthetical past 5 distinct items; Gerald's text fell 372 → 271 chars and the 2-item demo string
+is pinned byte-identical by test. Original finding, as measured: Gerald's 9-item group rendered
 `(cpap device, portable oxygen system, walker, portable oxygen system, oxygen concentrator, portable
 oxygen system, portable oxygen system, cpap device, cpap device)` — **372 characters**, with
 "portable oxygen system" listed four times. Irrelevant to the demo (scenario 2 is 2 items) and
@@ -486,3 +498,8 @@ template and the five-pair exhaustion digest both survived unchanged. `npm test`
 `typecheck` and `build` clean. Nothing here blocks a rehearsal — but fix `DEMO-SCRIPT.md:345` before
 anyone says "two texts" in front of a phone showing one (S-1), settle the family-line conflict
 (S-2/T-2), and decide whether the board pill should move when a vendor commits to a pickup (T-1).**
+
+> **08-15 follow-up: every item above is closed.** T-1/T-3/T-5 fixed (see their FIXED notes),
+> S-1/S-2 resolved in DEMO-SCRIPT (one text, and the family line is spec-conformant — the script
+> now quotes the real body), the scenario-2 vendor-reply beat added as step 2b, and the sign-in-as-
+> Driver checklist line covers T-6. Suite at the follow-up merge: 245 tests.
