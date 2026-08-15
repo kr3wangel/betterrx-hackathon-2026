@@ -9,6 +9,7 @@ import {
   householdGate,
   orderRequestText,
   pickedUpThanksText,
+  pickupGroupText,
   pickupNoticeText,
   pickupRequestText,
   sendToFamily,
@@ -24,14 +25,14 @@ import {
   sendTemplate,
   type ReplyAction,
 } from '../server/sms'
-import { portalOrders } from '../server/portal'
+import { portalLink, portalOrders } from '../server/portal'
 import { setPatientStatus } from '../server/pickups'
 import { SLOT_BASES, liveQuestions, slotDigits, type SlotDigits } from '../server/slots'
 import { applyEvent } from '../server/statemachine'
 import { getOrder, rowToMessage } from '../server/store'
 import { tick } from '../server/watchdog'
 import { seedFixtures, seedOrder } from './helpers'
-import type { FamilyTemplate, MessageTemplate, ParsedMessage, VendorTemplate } from '../shared/types'
+import type { FamilyTemplate, MessageTemplate, Order, ParsedMessage, VendorTemplate } from '../shared/types'
 
 beforeEach(() => {
   seedFixtures()
@@ -528,6 +529,71 @@ describe('one visit, one thanks', () => {
     expect(sendToFamily(1, bed, pickupNoticeText(), 'f_pickup_notice')).not.toBeNull()
     expect(sendToFamily(1, oxygen, pickupNoticeText(), 'f_pickup_notice')).not.toBeNull()
     expect(messages().filter((m) => m.template === 'f_pickup_notice')).toHaveLength(2)
+  })
+})
+
+describe('pickup group body', () => {
+  function stop(names: string[]): Order[] {
+    return names.map((equipment_name) => getOrder(seedOrder({ state: 'pickup_pending', equipment_name }))!)
+  }
+
+  // Quoted verbatim in DEMO-SCRIPT.md — a presenter reads this off the phone on stage.
+  it('renders the two-item demo stop exactly as scripted', () => {
+    const orders = stop(['Hospital bed, semi-electric', 'Oxygen concentrator, portable'])
+    expect(pickupGroupText(orders, 'Ogden', ['1', '2'])).toBe(
+      `Pickup needed — 2 items from one home (hospital bed, oxygen concentrator), area Ogden. Family is present — please schedule promptly. Reply 1 if you can get both today, 2 to give us a window: ${portalLink(1)}`,
+    )
+  })
+
+  it('rolls repeats up into a count instead of listing them', () => {
+    const orders = stop([
+      'Portable oxygen system',
+      'Hospital bed, semi-electric',
+      'Portable oxygen system',
+      'Portable oxygen system',
+      'Portable oxygen system',
+      'Hospital bed, semi-electric',
+      'Walker, folding wheeled',
+    ])
+
+    const body = pickupGroupText(orders, 'Ogden', ['1', '2'])
+
+    expect(body).toContain('(4× portable oxygen system, 2× hospital bed, walker)')
+    expect(body).toContain('7 items from one home')
+    expect(body).toContain('if you can get all 7 today')
+  })
+
+  it('drops the manifest when even the deduped list is too long to text', () => {
+    const orders = stop([
+      'Hospital bed, semi-electric',
+      'Oxygen concentrator, portable',
+      'Walker, folding wheeled',
+      'Cpap device, auto-titrating',
+      'Wheelchair, manual',
+      'Nebulizer, tabletop',
+      'Suction pump, portable',
+    ])
+
+    const body = pickupGroupText(orders, 'Ogden', ['1', '2'])
+
+    expect(body).toContain('Pickup needed — 7 items from one home, area Ogden.')
+    expect(body).not.toContain('(')
+    expect(body).toContain('if you can get all 7 today')
+    expect(body).toContain(portalLink(1))
+  })
+
+  it('keeps a five-item stop naming its items', () => {
+    const orders = stop([
+      'Hospital bed, semi-electric',
+      'Oxygen concentrator, portable',
+      'Walker, folding wheeled',
+      'Cpap device, auto-titrating',
+      'Wheelchair, manual',
+    ])
+
+    expect(pickupGroupText(orders, 'Ogden', ['1', '2'])).toContain(
+      '(cpap device, hospital bed, oxygen concentrator, walker, wheelchair)',
+    )
   })
 })
 
