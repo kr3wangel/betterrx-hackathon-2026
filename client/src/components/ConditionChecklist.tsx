@@ -6,10 +6,11 @@ export type ConditionKey = 'clean' | 'functional' | 'patient_ready'
 
 export type ConditionState = Record<ConditionKey, boolean>
 
-export const EMPTY_CONDITION: ConditionState = {
-  clean: false,
-  functional: false,
-  patient_ready: false,
+/** The server reads a missing key as attested (`server/pods.ts`), so an uncheck is the only signal. */
+export const ALL_ATTESTED: ConditionState = {
+  clean: true,
+  functional: true,
+  patient_ready: true,
 }
 
 const ITEMS: { key: ConditionKey; label: string; hint: string }[] = [
