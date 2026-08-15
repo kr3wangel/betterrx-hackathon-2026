@@ -1,9 +1,17 @@
-import { useState } from 'react'
+import type { ReactNode } from 'react'
 import { NavLink, Navigate, Route, Routes } from 'react-router-dom'
-import { Check, ChevronDown, LogOut } from 'lucide-react'
+import { Check, ChevronDown, ExternalLink, LogOut, Smartphone } from 'lucide-react'
 import { useEventStream } from './hooks/useEventStream'
-import { ROLES, useAuth } from './lib/auth'
-import { Button } from '@/components/ui/button'
+import { ROLES, useAuth, type RoleId } from './lib/auth'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuLink,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { Toaster } from '@/components/ui/sonner'
 import { cn } from '@/lib/utils'
@@ -20,14 +28,26 @@ import VendorPhone from './pages/VendorPhone'
 import Demo from './pages/Demo'
 
 // The persona surfaces of the DME module — the working tool.
-const surfaceLinks = [
-  { to: '/hospice', label: 'Board' },
-  { to: '/order', label: 'New order' },
-  { to: '/nurse', label: 'Nurse' },
-  { to: '/vendor', label: 'Vendor phone' },
-  { to: '/driver', label: 'Driver' },
-  { to: '/vendor-portal', label: 'Portal' },
-  { to: '/reports', label: 'Reports' },
+// Which roles see which surface in the nav. This filters the nav bar ONLY — routes stay
+// unguarded on purpose, so any screen is still reachable by URL if a demo goes sideways.
+const surfaceLinks: { to: string; label: string; roles: RoleId[] }[] = [
+  // Field Nurse gets the board because /nurse links to it — a nav that hides a page the
+  // page itself sends you to is worse than no filtering at all.
+  { to: '/hospice', label: 'Board', roles: ['case_manager', 'admissions_nurse', 'director_of_nursing', 'field_nurse'] },
+  { to: '/order', label: 'New order', roles: ['case_manager', 'admissions_nurse'] },
+  { to: '/nurse', label: 'Nurse', roles: ['case_manager', 'field_nurse'] },
+  { to: '/vendor', label: 'Vendor phone', roles: ['dispatcher'] },
+  { to: '/driver', label: 'Driver', roles: ['driver'] },
+  { to: '/vendor-portal', label: 'Portal', roles: ['dispatcher'] },
+  { to: '/reports', label: 'Reports', roles: ['case_manager', 'director_of_nursing'] },
+]
+
+// The two people this system texts who never log in. Their screens are full-screen phone
+// simulators, so they open in a new tab rather than replacing the hospice window you're
+// presenting from — the point of the demo is watching both screens react at once.
+const phoneLinks = [
+  { to: '/vendor-phone', label: "DME vendor's phone", note: 'Order requests, ETA checks' },
+  { to: '/caregiver', label: "Caregiver's phone", note: 'Condition check, reply 1–5' },
 ]
 
 // The product-level nav: this app is the DME module inside BetterRX.
@@ -40,75 +60,61 @@ const productTabs = [
 // context so the rest of the app can branch on the current role.
 function AccountControl() {
   const { role, signIn, signOut } = useAuth()
-  const [open, setOpen] = useState(false)
 
   return (
-    <div className="relative">
+    <DropdownMenu>
       {role ? (
-        <button
-          onClick={() => setOpen((o) => !o)}
-          className="flex items-center gap-2 rounded-full py-1 pl-1 pr-2 transition-colors hover:bg-muted"
-        >
+        <DropdownMenuTrigger className="flex items-center gap-2 rounded-full py-1 pl-1 pr-2 transition-colors hover:bg-muted">
           <span className="grid size-7 place-items-center rounded-full bg-secondary text-[11px] font-bold text-secondary-foreground">
             {role.initials}
           </span>
           <span className="hidden text-sm font-semibold text-foreground sm:inline">{role.label}</span>
           <ChevronDown className="size-4 text-muted-foreground" />
-        </button>
+        </DropdownMenuTrigger>
       ) : (
-        <Button size="sm" className="rounded-full" onClick={() => setOpen((o) => !o)}>
+        <DropdownMenuTrigger className="inline-flex items-center gap-1 rounded-full bg-primary px-3 py-1.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90">
           Sign in <ChevronDown className="size-4" />
-        </Button>
+        </DropdownMenuTrigger>
       )}
 
-      {open && (
-        <>
-          <button
-            className="fixed inset-0 z-40 cursor-default"
-            aria-label="Close menu"
-            onClick={() => setOpen(false)}
-          />
-          <div className="absolute right-0 z-50 mt-2 w-60 rounded-xl border border-border bg-card p-1.5 shadow-lg">
-            <div className="px-2.5 py-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              {role ? 'Switch role' : 'Sign in as'}
-            </div>
-            {ROLES.map((r) => (
-              <button
-                key={r.id}
-                onClick={() => {
-                  signIn(r.id)
-                  setOpen(false)
-                }}
-                className={cn(
-                  'flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm transition-colors hover:bg-muted',
-                  role?.id === r.id && 'bg-muted'
-                )}
-              >
-                <span className="grid size-6 place-items-center rounded-full bg-secondary text-[10px] font-bold text-secondary-foreground">
-                  {r.initials}
-                </span>
-                <span className="font-medium text-foreground">{r.label}</span>
-                {role?.id === r.id && <Check className="ml-auto size-4 text-primary" />}
-              </button>
-            ))}
-            {role && (
-              <>
-                <div className="my-1 h-px bg-border" />
-                <button
-                  onClick={() => {
-                    signOut()
-                    setOpen(false)
-                  }}
-                  className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm text-muted-foreground transition-colors hover:bg-muted"
-                >
-                  <LogOut className="size-4" /> Sign out
-                </button>
-              </>
-            )}
-          </div>
-        </>
-      )}
-    </div>
+      <DropdownMenuContent align="end" className="w-60">
+        <DropdownMenuLabel>{role ? 'Switch role' : 'Sign in as'}</DropdownMenuLabel>
+        {ROLES.map((r) => (
+          <DropdownMenuItem key={r.id} active={role?.id === r.id} onClick={() => signIn(r.id)}>
+            <span className="grid size-6 place-items-center rounded-full bg-secondary text-[10px] font-bold text-secondary-foreground">
+              {r.initials}
+            </span>
+            <span className="font-medium">{r.label}</span>
+            {role?.id === r.id && <Check className="ml-auto size-4 text-primary" />}
+          </DropdownMenuItem>
+        ))}
+        <DropdownMenuSeparator />
+        {/* Not roles — these two have no account here, which is the whole design. Kept in
+            this menu anyway because it's the one control that's on every screen. */}
+        <DropdownMenuLabel>Simulated phones</DropdownMenuLabel>
+        {phoneLinks.map((p) => (
+          <DropdownMenuLink key={p.to} href={p.to} target="_blank" rel="noopener noreferrer">
+            <span className="grid size-6 shrink-0 place-items-center rounded-full bg-muted text-muted-foreground">
+              <Smartphone className="size-3.5" />
+            </span>
+            <span className="min-w-0">
+              <span className="block font-medium leading-tight">{p.label}</span>
+              <span className="block text-xs text-muted-foreground">{p.note}</span>
+            </span>
+            <ExternalLink className="ml-auto size-3.5 shrink-0 text-muted-foreground" />
+          </DropdownMenuLink>
+        ))}
+
+        {role && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem className="text-muted-foreground" onClick={signOut}>
+              <LogOut className="size-4" /> Sign out
+            </DropdownMenuItem>
+          </>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 
@@ -122,17 +128,64 @@ function surfaceLinkClass({ isActive }: { isActive: boolean }) {
 export default function App() {
   return (
     <Routes>
-      {/* Unlisted, and deliberately outside the app shell — it stands in for a real phone,
-          so it gets no nav, no header, no site chrome. Reachable only by typing the URL. */}
+      {/* Deliberately outside the app shell — each stands in for a real phone, so it gets no
+          nav, no header, no site chrome. Off the surface nav; reached from the account menu
+          (new tab) or by typing the URL. */}
       <Route path="/caregiver" element={<Caregiver />} />
       <Route path="/vendor-phone" element={<VendorPhone />} />
+      {/* Token links arrive by text, from someone who works for the vendor and has no
+          account here. They get brand and status, never the hospice's own navigation. */}
+      <Route
+        path="/portal/:token"
+        element={
+          <PortalShell>
+            <VendorPortal />
+          </PortalShell>
+        }
+      />
+      <Route
+        path="/status/:token"
+        element={
+          <PortalShell>
+            <VendorStatus />
+          </PortalShell>
+        }
+      />
       <Route path="*" element={<Shell />} />
     </Routes>
   )
 }
 
+/** Chrome for magic-link pages: the brand mark and the live indicator, and nothing else. */
+function PortalShell({ children }: { children: ReactNode }) {
+  const { connected } = useEventStream()
+
+  return (
+    <div className="min-h-screen bg-background text-foreground">
+      <header className="border-b border-border bg-card">
+        <div className="flex items-center gap-4 px-5 py-3">
+          <span className="rounded-full bg-primary px-3 py-1 font-display text-sm font-extrabold tracking-tight text-primary-foreground">
+            betterRX
+          </span>
+          <span className="ml-auto flex items-center gap-2 text-xs font-medium text-muted-foreground">
+            <span
+              className={cn('h-2.5 w-2.5 rounded-full', connected ? 'bg-success' : 'bg-destructive')}
+            />
+            {connected ? 'Live' : 'Disconnected'}
+          </span>
+        </div>
+      </header>
+      <main className="mx-auto max-w-7xl px-5 py-8 md:px-8">{children}</main>
+      <Toaster />
+    </div>
+  )
+}
+
 function Shell() {
   const { connected } = useEventStream()
+  const { role } = useAuth()
+  // Signed out shows everything, so nobody loses a screen before picking a role.
+  const links = role ? surfaceLinks.filter((l) => l.roles.includes(role.id)) : surfaceLinks
 
   return (
     <TooltipProvider delayDuration={200}>
@@ -171,7 +224,7 @@ function Shell() {
           </div>
           {/* Surface (persona) nav for the DME module */}
           <div className="flex flex-wrap gap-1 border-t border-border px-5 py-2">
-            {surfaceLinks.map((l) => (
+            {links.map((l) => (
               <NavLink key={l.to} to={l.to} className={surfaceLinkClass}>
                 {l.label}
               </NavLink>
@@ -187,9 +240,8 @@ function Shell() {
             <Route path="/nurse" element={<Nurse />} />
             <Route path="/vendor" element={<VendorPage />} />
             <Route path="/driver" element={<Driver />} />
+            {/* /portal/:token and /status/:token live outside the Shell — see PortalShell. */}
             <Route path="/vendor-portal" element={<VendorPortal />} />
-            <Route path="/portal/:token" element={<VendorPortal />} />
-            <Route path="/status/:token" element={<VendorStatus />} />
             <Route path="/reports" element={<Reports />} />
             {/* Unlisted in the nav — a presenter prop, not a product surface. */}
             <Route path="/demo" element={<Demo />} />

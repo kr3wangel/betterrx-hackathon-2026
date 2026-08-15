@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { ChevronLeft } from 'lucide-react'
 import { api } from '../lib/api'
@@ -44,6 +45,7 @@ const CHOICES: {
 ]
 
 export default function Nurse() {
+  const navigate = useNavigate()
   const [patients, setPatients] = useState<Patient[]>([])
   const [loadError, setLoadError] = useState(false)
   const [selected, setSelected] = useState<Patient | null>(null)
@@ -90,6 +92,11 @@ export default function Nurse() {
         persona="Field Nurse"
         title="Patient status"
         description="One tap when a patient goes home or passes away — the equipment pickup follows on its own."
+        actions={
+          <Button variant="outline" className="rounded-xl" onClick={() => navigate('/hospice')}>
+            View board
+          </Button>
+        }
       />
 
       {loadError ? (

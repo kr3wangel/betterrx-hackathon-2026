@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { CheckCircle2, PhoneOff, ShieldAlert, TrendingUp } from 'lucide-react'
 import type {
   Order,
@@ -72,6 +73,7 @@ const usd = (n: number) => `$${Math.round(n).toLocaleString()}`
 const pct = (rate: number) => `${Math.round(rate * 100)}%`
 
 export default function Reports() {
+  const navigate = useNavigate()
   const { data } = useLive<ReportsData>(loadReports)
 
   return (
@@ -80,6 +82,11 @@ export default function Reports() {
         persona="Director of Nursing"
         title="Reports"
         description="Oversight across vendors — performance, cost, and the calls no one had to make."
+        actions={
+          <Button variant="outline" className="rounded-xl" onClick={() => navigate('/hospice')}>
+            View board
+          </Button>
+        }
       />
 
       {!data ? (
