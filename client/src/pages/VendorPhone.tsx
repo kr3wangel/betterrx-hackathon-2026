@@ -107,6 +107,13 @@ function Thread({ vendor, picker }: { vendor: Vendor; picker: React.ReactNode })
 
   const thread = useMemo(() => messages ?? [], [messages])
 
+  // Only the newest unanswered question is tappable. A pickup burst can leave three
+  // requests open at once, and buttons under every one of them is not what a phone looks
+  // like — nor what SMS can do: a bare "1" arrives with no reference to which question it
+  // answers, so the server resolves it against the most recent one (SMS-SIM-SPEC §10).
+  // Older questions stay answerable, by their own magic link, which is what it's for.
+  const openQuestionId = useMemo(() => [...thread].reverse().find(isOpenQuestion)?.id ?? null, [thread])
+
   async function send() {
     if (!draft.trim() || sending) return
     setSending(true)
@@ -152,7 +159,7 @@ function Thread({ vendor, picker }: { vendor: Vendor; picker: React.ReactNode })
             >
               <Linkify text={m.body} />
             </Bubble>
-            {isOpenQuestion(m) && <QuickReplies message={m} onResult={setReply} />}
+            {m.id === openQuestionId && <QuickReplies message={m} onResult={setReply} />}
             {mine && reply?.message_id === m.id && <ReplyReceipt result={reply} />}
           </Fragment>
         )

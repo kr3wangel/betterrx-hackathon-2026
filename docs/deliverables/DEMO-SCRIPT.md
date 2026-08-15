@@ -88,7 +88,7 @@ The watchdog ticks at boot and every 30s (`server/index.ts:30-31`). **Seeding do
 SSE** — after every `npm run seed`, either wait for the next tick or hard-refresh the tab. Standing
 rule: *seed, count to thirty, confirm the board looks right, then talk.*
 
-**4. Browser tabs (left → right, same window, `Cmd+1/2/3`)**
+**4. Browser tabs (left → right, same window, `Cmd+1`…`Cmd+6`)**
 
 | Tab | URL | Used in |
 |---|---|---|
@@ -96,6 +96,28 @@ rule: *seed, count to thirty, confirm the board looks right, then talk.*
 | 2 | `http://localhost:5173/vendor` | S1, S3 |
 | 3 | `http://localhost:5173/driver` | S1, S2 |
 | 4 | `http://localhost:5173/reports` | S6 · `[FE PENDING: reports page]` (both backend routes exist) |
+| 5 | `http://localhost:5173/vendor-phone` | **no scene calls for it** — full-screen twin of tab 2's thread |
+| 6 | `http://localhost:5173/caregiver` | **no scene calls for it** — but it goes live the instant S1 step 5's POD lands |
+
+**Tabs 5 and 6 are optional and no beat in this script requires them.** Tab 5 is the same vendor
+thread as the in-page simulator on tab 2, just full-screen on a handset — every vendor beat as
+written works on tab 2. Tab 6 is the family's phone: submitting proof of delivery in S1 step 5
+fires the condition text automatically (`routes.ts:143`), so if it's open you can turn to it and
+show the check arriving, and a 1–5 reply is recorded and rolls into the condition stats behind
+`/reports`. That's the beat the CEO asked for by name at the briefing, and it is currently in the
+deck but not in this script.
+
+**Only a *delivery* POD sends it.** `kind !== 'pickup'` — S2's two pickups deliberately send
+nothing, because the guards in `server/condition.ts` keep that channel silent once a patient has
+died. Don't stand there waiting on tab 6 during S2; the silence is the feature.
+
+Both open from the **account menu → Simulated phones** (top-right, under the role list), so you
+don't have to type a URL mid-demo.
+
+> ⚠️ **Open them during setup, not mid-demo.** They open in a *new* tab, and Chrome places a
+> link-opened tab immediately to the right of the tab you opened it from. Open from tab 1 while
+> presenting and `/vendor` becomes tab 3 — every "Tab 2 / Tab 3 / Tab 4" instruction below shifts
+> by one. Open them last, from tab 4, so they land at 5 and 6 and the numbering above holds.
 
 Phone (optional, for the driver POD): `/driver` over the venue LAN needs `server.host: true` in
 `client/vite.config.ts` — **set** (`vite.config.ts:17`), so this works. Laptop fallback works too: the
