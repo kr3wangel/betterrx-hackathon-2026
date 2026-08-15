@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type KeyboardEvent } from 'react'
 import { isPickup, plainItem, statePill, whenAnchor, formatWhen } from '../../lib/board'
 import type { BoardRow as Row, Pill } from '../../lib/board'
 import { RowDetail } from './RowDetail'
@@ -12,7 +12,20 @@ const PILL_TONE: Record<Pill['tone'], string> = {
   wait: 'bg-[#EEF1F3] text-muted-foreground',
 }
 
-export const ROW_GRID = 'sm:grid sm:grid-cols-[1.2fr_.9fr_1.1fr_1fr_160px] sm:items-center sm:gap-x-4'
+export const ROW_GRID =
+  'sm:grid sm:grid-cols-[minmax(0,1.2fr)_minmax(0,.9fr)_minmax(0,1.1fr)_minmax(0,1fr)_160px] sm:items-center sm:gap-x-4'
+
+const ROW_FOCUS = 'rounded-[10px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+const CELL = 'sm:min-w-0 sm:truncate'
+
+function rowKeyDown(toggle: () => void) {
+  return (e: KeyboardEvent<HTMLDivElement>) => {
+    if (e.target !== e.currentTarget) return
+    if (e.key !== 'Enter' && e.key !== ' ') return
+    e.preventDefault()
+    toggle()
+  }
+}
 
 export function ColumnHeaders() {
   return (
@@ -49,12 +62,20 @@ export function BoardRow({ row, vendors, lead }: { row: Row; vendors: Vendor[]; 
         lead ? 'py-4 text-[15px] shadow-[0_1px_4px_rgba(38,50,64,.08)]' : 'py-[15px] text-[14.5px] shadow-[0_1px_3px_rgba(38,50,64,.06)]'
       )}
     >
-      <div className={cn('cursor-pointer', ROW_GRID)} onClick={() => setOpen((o) => !o)}>
+      <div
+        role="button"
+        tabIndex={0}
+        aria-expanded={open}
+        className={cn('cursor-pointer', ROW_FOCUS, ROW_GRID)}
+        onClick={() => setOpen((o) => !o)}
+        onKeyDown={rowKeyDown(() => setOpen((o) => !o))}
+      >
         <div className="flex items-baseline justify-between gap-3 sm:contents">
-          <span className="font-[750] sm:col-start-1 sm:row-start-1">{row.who}</span>
+          <span className={cn('font-[750] sm:col-start-1 sm:row-start-1', CELL)}>{row.who}</span>
           <span
             className={cn(
               'text-[13px] font-normal tabular-nums sm:col-start-4 sm:row-start-1 sm:text-[14px]',
+              CELL,
               red ? 'text-destructive' : 'text-faint'
             )}
           >
@@ -63,11 +84,11 @@ export function BoardRow({ row, vendors, lead }: { row: Row; vendors: Vendor[]; 
         </div>
 
         <div className="mt-0.5 text-[13px] text-muted-foreground sm:contents sm:text-[length:inherit]">
-          <span className="sm:col-start-2 sm:row-start-1 sm:text-foreground">{row.action}</span>
+          <span className={cn('sm:col-start-2 sm:row-start-1 sm:text-foreground', CELL)}>{row.action}</span>
           <span aria-hidden="true" className="sm:hidden">
             {' · '}
           </span>
-          <span className="sm:col-start-3 sm:row-start-1">{row.item}</span>
+          <span className={cn('sm:col-start-3 sm:row-start-1', CELL)}>{row.item}</span>
         </div>
 
         <PillView pill={row.pill} onAct={onPill} />
@@ -111,14 +132,20 @@ function GroupLines({ orders, vendors }: { orders: Order[]; vendors: Vendor[] })
         return (
           <div key={o.id}>
             <div
-              className={cn('cursor-pointer py-2 text-[13.5px]', ROW_GRID)}
+              role="button"
+              tabIndex={0}
+              aria-expanded={openId === o.id}
+              className={cn('cursor-pointer py-2 text-[13.5px]', ROW_FOCUS, ROW_GRID)}
               onClick={() => setOpenId((id) => (id === o.id ? null : o.id))}
+              onKeyDown={rowKeyDown(() => setOpenId((id) => (id === o.id ? null : o.id)))}
             >
-              <span className="text-muted-foreground sm:col-start-1 sm:row-start-1">
+              <span className={cn('text-muted-foreground sm:col-start-1 sm:row-start-1', CELL)}>
                 {isPickup(o) ? 'Pickup' : 'Delivery'}
               </span>
-              <span className="sm:col-start-2 sm:row-start-1 sm:col-span-2">{plainItem(o.equipment_name)}</span>
-              <span className="tabular-nums text-faint sm:col-start-4 sm:row-start-1">
+              <span className={cn('sm:col-span-2 sm:col-start-2 sm:row-start-1', CELL)}>
+                {plainItem(o.equipment_name)}
+              </span>
+              <span className={cn('tabular-nums text-faint sm:col-start-4 sm:row-start-1', CELL)}>
                 {anchor ? formatWhen(anchor, now).text : '—'}
               </span>
               <span

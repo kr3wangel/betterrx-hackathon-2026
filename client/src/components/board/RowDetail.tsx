@@ -44,6 +44,11 @@ export function RowDetail({ order, vendor }: { order: Order; vendor?: Vendor }) 
   const lastHeard = [...detail.messages].reverse().find((m) => m.direction === 'in')
   const nudges = detail.messages.filter((m) => m.direction === 'out' && m.template && NUDGE_TEMPLATES.includes(m.template))
   const verified = order.state === 'picked_up' ? order.pickup_verified : order.delivery_verified
+  const riskReasons = order.risk_reasons ?? []
+  // The watchdog's risk escalation quotes the risk reasons verbatim, so it would print twice.
+  const escalationLines = detail.escalations.filter(
+    (e) => e.status === 'open' && !riskReasons.some((r) => e.reason.includes(r))
+  )
 
   return (
     <div className="space-y-5 border-t border-border pt-4 text-sm" onClick={(e) => e.stopPropagation()}>
@@ -87,9 +92,15 @@ export function RowDetail({ order, vendor }: { order: Order; vendor?: Vendor }) 
         </div>
       )}
 
-      {order.risk_reasons && order.risk_reasons.length > 0 && (
+      {escalationLines.map((e) => (
+        <p key={e.id} className="font-semibold text-destructive">
+          {e.reason}
+        </p>
+      ))}
+
+      {riskReasons.length > 0 && (
         <ul className="space-y-1 text-muted-foreground">
-          {order.risk_reasons.map((r, i) => (
+          {riskReasons.map((r, i) => (
             <li key={i}>· {r[0].toUpperCase() + r.slice(1)}.</li>
           ))}
         </ul>
