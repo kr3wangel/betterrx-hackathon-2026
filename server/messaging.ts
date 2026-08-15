@@ -124,7 +124,7 @@ export function orderRequestText(order: Order, patientArea: string): string {
 
 export function pickupRequestText(order: Order, patientArea?: string): string {
   const where = patientArea ? `, area ${patientArea}` : ''
-  return `Pickup needed for order #${order.id} (${order.equipment_name})${where}. Family is present — please schedule promptly. Reply 1 if you can get it today, 2 to give us a window: ${magicLink(order.vendor_id)}`
+  return `Pickup needed for order #${order.id} (${order.equipment_name})${where}. Reply 1 if you can get it today, 2 to give us a window: ${magicLink(order.vendor_id)}`
 }
 
 export function ackNagText(order: Order): string {

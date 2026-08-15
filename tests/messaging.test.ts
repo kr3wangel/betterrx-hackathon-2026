@@ -127,10 +127,14 @@ describe('outbound templates', () => {
     expect(text).toContain('E0260')
   })
 
-  it('pickup request is respectful and names the order', () => {
+  it('pickup request names the order and asks without invoking the household', () => {
     const id = seedOrder({ state: 'pickup_pending' })
     const text = pickupRequestText(getOrder(id)!)
     expect(text).toContain(`#${id}`)
-    expect(text.toLowerCase()).toContain('family')
+    expect(text).toContain('Hospital bed')
+    expect(text).toMatch(/reply 1 if you can get it today, 2 to give us a window/i)
+    expect(text).toContain('/portal/')
+    expect(text.toLowerCase()).not.toContain('family')
+    expect(text).not.toContain('Test Patient')
   })
 })
