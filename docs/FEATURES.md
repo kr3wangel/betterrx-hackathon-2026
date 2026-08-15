@@ -94,8 +94,11 @@ these up or don't claim them.
 | Roles / sign-in | `App.tsx:47` is the only `useAuth` consumer | **Nav filtering only.** No page branches on role, no route guards, and `Actor` on the server has no matching split |
 
 `server/sms.ts` is 331 lines with **33 tests** — the largest single test file in the repo —
-and the UI does not call into it. Worth ten minutes from whoever wrote it to say whether
-that's a deliberate spare tyre or an integration that got missed.
+and the UI does not call into it. **Resolved 08-14: an integration that got missed, not a spare
+tyre.** It implements the `template × digit → action` table from `SMS-SIM-SPEC.md`, whose §10
+defines a contract for the emulator; the emulator was already built against `/api/messages/inbound`
+and `/api/orders/:id/condition-reply` and never picked it up. Full reasoning and the three options
+in §8.3.
 
 **The approvals row is the one most likely to bite on stage.** An order over the $150/mo threshold
 ships to the vendor whether or not the DON ever looks at it. Demo the queue as a *design*, not as a
@@ -119,7 +122,7 @@ and FAQ §6 penalises manufactured precision.
 | Live inventory check | `INTEGRATION-SKETCH.md` | FAQ §9 says it won't exist in practice; designed as a hook with graceful fallback |
 | eRx / EMR integration | `INTEGRATION-SKETCH.md`, 305 lines | Diagram only, which is all Deliverable D asks for |
 | Server-side approval gate | `docs/UX-FLOWS.md` §6 | `pending_approval` state, persistence, and approval-latency reporting are specified but not built |
-| Real SMS gateway | — | Both phone screens are simulators. Say so before anyone asks |
+| Real SMS gateway (Twilio) | `deliverables/ASSUMPTIONS.md` → *Simulated, not sent* | **Scoped and deliberately declined.** No dependency, no key, no webhook. The routing and the gate are what earn the AI row; a live carrier on conference wifi is a failure mode with no upside. Delivery is the only thing simulated — the magic links in the bubbles are real `/portal/<token>` URLs |
 
 ---
 
@@ -234,11 +237,30 @@ clicking, not by CI.
    blocks an order.
 2. **`/vendor` is labelled "Vendor phone" in the nav and `/vendor-phone` also exists.** Two
    things, nearly one name. Pick which one the demo drives.
-3. **`sms.ts` has no UI path** — see §2.
+3. **`sms.ts` is a missed integration, not a spare tyre — question resolved 08-14.** There are two
+   parallel implementations of "handle an inbound reply." The wired one: `VendorPhone` posts free
+   text to `/api/messages/inbound` (`messaging.ts`, LLM + confidence gate) and `Caregiver` posts to
+   `/api/orders/:id/condition-reply` (`condition.ts`, deterministic digit). The unwired one:
+   `sms.ts`'s `/api/messages/send` and `/api/messages/reply`, which implement SMS-SIM-SPEC's
+   `template × digit → action` routing table. That spec says *"the emulator UI is owned by another
+   dev and already built"* and defines an integration contract in §10 — the emulator was built
+   first, against the older endpoints, and never adopted it.
+
+   **Why it's worth a decision rather than a shrug:** the unwired path is the tappable quick-reply
+   one, and the spec's own argument is that *at a known lifecycle moment a digit has exactly one
+   meaning, so no model needs to read it.* The caregiver side already demonstrates that principle;
+   the vendor side routes through the LLM even when a tap is unambiguous. Options: wire
+   `VendorPhone`'s quick-replies to `/api/messages/reply` (makes the AI-split true on both sides and
+   gives 33 tests something real to protect, but changes the most-watched demo beat this close to
+   freeze) · leave it and say so (zero risk, and §6 rewards the honesty) · delete it (**don't** —
+   loses the spec's reference implementation and 33 tests).
 4. **Six roles in the switcher, three in the pitch.** Dispatcher, Driver and Field Nurse are
    selectable. Decide whether we present six personas or three plus supporting cast.
 5. **Re-seed on demo morning.** Demo orders are `now + N hours`, so a database seeded the
    day before has deadlines already in the past and the board looks broken. `npm run seed`
    prints a risk check for exactly this reason.
 6. **Both phone screens are simulators.** Nobody should discover that from a judge's
-   question.
+   question. The written answer to "why not real SMS?" now lives in
+   `deliverables/ASSUMPTIONS.md` → *Simulated, not sent* — including what the choice costs us
+   (we can't claim a deliverability number, and the silence ladder assumes delivery receipts a
+   simulator can't produce).

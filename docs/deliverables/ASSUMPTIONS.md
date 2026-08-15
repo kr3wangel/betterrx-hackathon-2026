@@ -51,6 +51,37 @@ Stated in `PROBLEM-THESIS.md`, unvalidated. Every one of these is measurable on 
 | **Magic-link tap rate.** A dispatcher will tap a link from a customer they recognize, with no login. | The deterministic tap path collapses back to free-text parse or a voice keypress — which is exactly why both still exist in the design. | Measure tap rate vs. reply rate vs. call-answer rate per vendor and route each vendor by measured preference. |
 | **Landline mix.** A material share of a hospice's vendor rolodex is office landlines that cannot receive SMS. | The voice/IVR channel is over-built. Harmless — it degrades to unused, not broken. | Carrier line-type lookup at rolodex import gives the true mix per hospice before any voice build-out is committed. |
 
+### Simulated, not sent — a decision, not an assumption
+
+We scoped a Twilio integration and **chose against it.** No telephony provider is wired into this
+build: there is no Twilio dependency, no account, no API key, no webhook. Both phone screens are
+simulators, and we say so before anyone asks.
+
+The reasoning, so it holds up under a judge's "why not just send a real text?":
+
+- **The hard part isn't the send.** What earns the AI-ROI row is the routing — a confidence gate at
+  0.8, a review queue for everything below it, and a deterministic digit path that needs no model at
+  all. Proving an HTTP call to a carrier reaches a handset demonstrates none of that.
+- **A live gateway on conference wifi is a failure mode with no upside.** Five minutes on stage, one
+  carrier hiccup, and the demo's core beat is a spinner.
+- **Real texts to real numbers need consent and BAA plumbing** that isn't a hackathon artifact —
+  B2B automated-messaging consent for vendors, and a household channel we'd want a hospice's
+  compliance officer to sign off on before a single message goes out.
+
+**What is genuinely real in the simulation:** the message rows, the template table, the parse
+pipeline and its gate, and the magic links — the URLs in the bubbles are real `/portal/<token>`
+links, not props. **What is simulated is delivery, and only delivery.**
+
+**What the choice costs us, stated plainly:** we cannot claim any deliverability number, and the
+silence ladder's premise — that an untapped link means "no attention" rather than "never arrived" —
+is exactly the Deliverability assumption above, which a simulator cannot test. In production that
+gap closes with carrier delivery receipts gating the ladder, so *undelivered* and *unread* become
+different states and only unread escalates. That is the first thing a pilot would instrument.
+
+Production path is designed rather than hand-waved: `IVR-SIM-SPEC.md` §10 and `SMS-SIM-SPEC.md`
+cover the swap to Twilio Programmable Voice/SMS, including webhook signature validation and the
+landline fork. Twilio is HIPAA-eligible and signs BAAs.
+
 ## Economics — a GIVEN, not an assumption
 
 Worth the distinction: **the hospice pays a per-patient-day fee, bundled with the pharmacy tech PPD
