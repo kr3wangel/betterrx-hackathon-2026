@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { buildBoard, dischargeReadiness, statePill } from '../client/src/lib/board'
-import type { Order } from '../shared/types'
+import { buildBoard, dischargeReadiness, loadLine, statePill } from '../client/src/lib/board'
+import type { Order, VendorLoad } from '../shared/types'
 
 const NOW = new Date('2026-08-14T12:00:00Z')
 
@@ -114,5 +114,46 @@ describe('single pickup row', () => {
   it('leaves a crisis row on its action pill', () => {
     const board = buildBoard([order({ id: 1, state: 'pickup_overdue', pickup_committed: true })], [], patientName, NOW)
     expect(board.needsYou[0].pill).toMatchObject({ tone: 'act', label: 'Call the vendor', action: 'call' })
+  })
+})
+
+describe('vendor load line', () => {
+  function load(over: Partial<VendorLoad>): VendorLoad {
+    return {
+      vendor_id: 1,
+      open_stops: 3,
+      due_today_stops: 3,
+      overdue_pickups: 0,
+      capacity: null,
+      declared_at: null,
+      remaining_today: null,
+      ...over,
+    }
+  }
+
+  it('stays blunt about a vendor who has not declared', () => {
+    expect(loadLine(load({}))).toEqual({ text: '3 stops open · no capacity signal', warn: false })
+  })
+
+  it('renders the room the vendor claims rather than deriving it', () => {
+    expect(loadLine(load({ capacity: 5, remaining_today: 2 }))).toEqual({
+      text: '3 stops open · says they can take 2 more today',
+      warn: false,
+    })
+  })
+
+  it('separates a full day from a declared zero, warning on both', () => {
+    expect(loadLine(load({ capacity: 3, remaining_today: 0 }))).toEqual({
+      text: "3 stops open · says they're at capacity today",
+      warn: true,
+    })
+    expect(loadLine(load({ capacity: 0, remaining_today: 0 }))).toEqual({
+      text: '3 stops open · says no trucks today',
+      warn: true,
+    })
+  })
+
+  it('speaks of one stop in the singular', () => {
+    expect(loadLine(load({ open_stops: 1 })).text).toBe('1 stop open · no capacity signal')
   })
 })
