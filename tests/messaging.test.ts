@@ -4,6 +4,7 @@ import { applyParsed, handleInbound, orderRequestText, pickupRequestText } from 
 import { extractJson } from '../server/llm'
 import { reportSummary } from '../server/reports'
 import { resolveOrderToken } from '../server/portal'
+import { slotDigits } from '../server/slots'
 import { getOrder } from '../server/store'
 import { seedFixtures, seedOrder } from './helpers'
 import type { ParsedMessage } from '../shared/types'
@@ -122,7 +123,7 @@ describe('handleInbound confidence gate', () => {
 describe('outbound templates', () => {
   it('order request names the order, equipment, and deadline', () => {
     const id = seedOrder({ target_at: '2026-08-15T12:00:00Z' })
-    const text = orderRequestText(getOrder(id)!, 'SLC')
+    const text = orderRequestText(getOrder(id)!, 'SLC', slotDigits(1))
     expect(text).toContain(`#${id}`)
     expect(text).toContain('Hospital bed')
     expect(text).toContain('E0260')
@@ -130,7 +131,7 @@ describe('outbound templates', () => {
 
   it('pickup request names the order and asks without invoking the household', () => {
     const id = seedOrder({ state: 'pickup_pending' })
-    const text = pickupRequestText(getOrder(id)!)
+    const text = pickupRequestText(getOrder(id)!, undefined, slotDigits(1))
     expect(text).toContain(`#${id}`)
     expect(text).toContain('Hospital bed')
     expect(text).toMatch(/reply 1 if you can get it today, 2 to give us a window/i)

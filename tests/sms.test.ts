@@ -10,11 +10,19 @@ import {
   pickupNoticeText,
   pickupRequestText,
   sendToFamily,
-  sendToVendor,
+  sendVendorQuestion,
   INTENT_EVENT,
 } from '../server/messaging'
 import { conditionCheckText, sendConditionCheck } from '../server/condition'
-import { REPLY_ROUTES, handleReply, sendTemplate } from '../server/sms'
+import {
+  FAMILY_ROUTES,
+  VENDOR_ROUTES,
+  handleReply,
+  handleVendorInbound,
+  sendTemplate,
+  type ReplyAction,
+} from '../server/sms'
+import { SLOT_BASES, slotDigits, type SlotDigits } from '../server/slots'
 import { applyEvent } from '../server/statemachine'
 import { getOrder, rowToMessage } from '../server/store'
 import { tick } from '../server/watchdog'
@@ -58,10 +66,18 @@ function lastMessageId(): number {
   return (db.prepare('SELECT MAX(id) AS id FROM messages').get() as { id: number }).id
 }
 
-function sendVendorQuestion(orderId: number, template: VendorTemplate, body = 'question'): number {
+type VendorQuestion = Exclude<VendorTemplate, 'v_backlog_digest'>
+
+/** Ask through the real sender, so every question in a test owns a real reply pair. */
+function ask(
+  orderId: number,
+  template: VendorQuestion,
+  render: (digits: SlotDigits) => string = () => 'question',
+): number {
   const order = getOrder(orderId)!
-  sendToVendor(order.vendor_id, orderId, body, template)
-  return lastMessageId()
+  const sent = sendVendorQuestion(order.vendor_id, orderId, template, render)
+  if (!sent) throw new Error('no reply slot free')
+  return sent.message_id
 }
 
 function parsedDelivered(overrides: Partial<ParsedMessage> = {}): ParsedMessage {
@@ -74,37 +90,37 @@ function familyRow(orderId: number, template: MessageTemplate) {
 
 // --- Table integrity ---------------------------------------------------------------
 
-describe('REPLY_ROUTES table integrity', () => {
+describe('reply route table integrity', () => {
+  const allActions: ReplyAction[] = [
+    ...Object.values(VENDOR_ROUTES).flatMap((pair) => [...pair!]),
+    ...Object.values(FAMILY_ROUTES).flatMap((routes) => Object.values(routes!)),
+  ]
+
   it('every apply action maps to an intent the state machine knows', () => {
-    for (const routes of Object.values(REPLY_ROUTES)) {
-      for (const action of Object.values(routes!)) {
-        if (action.kind === 'apply') expect(INTENT_EVENT[action.intent]).toBeTruthy()
-      }
+    for (const action of allActions) {
+      if (action.kind === 'apply') expect(INTENT_EVENT[action.intent]).toBeTruthy()
     }
   })
 
-  it('routes only questions, never informational templates', () => {
-    const valid: MessageTemplate[] = [
-      'v_order_request',
-      'v_ack_nag',
-      'v_eta_check',
-      'v_pickup_request',
-      'f_delivery_confirm',
-      'f_condition_check',
-      'f_eta_notice',
-      'f_pickup_notice',
-      'f_delivered_thanks',
-      'f_picked_up_thanks',
-    ]
+  it('routes only questions, never informational templates or the digest', () => {
     const informational: MessageTemplate[] = [
       'f_eta_notice',
       'f_pickup_notice',
       'f_delivered_thanks',
       'f_picked_up_thanks',
+      'v_backlog_digest',
     ]
-    for (const key of Object.keys(REPLY_ROUTES)) {
-      expect(valid).toContain(key as MessageTemplate)
+    for (const key of [...Object.keys(VENDOR_ROUTES), ...Object.keys(FAMILY_ROUTES)]) {
       expect(informational).not.toContain(key as MessageTemplate)
+    }
+  })
+
+  // Every vendor question is a two-way ask, and offset 0 is the affirmative. The pair that
+  // means it rotates; which end means yes must not.
+  it('gives every vendor template exactly two positions, affirmative first', () => {
+    for (const [template, pair] of Object.entries(VENDOR_ROUTES)) {
+      expect(pair, template).toHaveLength(2)
+      expect(['apply', 'escalate'], template).toContain(pair![0].kind)
     }
   })
 })
@@ -114,7 +130,7 @@ describe('REPLY_ROUTES table integrity', () => {
 describe('vendor digits', () => {
   it('V1 digit 1 accepts the order with no model in the loop', async () => {
     const id = seedOrder()
-    const questionId = sendVendorQuestion(id, 'v_order_request', orderRequestText(getOrder(id)!, 'SLC'))
+    const questionId = ask(id, 'v_order_request', (d) => orderRequestText(getOrder(id)!, 'SLC', d))
 
     const result = await handleReply({ reply_to_message_id: questionId, digit: '1' })
 
@@ -136,7 +152,7 @@ describe('vendor digits', () => {
 
   it('V1 digit 2 escalates for reassignment without moving the order', async () => {
     const id = seedOrder()
-    const questionId = sendVendorQuestion(id, 'v_order_request')
+    const questionId = ask(id, 'v_order_request')
     const before = events(id).length
 
     const result = await handleReply({ reply_to_message_id: questionId, digit: '2' })
@@ -151,7 +167,7 @@ describe('vendor digits', () => {
 
   it('V2 digit 1 accepts exactly like V1', async () => {
     const id = seedOrder()
-    const questionId = sendVendorQuestion(id, 'v_ack_nag', ackNagText(getOrder(id)!))
+    const questionId = ask(id, 'v_ack_nag', (d) => ackNagText(getOrder(id)!, d))
     await handleReply({ reply_to_message_id: questionId, digit: '1' })
     expect(getOrder(id)!.state).toBe('dispatched')
   })
@@ -159,7 +175,7 @@ describe('vendor digits', () => {
   it('V3 digit 1 confirms the target time as the ETA and leaves the state alone', async () => {
     const target = new Date(Date.now() + 4 * 3_600_000).toISOString()
     const id = seedOrder({ state: 'dispatched', target_at: target })
-    const questionId = sendVendorQuestion(id, 'v_eta_check', etaCheckText(getOrder(id)!))
+    const questionId = ask(id, 'v_eta_check', (d) => etaCheckText(getOrder(id)!, d))
 
     await handleReply({ reply_to_message_id: questionId, digit: '1' })
 
@@ -170,7 +186,7 @@ describe('vendor digits', () => {
 
   it('V3 digit 2 asks for a time instead of guessing one', async () => {
     const id = seedOrder({ state: 'dispatched', target_at: new Date().toISOString() })
-    const questionId = sendVendorQuestion(id, 'v_eta_check')
+    const questionId = ask(id, 'v_eta_check')
     const before = events(id).length
 
     const result = await handleReply({ reply_to_message_id: questionId, digit: '2' })
@@ -190,7 +206,7 @@ describe('vendor digits', () => {
     db.prepare(
       "UPDATE order_events SET created_at = ? WHERE order_id = ? AND type = 'pickup_triggered'",
     ).run(new Date(Date.now() - 30 * 3_600_000).toISOString(), id)
-    const questionId = sendVendorQuestion(id, 'v_pickup_request', pickupRequestText(getOrder(id)!))
+    const questionId = ask(id, 'v_pickup_request', (d) => pickupRequestText(getOrder(id)!, undefined, d))
 
     await handleReply({ reply_to_message_id: questionId, digit: '1' })
 
@@ -203,7 +219,7 @@ describe('vendor digits', () => {
 
   it('V4 digit 2 asks the vendor to name a window', async () => {
     const id = seedOrder({ state: 'pickup_pending' })
-    const questionId = sendVendorQuestion(id, 'v_pickup_request')
+    const questionId = ask(id, 'v_pickup_request')
     const result = await handleReply({ reply_to_message_id: questionId, digit: '2' })
     expect(result.outcome).toBe('prompt')
     expect(result.prompt).toMatch(/when can you collect/i)
@@ -211,7 +227,7 @@ describe('vendor digits', () => {
 
   it('a second answer to the same question is stored but applies nothing', async () => {
     const id = seedOrder()
-    const questionId = sendVendorQuestion(id, 'v_order_request')
+    const questionId = ask(id, 'v_order_request')
     await handleReply({ reply_to_message_id: questionId, digit: '1' })
 
     const result = await handleReply({ reply_to_message_id: questionId, digit: '1' })
@@ -224,7 +240,7 @@ describe('vendor digits', () => {
 
   it('a digit outside the template map goes to review', async () => {
     const id = seedOrder()
-    const questionId = sendVendorQuestion(id, 'v_order_request')
+    const questionId = ask(id, 'v_order_request')
     const result = await handleReply({ reply_to_message_id: questionId, digit: '9' })
     expect(result.outcome).toBe('unmapped')
     expect(getOrder(id)!.state).toBe('ordered')
@@ -244,7 +260,7 @@ describe('vendor digits', () => {
 
   it('vendor free text still goes through the review queue with no key', async () => {
     const id = seedOrder()
-    const questionId = sendVendorQuestion(id, 'v_order_request')
+    const questionId = ask(id, 'v_order_request')
     const result = await handleReply({ reply_to_message_id: questionId, body: 'yeah we can do thursday' })
     expect(result.outcome).toBe('review')
     const inbound = messages().find((m) => m.direction === 'in')!
@@ -453,7 +469,7 @@ describe('sendTemplate', () => {
 describe('messages filter guard', () => {
   it('a vendor thread never contains family rows', () => {
     const id = seedOrder({ state: 'pickup_pending' })
-    sendToVendor(1, id, 'vendor text', 'v_pickup_request')
+    ask(id, 'v_pickup_request', () => 'vendor text')
     sendToFamily(1, id, pickupNoticeText(), 'f_pickup_notice')
 
     const rows = db
@@ -488,7 +504,7 @@ describe('silence ladder nag detection', () => {
 describe('a typed digit routes like a structured one', () => {
   it('body "1" accepts the order with no model in the loop', async () => {
     const id = seedOrder()
-    const questionId = sendVendorQuestion(id, 'v_order_request', orderRequestText(getOrder(id)!, 'SLC'))
+    const questionId = ask(id, 'v_order_request', (d) => orderRequestText(getOrder(id)!, 'SLC', d))
 
     const result = await handleReply({ reply_to_message_id: questionId, body: '1' })
 
@@ -503,7 +519,7 @@ describe('a typed digit routes like a structured one', () => {
 
   it('leaves anything longer than a bare digit to the parse path', async () => {
     const id = seedOrder()
-    const questionId = sendVendorQuestion(id, 'v_order_request')
+    const questionId = ask(id, 'v_order_request')
 
     const result = await handleReply({ reply_to_message_id: questionId, body: '1 but running late' })
 
@@ -513,10 +529,252 @@ describe('a typed digit routes like a structured one', () => {
 
   it('sends a typed digit with no route to a person rather than guessing', async () => {
     const id = seedOrder()
-    const questionId = sendVendorQuestion(id, 'v_order_request')
+    const questionId = ask(id, 'v_order_request')
 
     const result = await handleReply({ reply_to_message_id: questionId, body: '9' })
 
     expect(result.outcome).toBe('unmapped')
+  })
+})
+
+// --- Rotating reply codes -----------------------------------------------------------
+
+// SMS is one flat thread with no reply-to. Three questions land seconds apart, the vendor
+// answers the last one, and the two above it are buried and never answered at all — while
+// the watchdog nags them and pushes them further up the screen. The pairs are the fix: the
+// digits themselves carry the addressing, so a buried question stays answerable.
+describe('rotating reply codes', () => {
+  it('hands each open question its own pair, in order', () => {
+    const first = seedOrder()
+    const second = seedOrder()
+    const third = seedOrder()
+
+    ask(first, 'v_order_request')
+    ask(second, 'v_order_request')
+    ask(third, 'v_order_request')
+
+    const slots = messages()
+      .filter((m) => m.direction === 'out')
+      .map((m) => m.reply_slot)
+    expect(slots).toEqual([1, 3, 5])
+  })
+
+  it('states its own pair in the body, so a buried question needs nothing remembered', () => {
+    const first = seedOrder()
+    const second = seedOrder()
+    ask(first, 'v_order_request', (d) => orderRequestText(getOrder(first)!, 'SLC', d))
+    ask(second, 'v_order_request', (d) => orderRequestText(getOrder(second)!, 'SLC', d))
+
+    const [a, b] = messages().filter((m) => m.direction === 'out')
+    expect(a.body).toContain('Reply 1 to accept, 2 if')
+    expect(b.body).toContain('Reply 3 to accept, 4 if')
+  })
+
+  it('answers the buried question, not the newest one', async () => {
+    const buried = seedOrder()
+    const newest = seedOrder()
+    ask(buried, 'v_order_request')
+    ask(newest, 'v_order_request')
+
+    // "1" is the first order's pair even though the second question is the newest message.
+    const result = await handleVendorInbound(1, '1')
+
+    expect(result.outcome).toBe('applied')
+    expect(getOrder(buried)!.state).toBe('dispatched')
+    expect(getOrder(newest)!.state).toBe('ordered')
+  })
+
+  it('takes them in any order, days apart', async () => {
+    const orders = [seedOrder(), seedOrder(), seedOrder()]
+    orders.forEach((id) => ask(id, 'v_order_request'))
+
+    await handleVendorInbound(1, '5')
+    await handleVendorInbound(1, '1')
+    await handleVendorInbound(1, '3')
+
+    expect(orders.map((id) => getOrder(id)!.state)).toEqual(['dispatched', 'dispatched', 'dispatched'])
+  })
+
+  it('frees a pair once its question is answered, and reuses it', async () => {
+    const first = seedOrder()
+    ask(first, 'v_order_request')
+    await handleVendorInbound(1, '1')
+
+    const next = seedOrder()
+    ask(next, 'v_order_request')
+
+    expect(messages(next).find((m) => m.direction === 'out')!.reply_slot).toBe(1)
+  })
+
+  it('never recycles a pair while its question is still open', () => {
+    const held = Array.from({ length: SLOT_BASES.length }, () => seedOrder())
+    held.forEach((id) => ask(id, 'v_order_request'))
+
+    const overflow = seedOrder()
+    const sent = sendVendorQuestion(1, overflow, 'v_order_request', (d) =>
+      orderRequestText(getOrder(overflow)!, 'SLC', d),
+    )
+
+    expect(sent).toBeNull()
+    expect(messages(overflow).filter((m) => m.direction === 'out')).toHaveLength(0)
+  })
+
+  it('sends one digest instead, rather than a question whose digits belong to something else', () => {
+    const held = Array.from({ length: SLOT_BASES.length }, () => seedOrder())
+    held.forEach((id) => ask(id, 'v_order_request'))
+
+    sendVendorQuestion(1, seedOrder(), 'v_order_request', () => 'overflow')
+    sendVendorQuestion(1, seedOrder(), 'v_order_request', () => 'overflow')
+
+    const digests = messages().filter((m) => m.template === 'v_backlog_digest')
+    expect(digests, 'the digest is rate-limited, not sent once per blocked question').toHaveLength(1)
+    expect(digests[0].reply_slot).toBeNull()
+    expect(digests[0].body).toMatch(/\/portal\//)
+  })
+
+  // The blocked question has no code, so counting codes reports one fewer than the number
+  // of orders actually waiting — and undercounts exactly the order nobody has been told about.
+  it('counts the orders waiting, including the one it could not send', () => {
+    const held = Array.from({ length: SLOT_BASES.length }, () => seedOrder())
+    held.forEach((id) => ask(id, 'v_order_request'))
+    seedOrder() // the sixth, blocked and codeless
+
+    sendVendorQuestion(1, seedOrder(), 'v_order_request', () => 'overflow')
+
+    const digest = messages().find((m) => m.template === 'v_backlog_digest')!
+    expect(digest.body).toMatch(/^7 orders are waiting on you/)
+  })
+
+  // watchdog.ts fires v_ack_nag at an order whose v_order_request is still unanswered.
+  // Allocating a second pair there would put two live codes on one order — two different
+  // digits that both mean "accept #1042" — and spend 40% of the vendor's reply space on it.
+  it("reuses the order's own pair for a follow-up instead of spending a new one", () => {
+    const id = seedOrder()
+    ask(id, 'v_order_request')
+    ask(id, 'v_ack_nag')
+
+    const outbound = messages(id).filter((m) => m.direction === 'out')
+    expect(outbound).toHaveLength(2)
+    expect(outbound[1].reply_slot).toBe(outbound[0].reply_slot)
+  })
+
+  // A request and the nag chasing it are two rows and one question. Counting rows tells a
+  // vendor with two open orders that they have three, and names one of them twice.
+  it('counts a nagged order once, not once per message', async () => {
+    const nagged = seedOrder()
+    const other = seedOrder()
+    ask(nagged, 'v_order_request')
+    ask(nagged, 'v_ack_nag')
+    ask(other, 'v_order_request')
+
+    const result = await handleVendorInbound(1, '9')
+
+    expect(result.prompt).toBe(
+      `That code doesn't match anything open. Reply 1 or 2 for #${nagged}, 3 or 4 for #${other}.`,
+    )
+  })
+
+  it('closes the original request when the nag is answered, so the pair is not held forever', async () => {
+    const id = seedOrder()
+    ask(id, 'v_order_request')
+    ask(id, 'v_ack_nag')
+
+    await handleVendorInbound(1, '1')
+
+    expect(
+      messages(id)
+        .filter((m) => m.direction === 'out')
+        .every((m) => m.answered_at !== null),
+    ).toBe(true)
+  })
+
+  // The ledger is read aloud on stage. A note that hardcodes "(replied 1)" would print a
+  // digit the vendor never typed the moment the pair rotates.
+  it('records the digit that was actually received, not the one the table was written with', async () => {
+    const first = seedOrder()
+    const second = seedOrder()
+    ask(first, 'v_order_request')
+    ask(second, 'v_order_request')
+
+    await handleVendorInbound(1, '3')
+
+    const applied = messages(second).find((m) => m.direction === 'in')!
+    expect(applied.parsed!.notes).toBe('Vendor accepted by text (replied 3)')
+  })
+
+  it('pairs 9 with 0, because a keypad has ten keys', async () => {
+    expect(slotDigits(9)).toEqual(['9', '0'])
+    const orders = Array.from({ length: SLOT_BASES.length }, () =>
+      seedOrder({ state: 'dispatched', target_at: new Date().toISOString() }),
+    )
+    orders.forEach((id) => ask(id, 'v_eta_check'))
+
+    const result = await handleVendorInbound(1, '0')
+
+    expect(result.outcome).toBe('prompt')
+    expect(result.prompt).toMatch(/when do you expect/i)
+  })
+})
+
+// A gateway hands us a sender and a body and nothing else. Ownership is what makes the
+// deterministic table reachable from there — before the pairs, this path had no choice but
+// to hand "1" to a model, which then correctly refused to guess between the open orders.
+describe('inbound with no reply-to', () => {
+  it('routes an owned digit through the table with no model in the loop', async () => {
+    const id = seedOrder()
+    const questionId = ask(id, 'v_order_request')
+
+    const result = await handleVendorInbound(1, '1')
+
+    expect(result.outcome).toBe('applied')
+    // The caller passed no reply-to and there is none to pass; the server derived which
+    // question this answered from the digit alone. That is the whole point of the pairs.
+    expect(result.in_reply_to).toBe(questionId)
+    expect(getOrder(id)!.state).toBe('dispatched')
+    expect(messages(id).find((m) => m.direction === 'in')!.confidence).toBe(1)
+  })
+
+  it('asks which order rather than applying a digit nothing owns', async () => {
+    const a = seedOrder()
+    const b = seedOrder()
+    ask(a, 'v_order_request')
+    ask(b, 'v_order_request')
+
+    const result = await handleVendorInbound(1, '7')
+
+    expect(result.outcome).toBe('clarify')
+    expect(result.prompt).toContain(`#${a}`)
+    expect(result.prompt).toContain(`#${b}`)
+    expect(getOrder(a)!.state).toBe('ordered')
+    expect(getOrder(b)!.state).toBe('ordered')
+  })
+
+  it('still puts the unmatched reply in front of a person', async () => {
+    const id = seedOrder()
+    ask(id, 'v_order_request')
+
+    await handleVendorInbound(1, '7')
+
+    const inbound = messages().filter((m) => m.direction === 'in')
+    expect(inbound).toHaveLength(1)
+    expect(inbound[0].review_status).toBe('needs_review')
+  })
+
+  it('links out instead of listing once there are more than two open questions', async () => {
+    const orders = [seedOrder(), seedOrder(), seedOrder()]
+    orders.forEach((id) => ask(id, 'v_order_request'))
+
+    const result = await handleVendorInbound(1, '9')
+
+    expect(result.outcome).toBe('clarify')
+    expect(result.prompt).toMatch(/\/portal\//)
+  })
+
+  it('has nothing to clarify when no question is open, so it just goes to review', async () => {
+    const result = await handleVendorInbound(1, '1')
+
+    expect(result.outcome).toBe('review')
+    expect(result.prompt).toBeNull()
+    expect(messages().filter((m) => m.direction === 'out')).toHaveLength(0)
   })
 })

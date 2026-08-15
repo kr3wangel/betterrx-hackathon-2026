@@ -195,7 +195,7 @@ function Thread({ household, picker }: { household: Household; picker: React.Rea
 
         const m = item.message
         const mine = m.direction === 'in'
-        const label = mine ? digitLabel(answeredQuestion(rows, item.index)?.template ?? null, m.body.trim()) : null
+        const label = mine ? digitLabel(answeredQuestion(rows, item.index), m.body.trim()) : null
         return (
           <Fragment key={m.id}>
             <Bubble

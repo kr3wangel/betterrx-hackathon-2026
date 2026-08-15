@@ -5,15 +5,14 @@ import { applyEvent, escalate } from './statemachine'
 import { getOrder, getVendor, listOrders, listOrderEvents, rowToMessage, rowToPod } from './store'
 import { recordPodCondition } from './pods'
 import {
-  handleInbound,
   applyParsed,
   deliveredThanksText,
   pickedUpThanksText,
   sendToFamily,
-  sendToVendor,
+  sendVendorQuestion,
   orderRequestText,
 } from './messaging'
-import { handleReply, sendTemplate } from './sms'
+import { handleReply, handleVendorInbound, sendTemplate } from './sms'
 import { setPatientStatus } from './pickups'
 import { resolveTargetAt } from './sla'
 import {
@@ -79,7 +78,9 @@ routes.post('/orders', (req, res) => {
   const order = applyEvent(orderId, 'order_placed', null, 'hospice')
 
   const patient = db.prepare('SELECT * FROM patients WHERE id = ?').get(patient_id) as Patient | undefined
-  sendToVendor(vendor_id, orderId, orderRequestText(order, patient?.market ?? ''), 'v_order_request')
+  sendVendorQuestion(vendor_id, orderId, 'v_order_request', (digits) =>
+    orderRequestText(order, patient?.market ?? '', digits),
+  )
   res.status(201).json(order)
 })
 
@@ -110,7 +111,9 @@ routes.post('/orders/:id/swap-vendor', (req, res) => {
   if (!getVendor(newVendorId)) return res.status(400).json({ error: 'unknown vendor' })
   const order = applyEvent(orderId, 'vendor_swapped', { vendor_id: newVendorId }, 'hospice')
   const patient = db.prepare('SELECT * FROM patients WHERE id = ?').get(order.patient_id) as Patient | undefined
-  sendToVendor(newVendorId, orderId, orderRequestText(order, patient?.market ?? ''), 'v_order_request')
+  sendVendorQuestion(newVendorId, orderId, 'v_order_request', (digits) =>
+    orderRequestText(order, patient?.market ?? '', digits),
+  )
   db.prepare("UPDATE escalations SET status = 'resolved' WHERE order_id = ? AND status = 'open'").run(orderId)
   res.json(order)
 })
@@ -208,9 +211,10 @@ routes.post('/portal/:token/orders/:id/decline', (req, res) => {
   res.json({ ok: true })
 })
 
+/** What a gateway webhook would post: a sender and a body, nothing else. */
 routes.post('/messages/inbound', async (req, res) => {
   const { vendor_id, body } = req.body
-  res.json(await handleInbound(Number(vendor_id), String(body)))
+  res.json(await handleVendorInbound(Number(vendor_id), String(body)))
 })
 
 /** Thread-aware inbound: the caller knows a message id, the server derives everything else. */

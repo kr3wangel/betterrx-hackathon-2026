@@ -41,6 +41,11 @@ export function orderLink(orderId: number): string {
   return `${baseUrl().replace(/^https?:\/\//, '')}/o/${orderToken(orderId)}`
 }
 
+/** Scheme-stripped vendor-wide link, for the one SMS that has to cover several orders. */
+export function portalLink(vendorId: number): string {
+  return `${baseUrl().replace(/^https?:\/\//, '')}/portal/${vendorToken(vendorId)}`
+}
+
 export function resolveOrderToken(token: string): Order | null {
   return listOrders().find((o) => orderToken(o.id) === token) ?? null
 }

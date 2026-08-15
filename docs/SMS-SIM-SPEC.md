@@ -22,6 +22,25 @@ real inbound messages. No telephony provider. The magic links in the bubbles are
 > which is what a gateway does anyway, since "1" arrives as text with nothing marking it as a
 > digit. Read "tap 1" below as "type 1"; the routing table is unchanged.
 
+> **Amended 08-14 — vendor reply digits rotate; they are no longer always 1 and 2.** This spec
+> assumes a fixed `template × digit` map for both parties. That held only while a vendor had one
+> question outstanding. SMS is a single flat thread with no reply-to, so three questions sent
+> minutes apart left "1" unattributable *and* left the two older ones buried and unanswerable —
+> while the watchdog nagged them and pushed them further up the screen. Each open vendor question
+> now owns a **pair** — (1,2) (3,4) (5,6) (7,8) (9,0) — and states its own pair in its body, so a
+> buried question stays answerable with nothing remembered and no ordering required. Odd is always
+> the affirmative. The routing table is unchanged in meaning, only re-indexed by *position* within
+> the pair (`VENDOR_ROUTES` in `server/sms.ts`); household templates keep literal digits, because
+> `householdGate` already allows one open question per thread and `f_condition_check`'s 1–5 is a
+> rating whose digits *are* the meaning. See `server/slots.ts`. Read "digit 1 / digit 2" below as
+> "the affirmative / the problem" wherever the template is a `v_` one.
+>
+> Two consequences worth reading §6 and §10 against. **A follow-up reuses its order's pair** rather
+> than allocating a new one, so the ack-nag no longer puts two live codes on one order. And **a bare
+> digit is now routable with no reply-to at all** — ownership identifies the question — which is
+> what a real gateway delivers; before this, the deterministic path only worked for a caller that
+> already knew which message it was answering, and a real "1" reached a model.
+
 **Scope note:** the emulator UI is owned by another dev and already built. This spec covers the
 backend — schema, templates, the routing table, triggers — plus the integration contract the
 emulator consumes (§10). No component, layout, or interaction design appears here.

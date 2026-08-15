@@ -1,6 +1,6 @@
 import { db } from './db'
 import { applyEvent, escalate } from './statemachine'
-import { ackNagText, etaCheckText, sendToVendor } from './messaging'
+import { ackNagText, etaCheckText, sendVendorQuestion } from './messaging'
 import { computeRisk, RISK_THRESHOLD } from './risk'
 import { listOrders, vendorStats } from './store'
 import type { Order } from '../shared/types'
@@ -87,7 +87,9 @@ export function tick(now = new Date()): void {
       const nagSentAt = ackNagSentAt(order, anchor)
       if (!nagSentAt) {
         if (hoursSince(anchor, now) > ACK_NAG_HOURS) {
-          sendToVendor(order.vendor_id, order.id, ackNagText(order), 'v_ack_nag')
+          // Reuses the original request's pair rather than spending a new one — the nag is
+          // the same ask, so it must not put two live codes on one order.
+          sendVendorQuestion(order.vendor_id, order.id, 'v_ack_nag', (digits) => ackNagText(order, digits))
         }
       } else if (hoursSince(nagSentAt, now) > ACK_ESCALATE_HOURS) {
         const h = Math.round(hoursSince(anchor, now))
@@ -101,7 +103,7 @@ export function tick(now = new Date()): void {
       now.getHours() >= ETA_CHECK_HOUR &&
       !etaCheckSentToday(order, now)
     ) {
-      sendToVendor(order.vendor_id, order.id, etaCheckText(order), 'v_eta_check')
+      sendVendorQuestion(order.vendor_id, order.id, 'v_eta_check', (digits) => etaCheckText(order, digits))
     }
 
     if (order.state === 'pickup_pending') {
