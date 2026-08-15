@@ -71,7 +71,8 @@ export function DropdownMenuContent({
       <div
         role="menu"
         className={cn(
-          'absolute z-50 mt-2 min-w-[12rem] rounded-xl border border-border bg-card p-1.5 shadow-lg',
+          // Container tokens track ui/select.tsx so the two dropdowns read as one system.
+          'absolute z-50 mt-2 min-w-[12rem] rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-md',
           align === 'end' ? 'right-0' : 'left-0',
           className
         )}
@@ -100,8 +101,9 @@ export function DropdownMenuItem({
         setOpen(false)
       }}
       className={cn(
-        'flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm text-foreground transition-colors hover:bg-muted',
-        active && 'bg-muted',
+        // Item hover/active track the Select's accent treatment (coral tint).
+        'flex w-full items-center gap-2.5 rounded-sm px-2 py-2 text-left text-sm text-foreground outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent',
+        active && 'bg-accent',
         className
       )}
       {...props}
@@ -113,12 +115,12 @@ export function DropdownMenuItem({
 
 export function DropdownMenuLabel({ className, children }: ComponentProps<'div'>) {
   return (
-    <div className={cn('px-2.5 py-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground', className)}>
+    <div className={cn('px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground', className)}>
       {children}
     </div>
   )
 }
 
 export function DropdownMenuSeparator({ className }: { className?: string }) {
-  return <div className={cn('my-1 h-px bg-border', className)} />
+  return <div className={cn('-mx-1 my-1 h-px bg-border', className)} />
 }
