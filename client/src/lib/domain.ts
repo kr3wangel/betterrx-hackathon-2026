@@ -43,6 +43,15 @@ export const STATE_STATUS_TONE: Record<OrderState, StatusTone> = {
   cancelled: 'ordered',
 }
 
+// Status spine (6px card rail) tint per tone — the board's signature status-at-a-glance rail.
+// Duplicated locally in OrderCard/PortalOrderCard; this is the shared home for other surfaces.
+export const SPINE_CLASS: Record<StatusTone, string> = {
+  ordered: 'bg-status-ordered',
+  motion: 'bg-status-motion',
+  done: 'bg-status-done',
+  risk: 'bg-status-risk',
+}
+
 // Plain-English labels for message review outcomes — never render raw review_status enums.
 // See shared/types.ts ReviewStatus.
 export const REVIEW_STATUS_LABEL: Record<'auto_applied' | 'needs_review' | 'confirmed' | 'rejected', string> = {

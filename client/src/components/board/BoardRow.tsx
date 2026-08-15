@@ -50,6 +50,7 @@ export function BoardRow({ row, vendors, lead }: { row: Row; vendors: Vendor[]; 
   const [swapping, setSwapping] = useState(false)
   const single = row.orders.length === 1 ? row.orders[0] : null
   const red = row.atRisk || (row.when?.overdue ?? false)
+  const spine = red ? 'bg-status-risk' : row.pill.tone === 'good' ? 'bg-status-motion' : 'bg-status-ordered'
   const acked = useHighlight().isPulsing(row.orders.map((o) => o.id))
 
   const onPill = () => {
@@ -61,11 +62,12 @@ export function BoardRow({ row, vendors, lead }: { row: Row; vendors: Vendor[]; 
     <div
       data-order-ids={row.orders.map((o) => o.id).join(' ')}
       className={cn(
-        'mb-2.5 rounded-[14px] bg-card px-5',
+        'relative mb-2.5 rounded-[14px] bg-card px-5',
         lead ? 'py-4 text-[15px] shadow-[0_1px_4px_rgba(38,50,64,.08)]' : 'py-[15px] text-[14.5px] shadow-[0_1px_3px_rgba(38,50,64,.06)]',
         acked && 'row-ack'
       )}
     >
+      <span aria-hidden="true" className={cn('absolute bottom-2.5 left-0 top-2.5 w-1.5 rounded-full', spine)} />
       <div
         role="button"
         tabIndex={0}

@@ -16,6 +16,7 @@ import { PersonaHeader } from '@/components/PersonaHeader'
 import { useHighlight } from '../lib/highlight'
 import { useHighlightHandoff } from '../hooks/useHighlightHandoff'
 import { expectOwn } from '../lib/expectedEvents'
+import { STATE_STATUS_TONE, SPINE_CLASS } from '../lib/domain'
 import type { Order, OrderEvent, Patient, Pod, PodKind, Vendor } from '../../../shared/types'
 
 interface CompletedJob {
@@ -250,7 +251,11 @@ function JobCard({
   }
 
   return (
-    <Card data-order-ids={job.id} className={acked ? 'row-ack' : undefined}>
+    <Card data-order-ids={job.id} className={`relative ${acked ? 'row-ack' : ''}`}>
+      <span
+        aria-hidden="true"
+        className={`absolute bottom-2.5 left-0 top-2.5 w-1.5 rounded-full ${SPINE_CLASS[STATE_STATUS_TONE[job.state]]}`}
+      />
       <CardContent className="space-y-3 pt-6">
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -334,7 +339,8 @@ function JobCompleteCard({ completed, onDismiss }: { completed: CompletedJob; on
   const { order, kind, patientName, pod, familyText } = completed
   const proof = [pod?.photo_path && 'photo', pod?.signature_path && 'signature'].filter(Boolean).join(' + ')
   return (
-    <Card className="border-success/40">
+    <Card className="relative">
+      <span aria-hidden="true" className="absolute bottom-2.5 left-0 top-2.5 w-1.5 rounded-full bg-status-done" />
       <CardContent className="space-y-3 pt-6">
         <div className="flex items-start justify-between gap-3">
           <div>

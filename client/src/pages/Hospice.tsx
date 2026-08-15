@@ -88,31 +88,44 @@ export default function Hospice() {
               : `${board.needsYou.length} ${board.needsYou.length === 1 ? 'order needs' : 'orders need'} someone.`}
           </p>
 
-          <SectionTitle label="Needs you" count={board.needsYou.length} alarm />
-          <ColumnHeaders />
-          {board.needsYou.length === 0 && queue.length === 0 && (
-            <div className="mb-2.5 rounded-[14px] bg-card px-5 py-4 text-[14.5px] text-muted-foreground shadow-[0_1px_3px_rgba(38,50,64,.06)]">
-              Nothing needs a person right now.
-            </div>
-          )}
-          {board.needsYou.map((row) => (
-            <BoardRow key={row.key} row={row} vendors={vendors.data ?? []} lead />
-          ))}
-          {queue.length > 0 && (
-            <button
-              className="mb-2.5 flex w-full items-center justify-between gap-3 rounded-[14px] bg-card px-5 py-4 text-left text-[14.5px] shadow-[0_1px_4px_rgba(38,50,64,.08)] transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              onClick={() => setShowReview(true)}
+          {board.needsYou.length > 0 ? (
+            <section
+              aria-label="Needs you"
+              className="mb-1.5 rounded-[24px] border border-primary/15 bg-coral-tint p-2 sm:p-2.5"
             >
-              <span>
-                {queue.length} vendor {queue.length === 1 ? 'reply needs' : 'replies need'} review
-              </span>
-              <span className="flex shrink-0 items-center gap-1 font-bold text-primary">
-                open <ChevronRight className="size-4" />
-              </span>
-            </button>
+              <header className="flex items-baseline gap-3.5 px-3 pb-3 pt-2.5">
+                <span className="font-display text-[40px] font-extrabold leading-none tabular-nums text-destructive">
+                  {board.needsYou.length}
+                </span>
+                <div>
+                  <div className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-primary-hover">
+                    Needs you
+                  </div>
+                  <div className="font-display text-[17px] font-[750] tracking-tight text-foreground">
+                    Decide now — these can't wait.
+                  </div>
+                </div>
+              </header>
+              {board.needsYou.map((row) => (
+                <BoardRow key={row.key} row={row} vendors={vendors.data ?? []} lead />
+              ))}
+              {queue.length > 0 && <ReviewButton count={queue.length} onOpen={() => setShowReview(true)} />}
+            </section>
+          ) : (
+            <>
+              <SectionTitle label="Needs you" count={0} />
+              {queue.length > 0 ? (
+                <ReviewButton count={queue.length} onOpen={() => setShowReview(true)} />
+              ) : (
+                <div className="mb-2.5 rounded-[14px] bg-card px-5 py-4 text-[14.5px] text-muted-foreground shadow-[0_1px_3px_rgba(38,50,64,.06)]">
+                  Nothing needs you right now.
+                </div>
+              )}
+            </>
           )}
 
           <SectionTitle label="On the way" count={board.onTheWay.length + board.later.rows.length} />
+          {board.onTheWay.length + board.later.rows.length > 0 && <ColumnHeaders />}
           {board.onTheWay.length === 0 && board.later.rows.length === 0 && (
             <div className="mb-2.5 rounded-[14px] bg-card px-5 py-4 text-[14px] text-muted-foreground shadow-[0_1px_3px_rgba(38,50,64,.06)]">
               Nothing in motion.
@@ -132,7 +145,8 @@ export default function Hospice() {
           )}
 
           <SectionTitle label="Done" count={board.done.completions} suffix="this week" />
-          <div className="rounded-[14px] bg-card px-5 py-3.5 shadow-[0_1px_3px_rgba(38,50,64,.05)]">
+          <div className="relative rounded-[14px] bg-card px-5 py-3.5 shadow-[0_1px_3px_rgba(38,50,64,.05)]">
+            <span aria-hidden="true" className="absolute bottom-2.5 left-0 top-2.5 w-1.5 rounded-full bg-status-done" />
             <div className="flex flex-wrap items-center justify-between gap-3 text-[14px] text-muted-foreground">
               <span>
                 {board.done.completions === 0
@@ -206,6 +220,22 @@ function SkeletonSection({ rows, lead }: { rows: number; lead?: boolean }) {
         <Skeleton key={i} className={cn('mb-2.5 rounded-[14px]', lead ? 'h-14' : 'h-[52px]')} />
       ))}
     </>
+  )
+}
+
+function ReviewButton({ count, onOpen }: { count: number; onOpen: () => void }) {
+  return (
+    <button
+      className="mb-2.5 flex w-full items-center justify-between gap-3 rounded-[14px] bg-card px-5 py-4 text-left text-[14.5px] shadow-[0_1px_4px_rgba(38,50,64,.08)] transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      onClick={onOpen}
+    >
+      <span>
+        {count} vendor {count === 1 ? 'reply needs' : 'replies need'} review
+      </span>
+      <span className="flex shrink-0 items-center gap-1 font-bold text-primary">
+        open <ChevronRight className="size-4" />
+      </span>
+    </button>
   )
 }
 

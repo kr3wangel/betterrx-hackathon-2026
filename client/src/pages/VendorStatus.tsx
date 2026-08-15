@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input'
 import { usePortal } from '@/hooks/usePortal'
 import { api } from '@/lib/api'
 import { fmt } from '@/lib/useLive'
+import { STATE_STATUS_TONE, SPINE_CLASS } from '@/lib/domain'
 import type { Order, OrderState } from '../../../shared/types'
 
 /**
@@ -118,7 +119,11 @@ function OrderRequestCard({
     api.post(`/api/orders/${order.id}/events`, { type: 'delivered', actor: 'vendor' })
 
   return (
-    <Card>
+    <Card className="relative">
+      <span
+        aria-hidden="true"
+        className={`absolute bottom-2.5 left-0 top-2.5 w-1.5 rounded-full ${SPINE_CLASS[STATE_STATUS_TONE[state]]}`}
+      />
       <CardContent className="space-y-4 pt-6">
         <div className="flex items-start justify-between gap-3">
           <div>

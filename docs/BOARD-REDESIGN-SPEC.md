@@ -105,3 +105,27 @@ The board loses the simulator entirely.
   correctly (verify by running).
 - Red ink appears ONLY in: the "Needs you · N" count and When-slot values that are overdue/at-risk.
   Nothing else on the page is red. Coral is not red — buttons/brand only.
+
+## Amendment v9 — visual polish (2026-08-15): identity without added load
+
+v8's "elementary-simple" surface was correct for the audience (non-technical, older staff) but on
+desktop read as an unbranded wireframe — no focal point, none of the `DESIGN-SYSTEM.md` signature. v9
+re-adds brand identity **only through devices that cost the reader zero extra reading/decisions** — the
+one-idea-per-row, one-action rule is unchanged.
+
+- **Coral focal panel** is back for "Needs you" (reverses v8's removal): coral-tinted rounded-24 panel,
+  white cards on it, a big rounded-bold red count + `NEEDS YOU` eyebrow + one static lede line. It gives
+  the urgent set a home the eye lands on first. When "Needs you" is empty there is NO panel — plain title
+  + calm "Nothing needs you right now" (or the review-queue button).
+- **Status spines** are back (reverses v8's "NO red borders/rails"): a 6px left rail per card encoding
+  lifecycle by color — `status-risk` red (at-risk/overdue) · `status-motion` navy (in motion) ·
+  `status-ordered` neutral (ordered/waiting) · `status-done` green (Done card). Color is pre-attentive,
+  so it *reduces* reading rather than adding it. This is the one place v9 relaxes v8's "section + pill
+  carry urgency, no rails" rule; the pill/section signals stay too.
+- Column headers now sit above "On the way" (the first plain-row section) since the focal panel leads.
+- Unchanged from v8: five-slot grid, pill grammar, date rules, details-on-tap, swap dialog, mobile
+  restack, plain-English-only, red-ink discipline.
+
+Impl: `client/src/pages/Hospice.tsx` (focal panel, Done spine, `ReviewButton`) +
+`client/src/components/board/BoardRow.tsx` (per-row spine, derived from `atRisk`/`overdue`/`pill.tone`
+— no `board.ts` change). Tokens all pre-existing in `index.css` (`bg-coral-tint`, `bg-status-*`).

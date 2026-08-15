@@ -309,12 +309,12 @@ export default function VendorPortal() {
           )}
 
           {waiting.length > 0 && (
-            <section className="rounded-3xl bg-coral-tint p-5 sm:p-7">
+            <section className="rounded-[24px] border border-primary/15 bg-coral-tint p-5 sm:p-7">
               <div className="mb-5">
-                <div className="text-xs font-extrabold uppercase tracking-[0.14em] text-primary">
+                <div className="text-xs font-extrabold uppercase tracking-[0.14em] text-primary-hover">
                   Waiting on you
                 </div>
-                <div className="mt-1.5 font-display text-3xl font-extrabold tabular-nums text-foreground">
+                <div className="mt-1.5 font-display text-[40px] font-extrabold leading-none tabular-nums text-foreground">
                   {waiting.length}
                 </div>
                 <p className="mt-1 text-sm text-muted-foreground">
