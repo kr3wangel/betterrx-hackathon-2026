@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildBoard, statePill } from '../client/src/lib/board'
+import { buildBoard, dischargeReadiness, statePill } from '../client/src/lib/board'
 import type { Order } from '../shared/types'
 
 const NOW = new Date('2026-08-14T12:00:00Z')
@@ -59,6 +59,49 @@ describe('grouped pickup row', () => {
     expect(
       groupPill([order({ id: 1, pickup_committed: true }), order({ id: 2, pickup_committed: true })]),
     ).toBe('2 of 2 moving')
+  })
+})
+
+describe('discharge readiness', () => {
+  const inHours = (h: number) => new Date(NOW.getTime() + h * 3_600_000).toISOString()
+  const delivery = (over: Partial<Order>) => order({ state: 'ordered', target_at: inHours(72), ...over })
+
+  it('reads ready once every delivery is past ordered', () => {
+    const r = dischargeReadiness(
+      [delivery({ id: 1, state: 'dispatched' }), delivery({ id: 2, state: 'delivered' })],
+      NOW,
+    )
+    expect(r).toMatchObject({ ready: true, tone: 'good', text: 'Ready for discharge — 2 of 2 confirmed' })
+  })
+
+  it('names the unconfirmed count while a vendor has not committed', () => {
+    const r = dischargeReadiness([delivery({ id: 1, state: 'dispatched' }), delivery({ id: 2 })], NOW)
+    expect(r).toMatchObject({ ready: false, tone: 'wait', text: 'NOT ready — 1 of 2 unconfirmed' })
+  })
+
+  it('leaves pickups out of the math entirely', () => {
+    const pickups = [order({ id: 8 }), order({ id: 9, state: 'pickup_overdue' })]
+    expect(dischargeReadiness(pickups, NOW)).toBeNull()
+    expect(dischargeReadiness([...pickups, delivery({ id: 1, state: 'dispatched', target_at: inHours(12) })], NOW))
+      .toMatchObject({ ready: true, text: 'Ready for discharge — 1 of 1 confirmed' })
+  })
+
+  it('speaks up for a single order only when the discharge is close', () => {
+    expect(dischargeReadiness([delivery({ id: 1, target_at: inHours(12) })], NOW)).toMatchObject({
+      ready: false,
+      text: 'NOT ready — 1 of 1 unconfirmed',
+    })
+    expect(dischargeReadiness([delivery({ id: 1 })], NOW)).toBeNull()
+  })
+
+  it('rides along on the board row for the whole patient', () => {
+    const board = buildBoard(
+      [delivery({ id: 1, state: 'dispatched' }), delivery({ id: 2 })],
+      [],
+      patientName,
+      NOW,
+    )
+    expect(board.onTheWay.find((r) => r.key === 'p1')!.readiness?.text).toBe('NOT ready — 1 of 2 unconfirmed')
   })
 })
 

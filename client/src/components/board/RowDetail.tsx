@@ -6,6 +6,7 @@ import { expectOwn } from '../../lib/expectedEvents'
 import { eventLabel, eventSourceNote } from '../../lib/domain'
 import { ROLES } from '../../lib/auth'
 import { isPickup, plainItem } from '../../lib/board'
+import type { Readiness } from '../../lib/board'
 import { mockEvidenceSource, isVerifiedEvidence } from '../../lib/mocks'
 import { EvidenceBadge } from '@/components/EvidenceBadge'
 import { PodImage } from '@/components/PodImage'
@@ -38,7 +39,21 @@ function ago(iso: string, now: Date): string {
   return `${days} day${days === 1 ? '' : 's'} ago`
 }
 
-export function RowDetail({ order, vendor }: { order: Order; vendor?: Vendor }) {
+export function ReadinessLine({ readiness, className }: { readiness: Readiness; className?: string }) {
+  return (
+    <div
+      className={cn(
+        'rounded-[10px] px-3 py-1.5 text-[12.5px] font-bold',
+        readiness.ready ? 'bg-[#E6F4EC] text-success' : 'bg-[#EEF1F3] text-muted-foreground',
+        className
+      )}
+    >
+      {readiness.text}
+    </div>
+  )
+}
+
+export function RowDetail({ order, vendor, readiness }: { order: Order; vendor?: Vendor; readiness?: Readiness | null }) {
   const { data: detail } = useLive(() => api.get<OrderDetail>(`/api/orders/${order.id}`), [order.id])
   const [nudging, setNudging] = useState(false)
 
@@ -78,6 +93,8 @@ export function RowDetail({ order, vendor }: { order: Order; vendor?: Vendor }) 
         <span className="text-muted-foreground">{plainItem(order.equipment_name)}</span>
         <EvidenceBadge verified={verified} className="ml-auto" />
       </div>
+
+      {readiness && <ReadinessLine readiness={readiness} className="inline-block" />}
 
       <div className="flex flex-wrap gap-x-12 gap-y-3">
         <Field label="Needed by" value={order.target_at ? fmt(order.target_at) : 'No deadline set'} />

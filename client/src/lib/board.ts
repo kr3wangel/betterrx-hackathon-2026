@@ -15,6 +15,14 @@ export interface When {
   overdue: boolean
 }
 
+export interface Readiness {
+  ready: boolean
+  confirmed: number
+  total: number
+  tone: PillTone
+  text: string
+}
+
 export interface BoardRow {
   key: string
   who: string
@@ -24,6 +32,7 @@ export interface BoardRow {
   pill: Pill
   orders: Order[]
   atRisk: boolean
+  readiness: Readiness | null
 }
 
 export interface DoneLedgerRow {
@@ -45,6 +54,9 @@ const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Frida
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 const PICKUP_STATES = ['pickup_pending', 'pickup_overdue']
+const DISCHARGE_STATES: Order['state'][] = ['ordered', 'dispatched', 'in_transit', 'delivered']
+const CONFIRMED_STATES: Order['state'][] = ['dispatched', 'in_transit', 'delivered']
+const READY_WINDOW_HOURS = 48
 const HORIZON_DAYS = 6
 const DONE_WINDOW_DAYS = 7
 
@@ -124,6 +136,31 @@ export function statePill(order: Order): Pill {
   return { tone: 'wait', label: 'Waiting on vendor', action: null }
 }
 
+/**
+ * Whether this patient's equipment can hold a discharge date. Confirmed means the order is
+ * past `ordered` — the vendor has committed to it. Pickups belong to the end of the stay, so
+ * they never bear on a discharge and are excluded from the count.
+ */
+export function dischargeReadiness(orders: Order[], now: Date = new Date()): Readiness | null {
+  const deliveries = orders.filter((o) => DISCHARGE_STATES.includes(o.state))
+  const dueSoon = deliveries.some(
+    (o) => o.target_at !== null && new Date(o.target_at).getTime() - now.getTime() <= READY_WINDOW_HOURS * 3_600_000,
+  )
+  if (deliveries.length === 0 || (deliveries.length < 2 && !dueSoon)) return null
+
+  const total = deliveries.length
+  const confirmed = deliveries.filter((o) => CONFIRMED_STATES.includes(o.state)).length
+  return confirmed === total
+    ? { ready: true, confirmed, total, tone: 'good', text: `Ready for discharge — ${confirmed} of ${total} confirmed` }
+    : {
+        ready: false,
+        confirmed,
+        total,
+        tone: 'wait',
+        text: `NOT ready — ${total - confirmed} of ${total} unconfirmed`,
+      }
+}
+
 function crisisPill(order: Order): Pill {
   return isPickup(order)
     ? { tone: 'act', label: 'Call the vendor', action: 'call' }
@@ -141,6 +178,7 @@ function singleRow(order: Order, patientName: (id: number) => string, atRisk: bo
     pill: atRisk ? crisisPill(order) : statePill(order),
     orders: [order],
     atRisk,
+    readiness: null,
   }
 }
 
@@ -158,6 +196,7 @@ function groupRow(orders: Order[], patientName: (id: number) => string, now: Dat
     pill: { tone: 'good', label: `${moving} of ${orders.length} moving`, action: null },
     orders,
     atRisk: false,
+    readiness: null,
   }
 }
 
@@ -180,10 +219,21 @@ export function buildBoard(
   const escalated = new Set(escalations.map((e) => e.order_id))
   const live = orders.filter(isLive)
 
+  // Readiness reads every order the patient has, not just the live ones: a bed already
+  // delivered still counts toward the rollup the nurse is asked to trust.
+  const readinessCache = new Map<number, Readiness | null>()
+  const withReadiness = (row: BoardRow): BoardRow => {
+    const id = row.orders[0].patient_id
+    if (!readinessCache.has(id)) {
+      readinessCache.set(id, dischargeReadiness(orders.filter((o) => o.patient_id === id), now))
+    }
+    return { ...row, readiness: readinessCache.get(id) ?? null }
+  }
+
   const needsYouOrders = live.filter((o) => isNeedsYou(o, escalated))
   const needsYouIds = new Set(needsYouOrders.map((o) => o.id))
   const needsYou = needsYouOrders
-    .map((o) => singleRow(o, patientName, true, now))
+    .map((o) => withReadiness(singleRow(o, patientName, true, now)))
     .sort((a, b) => {
       const aOverdue = a.when?.overdue ?? false
       const bOverdue = b.when?.overdue ?? false
@@ -200,7 +250,9 @@ export function buildBoard(
   }
 
   const allRows = [...byPatient.values()]
-    .map((group) => (group.length > 1 ? groupRow(group, patientName, now) : singleRow(group[0], patientName, false, now)))
+    .map((group) =>
+      withReadiness(group.length > 1 ? groupRow(group, patientName, now) : singleRow(group[0], patientName, false, now)),
+    )
     .sort(bySoonest)
 
   // A row with no date at all is not "due beyond 6 days" — it has nothing to be late for,

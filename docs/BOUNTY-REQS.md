@@ -20,7 +20,7 @@ The sponsor's own framing, verbatim, because it is our strategy said back to us:
 | # | Requirement (verbatim) | Status | What exists / what's missing |
 |---|---|---|---|
 | H1 | Patient and equipment need (type, quantity, urgency, target date) | **BUILT** | `/order`: patient + equipment (CMS-grounded 12-code catalog), quantity, urgency (routine/urgent/STAT), needed-by with SLA defaults per urgency (`server/sla.ts`). Vendor texted on placement. |
-| H2 | Discharge-readiness flag. Equipment must be confirmed before a scheduled discharge | **PARTIAL** | The *mechanism* is built — target dates, risk engine, silence ladder, and escalation all fire on "unconfirmed near deadline," and scenario 1 IS this requirement narratively (Margaret's bed before tomorrow). What's missing is the **named rollup**: no per-patient "ready for discharge: N of M confirmed" flag, and no explicit discharge-date field distinct from each order's target date. **Cheapest real gap on this list** — a patient-level derivation over existing order states. |
+| H2 | Discharge-readiness flag. Equipment must be confirmed before a scheduled discharge | **BUILT** | The named rollup now ships: `dischargeReadiness()` in `client/src/lib/board.ts` reads a patient's delivery orders and prints "Ready for discharge — 2 of 2 confirmed" / "NOT ready — 1 of 2 unconfirmed" on the board (grouped-row sub-line + row detail). Confirmed = past `ordered` (vendor committed); pickups excluded. Scope note: readiness anchors on each order's target date — there is still no discharge-date field of its own, so the flag fires on 2+ open deliveries or anything due within 48h. |
 | H3 | Post-death pickup trigger, ideally tied to an EMR status change rather than a manual call | **BUILT — both paths** | EMR webhook `POST /api/emr/patient-status` (actor system, source `emr`) AND the nurse's one-tap on `/nurse` (source `nurse`). FAQ §8 later re-ordered nurse-primary/EMR-fallback; we have the ordering they asked for, and the ledger records which path fired first. Pickups auto-appear for the driver; the family is notified with care. |
 | H4 | Vendor choice within a market (most hospices work multiple vendors, not one) | **BUILT** | Four seeded vendors with service areas; the swap dialog shows each alternative's on-time history **for this equipment on this deadline's weekday** at the moment of choice; cold-start vendors join by phone number. Reputation as a decision input, not a report. |
 | H5 | Total cost-of-care visibility. DME spend alongside medication spend, not in a separate silo | **BUILT (synthetic-labeled)** | `/reports` Cost of care: DME and medication bars side by side per patient. The medication figure is deliberately labeled synthetic with an on-screen note — BetterRX is the pharmacy company; under the hospice benefit no public per-claim med figure exists to ground it, and the card says so rather than faking precision. |
@@ -43,10 +43,9 @@ The sponsor's own framing, verbatim, because it is our strategy said back to us:
 ## 3 · Gap list, ranked (what to do about the non-green rows)
 
 **Worth building before freeze (small, high req-coverage):**
-1. **H2 — discharge-readiness rollup.** A derived per-patient flag ("2 of 2 confirmed for
-   Friday's discharge" / "NOT READY — bed unconfirmed") surfaced on the board row or patient
-   grouping. All inputs exist (order states per patient + target dates); it's a `board.ts`-style
-   pure derivation plus one line of UI. Directly answers a checklist row with its own name.
+1. ~~**H2 — discharge-readiness rollup.**~~ **DONE** — `dischargeReadiness()` in `client/src/lib/board.ts`,
+   on the board's grouped-row sub-line and row detail. Still no discharge-date field of its own;
+   the flag anchors on order target dates (2+ open deliveries, or anything due within 48h).
 
 **Pitch/Q&A answers, not builds (the honest-frame rows):**
 2. **V6 billing/denials** — lead with it in Q&A: *"15–25% denials from documentation gaps is the

@@ -1,7 +1,7 @@
 import { useState, type KeyboardEvent } from 'react'
 import { isPickup, plainItem, statePill, whenAnchor, formatWhen } from '../../lib/board'
 import type { BoardRow as Row, Pill } from '../../lib/board'
-import { RowDetail } from './RowDetail'
+import { ReadinessLine, RowDetail } from './RowDetail'
 import { SwapVendorDialog } from './SwapVendorDialog'
 import { cn } from '@/lib/utils'
 import { useHighlight } from '../../lib/highlight'
@@ -98,7 +98,15 @@ export function BoardRow({ row, vendors, lead }: { row: Row; vendors: Vendor[]; 
         <PillView pill={row.pill} onAct={onPill} />
       </div>
 
-      {open && single && <RowDetail order={single} vendor={vendors.find((v) => v.id === single.vendor_id)} />}
+      {!single && row.readiness && <ReadinessLine readiness={row.readiness} className="mt-2 inline-block" />}
+
+      {open && single && (
+        <RowDetail
+          order={single}
+          vendor={vendors.find((v) => v.id === single.vendor_id)}
+          readiness={row.readiness}
+        />
+      )}
       {open && !single && <GroupLines orders={row.orders} vendors={vendors} />}
 
       {single && swapping && (
