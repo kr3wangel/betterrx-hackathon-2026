@@ -4,10 +4,11 @@ import { api } from '../../lib/api'
 import { useLive } from '../../lib/useLive'
 import { expectOwn } from '../../lib/expectedEvents'
 import { useHighlight } from '../../lib/highlight'
-import { decisionLine } from '../../lib/board'
+import { decisionLine, loadLine } from '../../lib/board'
 import { firstName, shortEquipment } from '../../lib/narration'
+import { cn } from '@/lib/utils'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import type { Order, VendorScorecard } from '../../../../shared/types'
+import type { Order, VendorLoad, VendorScorecard } from '../../../../shared/types'
 
 export function SwapVendorDialog({
   order,
@@ -21,6 +22,7 @@ export function SwapVendorDialog({
   onOpenChange: (open: boolean) => void
 }) {
   const { data: cards } = useLive(() => api.get<VendorScorecard[]>('/api/reports/vendor-scorecards'))
+  const { data: loads } = useLive(() => api.get<VendorLoad[]>('/api/vendors/load'))
   const [busy, setBusy] = useState<number | null>(null)
   const { pulse } = useHighlight()
   const now = useMemo(() => new Date(), [])
@@ -50,7 +52,10 @@ export function SwapVendorDialog({
           <DialogTitle>Send this to another vendor</DialogTitle>
         </DialogHeader>
         <div className="flex flex-col gap-2.5">
-          {alternatives.map((card) => (
+          {alternatives.map((card) => {
+            const line = (loads ?? []).find((l) => l.vendor_id === card.vendor.id)
+            const load = line ? loadLine(line) : null
+            return (
             <button
               key={card.vendor.id}
               disabled={busy !== null}
@@ -61,8 +66,15 @@ export function SwapVendorDialog({
               <div className="mt-0.5 tabular-nums text-sm text-muted-foreground">
                 {busy === card.vendor.id ? 'Sending…' : decisionLine(card, order, now)}
               </div>
+              {load && (
+                <div className={cn('tabular-nums text-sm', load.warn ? 'text-amber-600' : 'text-muted-foreground')}>
+                  {load.text}
+                </div>
+              )}
+              <div className="text-sm text-muted-foreground">Serves: {card.vendor.service_area}</div>
             </button>
-          ))}
+            )
+          })}
         </div>
       </DialogContent>
     </Dialog>

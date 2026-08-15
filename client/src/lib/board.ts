@@ -1,4 +1,4 @@
-import type { Escalation, Order, VendorScorecard } from '../../../shared/types'
+import type { Escalation, Order, VendorLoad, VendorScorecard } from '../../../shared/types'
 import { isLive, isNeedsYou } from './atRisk'
 
 export type PillTone = 'act' | 'good' | 'wait'
@@ -13,6 +13,11 @@ export interface Pill {
 export interface When {
   text: string
   overdue: boolean
+}
+
+export interface LoadLine {
+  text: string
+  warn: boolean
 }
 
 export interface Readiness {
@@ -123,6 +128,14 @@ export function decisionLine(card: VendorScorecard, order: Order, now: Date): st
   }
   const overall = card.overall_on_time_rate
   return overall === null ? 'New — no history yet' : `${Math.round(overall * 100)}% on-time overall`
+}
+
+export function loadLine(load: VendorLoad): LoadLine {
+  const stops = `${load.open_stops} stop${load.open_stops === 1 ? '' : 's'} open`
+  if (load.capacity === null) return { text: `${stops} · no capacity signal`, warn: false }
+  if (load.capacity === 0) return { text: `${stops} · says no trucks today`, warn: true }
+  if (load.remaining_today === 0) return { text: `${stops} · says they're at capacity today`, warn: true }
+  return { text: `${stops} · says they can take ${load.remaining_today} more today`, warn: false }
 }
 
 export function statePill(order: Order): Pill {
