@@ -1,5 +1,5 @@
 import { db } from '../server/db'
-import { ackNagText, orderRequestText } from '../server/messaging'
+import { ackNagText, orderRequestText, vendorAckText } from '../server/messaging'
 import { allocateSlot, slotDigits, SLOT_BASES } from '../server/slots'
 import { computeRisk, RISK_THRESHOLD } from '../server/risk'
 import { conditionCheckText } from '../server/condition'
@@ -385,6 +385,16 @@ const insertVendorMessage = db.prepare(
 const insertEscalation = db.prepare(
   'INSERT INTO escalations (order_id, reason, status, created_at) VALUES (?, ?, ?, ?)',
 )
+// A question the seed closes must also show its answer, or the phone renders "Reply 1 to
+// accept" bubbles that look open while their pairs are secretly retired — and a vendor
+// typing 1 gets told "already updated earlier" about a reply they never saw. The digit
+// bubble and its receipt make the seeded thread the conversation it claims to be.
+const insertVendorReply = db.prepare(
+  "INSERT INTO messages (order_id, vendor_id, direction, body, confidence, review_status, recipient_type, created_at) VALUES (?, ?, 'in', ?, 1, 'auto_applied', 'vendor', ?)",
+)
+const insertVendorAck = db.prepare(
+  "INSERT INTO messages (order_id, vendor_id, direction, body, recipient_type, created_at) VALUES (?, ?, 'out', ?, 'vendor', ?)",
+)
 const insertCondition = db.prepare(
   'INSERT INTO condition_reports (order_id, vendor_id, patient_id, score, source, comment, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
 )
@@ -481,6 +491,8 @@ for (const h of history.filter((x) => x.day_offset <= MATERIALIZE_DAYS)) {
       iso(new Date(h.ordered_at.getTime() + 4 * 3_600_000)),
     )
   } else {
+    insertVendorReply.run(id, h.vendor_id, String(slotDigits(SLOT_BASES[0])[0]), iso(answeredAt!))
+    insertVendorAck.run(id, h.vendor_id, vendorAckText(order, 'accept'), iso(answeredAt!))
     insertEvent.run(id, 'vendor_accepted', null, 'vendor', iso(answeredAt!))
   }
 
@@ -574,6 +586,8 @@ function seedOrder(
   insertEvent.run(id, 'order_placed', null, 'hospice', placedAt)
   // An order that already moved past 'ordered' was answered off-camera; recording that
   // releases its pair, so a seeded world doesn't open with four of five codes spoken for.
+  // The answer is on camera too — reply bubble and receipt — or the phone would show an
+  // open-looking question whose pair is secretly retired.
   const answeredAt = state === 'ordered' ? null : placedAt
   const slot = allocateSlot(vendorId, id) ?? SLOT_BASES[0]
   insertVendorMessage.run(
@@ -585,6 +599,10 @@ function seedOrder(
     answeredAt,
     placedAt,
   )
+  if (answeredAt) {
+    insertVendorReply.run(id, vendorId, String(slotDigits(slot)[0]), answeredAt)
+    insertVendorAck.run(id, vendorId, vendorAckText(getOrder(id)!, 'accept'), answeredAt)
+  }
   if (['dispatched', 'in_transit', 'delivered', 'pickup_pending'].includes(state)) {
     insertEvent.run(id, 'vendor_accepted', null, 'vendor', new Date().toISOString())
   }
