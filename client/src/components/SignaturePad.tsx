@@ -36,7 +36,7 @@ export function SignaturePad({ onCapture }: { onCapture: (dataUrl: string | null
     <div className="space-y-2">
       <canvas
         ref={canvasRef}
-        className="h-40 w-full touch-none rounded-md border border-slate-300 bg-white"
+        className="h-40 w-full touch-none rounded-md border border-input bg-card"
         onPointerDown={(e) => {
           e.currentTarget.setPointerCapture(e.pointerId)
           drawing.current = true

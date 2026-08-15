@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { ChevronDown, ChevronRight, ChevronUp } from 'lucide-react'
 import { api } from '../lib/api'
 import { fmt, useLive } from '../lib/useLive'
 import { useHighlightHandoff } from '../hooks/useHighlightHandoff'
@@ -105,7 +106,9 @@ export default function Hospice() {
               <span>
                 {queue.length} vendor {queue.length === 1 ? 'reply needs' : 'replies need'} review
               </span>
-              <span className="font-bold text-primary">open ▸</span>
+              <span className="flex shrink-0 items-center gap-1 font-bold text-primary">
+                open <ChevronRight className="size-4" />
+              </span>
             </button>
           )}
 
@@ -146,10 +149,11 @@ export default function Hospice() {
               <>
                 <button
                   aria-expanded={showHistory}
-                  className="mt-2.5 rounded-md text-[13px] font-semibold text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="mt-2.5 flex items-center gap-1 rounded-md text-[13px] font-semibold text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   onClick={() => setShowHistory((o) => !o)}
                 >
-                  {showHistory ? 'history ▾' : 'history ▸'}
+                  history
+                  {showHistory ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
                 </button>
                 {showHistory && (
                   <ul className="mt-2.5 space-y-1.5 border-t border-border pt-3 text-[13px]">
@@ -251,7 +255,10 @@ function LaterRow({
           {rows.length} more,{' '}
           {nothingDueBefore ? `nothing due before ${nothingDueBefore}` : 'nothing with a date yet'}
         </span>
-        <span className="w-40 text-center text-[13px]">{open ? 'hide ▴' : 'show ▾'}</span>
+        <span className="flex w-40 shrink-0 items-center justify-center gap-1 text-[13px]">
+          {open ? 'hide' : 'show'}
+          {open ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
+        </span>
       </button>
       {open && rows.map((row) => <BoardRow key={row.key} row={row} vendors={vendors} />)}
     </>

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
-import { ChevronLeft } from 'lucide-react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { api } from '../lib/api'
 import { expectOwn } from '../lib/expectedEvents'
 import type { Patient, PatientStatus } from '../../../shared/types'
@@ -185,7 +185,7 @@ function PatientPicker({
             </span>
             <span className="block truncate text-xs text-muted-foreground">{p.address}</span>
           </span>
-          <span className="ml-auto text-muted-foreground">›</span>
+          <ChevronRight className="ml-auto size-4 shrink-0 text-muted-foreground" />
         </button>
       ))}
     </div>

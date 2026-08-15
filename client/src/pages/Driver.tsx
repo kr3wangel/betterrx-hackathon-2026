@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Camera, CheckCircle2, PackageCheck, Truck, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '../lib/api'
@@ -40,16 +40,24 @@ export default function Driver() {
     [vendorId],
   )
   const { data: patients } = useLive(() => api.get<Patient[]>('/api/patients'))
+  const [handoffIds, setHandoffIds] = useState<number[]>([])
 
-  // Open on a vendor that actually has work. Settled once, so finishing the last job
-  // doesn't slide the page over to somebody else's route mid-demo.
+  useHighlightHandoff(useCallback((ids: number[]) => setHandoffIds(ids), []))
+
+  // A handoff names the orders it wants shown, so it picks the route. Otherwise open on a
+  // vendor that has work, settled once — finishing the last job must not slide the page
+  // over to somebody else's route mid-demo.
   useEffect(() => {
-    if (vendorId !== null || !allOrders || !vendors) return
-    const busy = allOrders.find((o) => DRIVER_STATES.includes(o.state))
-    setVendorId(busy?.vendor_id ?? vendors[0]?.id ?? 1)
-  }, [allOrders, vendors, vendorId])
-
-  useHighlightHandoff()
+    if (!allOrders || !vendors) return
+    const wanted = handoffIds.length ? allOrders.find((o) => handoffIds.includes(o.id)) : undefined
+    if (wanted) {
+      setVendorId(wanted.vendor_id)
+      setHandoffIds([])
+      return
+    }
+    if (vendorId !== null) return
+    setVendorId(allOrders.find((o) => DRIVER_STATES.includes(o.state))?.vendor_id ?? vendors[0]?.id ?? 1)
+  }, [allOrders, vendors, vendorId, handoffIds])
 
   const patientById = useMemo(() => new Map((patients ?? []).map((p) => [p.id, p])), [patients])
 
@@ -73,6 +81,15 @@ export default function Driver() {
           </option>
         ))}
       </select>
+
+      {/* A pickup can appear here on its own, over SSE, while nobody is looking at the screen. */}
+      <p className="sr-only" aria-live="polite">
+        {vendorId === null || !jobs
+          ? ''
+          : jobs.length === 0
+            ? 'No deliveries or pickups on your route.'
+            : `${jobs.length} ${jobs.length === 1 ? 'stop' : 'stops'} on your route.`}
+      </p>
 
       {completed && <JobCompleteCard completed={completed} onDismiss={() => setCompleted(null)} />}
 

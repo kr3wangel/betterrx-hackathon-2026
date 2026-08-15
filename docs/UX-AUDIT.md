@@ -19,6 +19,13 @@ plain words everywhere, one obvious next action, big touch targets) and `docs/DE
 
 **Effort key** — XS ≈ under 15 min · S ≈ under an hour · M ≈ half a day.
 
+**Status, 2026-08-15.** All nine P0s and all 22 P1s are closed. Of the ~36 P2s, all but five are
+closed; the five parked ones each carry a **PARKED** note with its reason, and the one worth taking
+in the morning is called out as such (`--faint` contrast). Fixes are attributed by wave —
+1A/1B/1C, 2A, the teammate rotating-reply-slots merge, and wave 3 (this sweep). Wave 3 verified
+every remaining finding against the live tree before touching it, so several entries below read
+**ALREADY FIXED** or **NOT A DEFECT as the tree now stands** rather than being struck as new work.
+
 ---
 
 ## P0 — will embarrass us in the demo
@@ -199,32 +206,48 @@ tokenless route redirect to `/portal/${vendorToken(1)}` for the demo. **Effort: 
 
 ### States
 
-**P1-1 · `/reports` shows a skeleton forever if any of its five calls fails**
+**~~P1-1 · `/reports` shows a skeleton forever if any of its five calls fails~~**
+**FIXED (wave 3, 2026-08-15):** the page now reads `useLive`'s `failed`/`reload` — a failure with no
+data renders an `EmptyState` with a "Try again" button; a failure over stale data renders a
+`role="alert"` strip above the KPIs.
+
 `client/src/pages/Reports.tsx:56-70, 77, 92-93` — `loadReports()` is a `Promise.all` of five
 requests, consumed through `useLive`, so one failure swallows all five and `data` stays `null`
 forever, rendering `<ReportsSkeleton/>` in perpetuity. No error branch exists on the page.
 *Fix:* surface `useLive`'s error (see P0-2) and render an `EmptyState` with a retry.
 **Effort: S**
 
-**P1-2 · `/nurse` flashes "No active patients" on every load**
+**~~P1-2 · `/nurse` flashes "No active patients" on every load~~**
+**FIXED (wave 3, 2026-08-15):** `patients` now starts `null` and the empty state is gated behind
+three skeleton rows. (The `loadError` branch had already landed; the first-paint flash had not.)
+
 `client/src/pages/Nurse.tsx:49, 110-114` — `patients` starts `[]`, so `activePatients.length === 0`
 is true on first paint and the `EmptyState` renders before the fetch resolves. Same class of bug as
 P0-1, on scenario 2's primary trigger screen.
 *Fix:* add `const [loaded, setLoaded] = useState(false)`; gate the `EmptyState` on it. **Effort: XS**
 
-**P1-3 · `/caregiver` flashes "No household threads yet…"**
+**~~P1-3 · `/caregiver` flashes "No household threads yet…"~~**
+**FIXED (wave 3, 2026-08-15):** loading and failure both speak before the fallback copy can — a
+phone has no chrome to hang a spinner on, so all three states render through one `PhoneNotice`.
+
 `client/src/pages/Caregiver.tsx:46-48, 75-82` — three `useLive` queries default to `[]`, so
 `households` is empty on first paint and the fallback screen (which tells you to go capture a POD)
 renders before the data lands.
 *Fix:* render nothing (or a spinner) until `messages && patients` are non-null. **Effort: XS**
 
-**P1-4 · `/vendor` (Dispatcher board) has no loading state at all**
+**~~P1-4 · `/vendor` (Dispatcher board) has no loading state at all~~**
+**FIXED (wave 3, 2026-08-15):** folded into the P1-21 migration — both lists now skeleton while
+`null` and use `EmptyState` when genuinely empty.
+
 `client/src/pages/Vendor.tsx:13-20, 44, 80` — `"No open orders."` and `"No messages yet."` both
 paint before data arrives, and both are raw `<div className="text-xs text-slate-400">`, not
 `EmptyState`.
 *Fix:* gate on non-null and swap to `EmptyState`. **Effort: S**
 
-**P1-5 · `/vendor-phone` can get stuck on "Loading…" permanently**
+**~~P1-5 · `/vendor-phone` can get stuck on "Loading…" permanently~~**
+**FIXED (wave 3, 2026-08-15):** falls back to `vendors?.[0]`, and loading / fetch-failed / no-vendors
+are now three distinct messages instead of one permanent "Loading…".
+
 `client/src/pages/VendorPhone.tsx:75-79` — `vendor` is looked up by hard-coded `vendorId = 1`; if the
 vendors fetch fails, or a seed ever renumbers vendors, `vendor` stays `undefined` and the page never
 leaves the loading string. There's no error path.
@@ -232,36 +255,34 @@ leaves the loading string. There's no error path.
 
 ### Async / double-submit
 
-**P1-6 · Review queue Apply/Dismiss: no pending state, no error handling, double-submittable**
+**~~P1-6 · Review queue Apply/Dismiss: no pending state, no error handling, double-submittable~~**
+**ALREADY FIXED (wave 2A):** `busy` flag, `disabled`, success and failure toasts. Verified against
+the current tree; wave 3 changed nothing but the control sizing (see P1-19).
+
 `client/src/components/board/ReviewQueueDialog.tsx:65-74` — both buttons call `api.post(...)` bare:
 no `await`, no `.catch`, no `disabled` while in flight. The row stays in the dialog until the SSE
 refetch, which invites a second click and a second POST.
 *Fix:* local `busy` state + `disabled` + `.catch(toast.error)`. **Effort: S**
 
-**P1-7 · "Send another nudge" is silently repeatable and silently failable**
+**~~P1-7 · "Send another nudge" is silently repeatable and silently failable~~**
+**ALREADY FIXED (wave 2A):** `nudging` flag plus success/failure toasts in `RowDetail.nudge()`.
+
 `client/src/components/board/RowDetail.tsx:78-84` — `.catch(console.error)`, no disable, no success
 toast. A case manager can text a grieving family's vendor five times and see nothing happen either
 way.
 *Fix:* `busy` flag + `toast.success('Nudge sent.')`. **Effort: S**
 
-**P1-8 · POD submission has no catch**
-`client/src/pages/Driver.tsx:99-122` — `try { … } finally { setSubmitting(false) }` with no `catch`.
-A failed POD (or a failed follow-up `GET /api/orders/:id`) throws into the void; the button
-re-enables and the driver has no idea whether the delivery was recorded.
-*Fix:* add `catch { toast.error("Couldn't save that proof — try again.") }`. **Effort: XS**
+**~~P1-8 · POD submission has no catch~~**
+**ALREADY FIXED (wave 1B):** `submitPod()` now catches and toasts.
 
-**P1-9 · Portal actions on `/status/:token` fail silently**
-`client/src/pages/VendorStatus.tsx:86-94` — `run()` is `try/finally` with no `catch`. Accept, Set ETA
-and Decline all report nothing on failure. (Note: the richer `/portal/:token` page does this
-correctly — see the GOOD list.)
-*Fix:* mirror `VendorPortal`'s `act()`: toast on both branches. **Effort: XS**
+**~~P1-9 · Portal actions on `/status/:token` fail silently~~**
+**ALREADY FIXED (wave 2A):** `run()` was replaced by `act()`, which mirrors `VendorPortal` —
+optimistic pending state, rollback, success and failure toasts.
 
-**P1-10 · Both phone simulators swallow send failures**
-`client/src/pages/Caregiver.tsx:140-159` and `client/src/pages/VendorPhone.tsx:120-143` — `try` +
-`finally`, no `catch`. On a failed POST the draft is not cleared, the send button re-enables, and
-nothing explains why the message didn't appear. This is the live-typing beat of scenario 3.
-*Fix:* `catch` → render a red "Message not sent — tap send again" line under the composer.
-**Effort: S**
+**~~P1-10 · Both phone simulators swallow send failures~~**
+**ALREADY FIXED (teammate, rotating-reply-slots):** both threads carry a `sendFailed` flag and an
+inline "Didn't send — try again" line. Wave 3 added `role="alert"` to those lines so they are
+announced too (neither phone sim has a Toaster).
 
 ### Micro-interaction / a11y
 
@@ -275,7 +296,24 @@ sub-rows. `OrderCard.tsx:71-77` has the identical problem on an `<article>`.
 *Fix:* `role="button" tabIndex={0} onKeyDown={e => (e.key==='Enter'||e.key===' ') && toggle()}` plus
 a `focus-visible:ring-2 focus-visible:ring-ring` class. **Effort: S**
 
-**P1-12 · Nothing on the board is announced — no `aria-live` anywhere in the app**
+**~~P1-12 · Nothing on the board is announced — no `aria-live` anywhere in the app~~**
+**FIXED (wave 3, 2026-08-15)** — completing what waves 1A and 2A started. Coverage as it now stands,
+re-derived by grep rather than recalled:
+- Board: `Hospice.tsx` has an `sr-only aria-live="polite"` "Needs you" count (wave 1A) and a
+  `role="alert"` server-unreachable strip (wave 1A).
+- Every toast on the four Toaster-bearing shells lands in sonner's own `aria-live="polite"` region
+  (verified in `node_modules/sonner`), which covers swap-vendor, review-queue, nudge, POD, nurse,
+  EMR, portal and status actions (wave 2A + narration layer).
+- `/reports` gained a `role="alert"` strip this wave.
+- The two phone simulators have no Toaster by design, so their inline "Didn't send" and condition-
+  check lines got `role="alert"` / `role="status"` this wave.
+- `/driver` gained an `sr-only aria-live` route-count line this wave: scenario 2's payoff is a pickup
+  appearing on that page over SSE with nobody touching anything, and it was the last silent one.
+
+Deliberately **not** announced: individual board rows moving section (the count says it without
+narrating every row), and the phone sims' reply receipts (a real SMS app doesn't announce those
+either, and these screens exist to imitate one).
+
 Grep over `client/src/` returns zero `aria-live` regions. The board is entirely SSE-driven: rows move
 into **Needs you**, counts change, the escalation appears — all silently for a screen-reader user,
 and with no motion cue for a sighted user who looked away.
@@ -304,22 +342,16 @@ is evidence discipline.
 *Fix:* pluralize, and add a `completions === 0` branch ("No deliveries closed out this week yet.").
 **Effort: XS**
 
-**P1-15 · Raw HCPCS code in the DON's routing recommendation**
-`client/src/pages/Reports.tsx:303-309` — *"Beehive runs late on Saturday **E0260** orders (32%
-on-time)"*. `docs/DESIGN-SYSTEM.md` and the second north star both forbid codes on screen where a
-name exists, and `byCode()` from `@/lib/domain` already maps it.
-*Fix:* `byCode(worstCell.hcpcs_code)?.equipment_name ?? worstCell.hcpcs_code`. **Effort: XS**
+**~~P1-15 · Raw HCPCS code in the DON's routing recommendation~~**
+**FIXED (wave 3, 2026-08-15):** now `byCode(...)?.equipment_name`, and the sentence carries its own
+sample size ("32% on-time across 25 deliveries") so the claim can't outrun its evidence.
 
-**P1-16 · Raw intent enum on the vendor phone**
-`client/src/pages/VendorPhone.tsx:57-59` — `read as {m.parsed.intent.replace(/_/g, ' ')}` renders
-*"read as eta update"*, *"read as out for delivery"*, *"read as unknown"*. `intentLabel()` exists for
-exactly this (`lib/domain.ts:95-109`) and is used correctly by `Vendor.tsx:71` and
-`ReviewQueueDialog.tsx:45`. This screen is scenario 3's stage.
-*Fix:* `intentLabel(m.parsed.intent)`. **Effort: XS**
+**~~P1-16 · Raw intent enum on the vendor phone~~**
+**FIXED (wave 3, 2026-08-15):** `intentLabel(m.parsed.intent).toLowerCase()` — *"read as sharing an
+ETA"*, not *"read as eta update"*.
 
-**P1-17 · "1 deliveries measured"**
-`client/src/pages/Reports.tsx:279-281` — no singular form on the scorecard sub-label.
-*Fix:* `{n} {n === 1 ? 'delivery' : 'deliveries'} measured`. **Effort: XS**
+**~~P1-17 · "1 deliveries measured"~~**
+**FIXED (wave 3, 2026-08-15):** pluralized.
 
 ### Layout / responsive
 
@@ -335,27 +367,25 @@ therefore pushes the track wider and the row overflows its card horizontally in 
 *Fix:* `minmax(0,1.2fr) minmax(0,.9fr) …` on the grid template and `truncate` on the who/item spans.
 **Effort: S**
 
-**P1-19 · Touch targets under the 44px floor on primary controls**
-`docs/DESIGN-SYSTEM.md` mandates ≥44×44px. Measured from the classes:
-- `BoardRow.tsx:86` pill button — `py-2.5` + `text-[13px]` ≈ **39px** (the *Swap vendor* CTA).
-- `ReviewQueueDialog.tsx:53-57` order `<select>` — `h-9` = **36px**, at `text-xs` = 12px (below the
-  14px mobile minimum in the design system).
-- `components/ui.tsx:16` legacy Button — `py-1.5 text-sm` ≈ **30px** (used on `/vendor`).
-- `PhoneScreen.tsx:79-85` send button — `py-2 text-[13px]` ≈ **35px**.
-*Fix:* `py-3` on the board pill; swap the review-queue `<select>` for the shadcn `Select`.
-**Effort: S**
+**~~P1-19 · Touch targets under the 44px floor on primary controls~~**
+**FIXED (wave 3, 2026-08-15):** board pill → `flex min-h-11 items-center justify-center`;
+review-queue `<select>` → `h-11 text-sm` (its Apply/Dismiss buttons dropped `size="sm"` to match);
+legacy Button → gone with `components/ui.tsx` (P1-21); phone composer input **and** send button →
+`min-h-11`. `PhotoInput`'s "Take photo" label also went to `min-h-11` while it was being tokenized.
 
-**P1-20 · Phone simulators will zoom on a real handset**
-`client/src/components/PhoneScreen.tsx:72-78` — the composer input is `text-[14px]`. iOS Safari
-auto-zooms the page on focus for any input under 16px. The file's own header comment says these
-screens are meant to be opened *"on a real handset over the venue LAN"*. There is also no safe-area
-padding (`pb-2.5` only), so on a notched phone the composer sits under the home indicator.
-*Fix:* `text-[16px]` on the input; `pb-[calc(0.625rem+env(safe-area-inset-bottom))]` on its wrapper.
-**Effort: XS**
+**~~P1-20 · Phone simulators will zoom on a real handset~~**
+**FIXED (wave 3, 2026-08-15):** composer input is `text-[16px]`, and its wrapper carries
+`paddingBottom: calc(0.625rem + env(safe-area-inset-bottom))`. The input also gained an `sr-only`
+`<label>` — it had only a placeholder.
 
 ### Consistency
 
-**P1-21 · `/vendor` is the one off-brand page in the product**
+**~~P1-21 · `/vendor` is the one off-brand page in the product~~**
+**FIXED (wave 3, 2026-08-15):** `Vendor.tsx` rebuilt on `ui/card`, `ui/button`, `ui/badge`, `ui/input`
+and `PhoneScreen`'s `Bubble`; **`client/src/components/ui.tsx` is deleted** — it had no importers
+left. That one migration also carried P1-4 (loading states), the legacy-Button half of P1-19, the
+page's two unlabelled controls, its missing thread auto-scroll and its missing `break-words`.
+
 `client/src/pages/Vendor.tsx:4` imports the legacy `components/ui.tsx`, which `docs/DESIGN-SYSTEM.md`
 explicitly says to migrate off. The page then paints in a completely different palette: `slate-300`
 borders (`:27`), `slate-500` text (`:35`), **`bg-blue-600` message bubbles** (`:65`), `slate-100`
@@ -382,7 +412,25 @@ or disable the buttons with a "not wired yet" tooltip. Known-open item (DEMO-SCR
 
 ## P2 — polish
 
+> **Wave 3 pass, 2026-08-15.** Every item below was re-checked against the tree after waves 1–2 and
+> the teammate merge. Fixed items are struck; the four **PARKED** ones are listed with the reason.
+
 **Design-token drift (raw hex / off-palette Tailwind).** All bypass `index.css`:
+- ~~Coral-deep and navy-deep hovers as literals~~ — **FIXED (wave 3):** `--primary-hover` /
+  `--secondary-hover` added to `index.css` and mapped through `@theme inline`; all five call sites
+  (`ui/button.tsx` ×2, `BoardRow.tsx`, `Hospice.tsx`, `OrderCard.tsx`'s STAT flag) now use
+  `hover:bg-primary-hover` / `hover:bg-secondary-hover` / `text-primary-hover`.
+- ~~`components/ui.tsx` (whole off-brand palette)~~ — **FIXED (wave 3):** file deleted, see P1-21.
+- ~~`Vendor.tsx` (whole off-brand palette)~~ — **FIXED (wave 3):** migrated, see P1-21.
+- ~~`SignaturePad.tsx:29` / `PhotoInput.tsx:8,28`~~ — **FIXED (wave 3):** both are on the driver's
+  demo path, so they went to `border-input` / `bg-card` / `bg-secondary` while nearby findings were
+  being fixed.
+- **PARKED:** the remaining ad-hoc tints (`bg-[#E6F4EC]`, `text-[#8a4a2e]`, `text-[#8e2a27]`,
+  `text-[#24734f]`, `dialog.tsx`, `Order.tsx`, `Nurse.tsx:189`, `RowDetail.tsx`) and the phone-sim
+  palettes. Naming ~8 new semantic tokens is a design-system decision, not a mechanical swap, and
+  `docs/DESIGN-SYSTEM.md` is the source of truth for it — this is a morning call, not overnight
+  work. The phone sims' slate/blue is deliberate iMessage imitation and should stay.
+
 - Coral-deep hover as a literal: `ui/button.tsx:12` `hover:bg-[#d2694c]`, `:13`
   `hover:bg-[#22303d]`, `Hospice.tsx:40`, `BoardRow.tsx:10`. → add `--primary-hover` /
   `--secondary-hover` tokens.
@@ -395,111 +443,118 @@ or disable the buttons with a "not wired yet" tooltip. Known-open item (DEMO-SCR
   The phone sims are arguably deliberate (they imitate iMessage) — the rest are not.
 **Effort: M** for the lot, **XS** for the two hover tokens.
 
-**Date formats differ on every page** — six live formatters, no shared vocabulary:
+**Date formats differ on every page** — **PARKED (wave 3).** The fix is a copy change on nine
+surfaces at once, hours before code freeze, with no test coverage to catch a regression and the
+demo script quoting some of these strings verbatim. Real, but it belongs after the hackathon.
+Six live formatters, no shared vocabulary:
 `lib/board.ts:89-98` "Today"/"Tomorrow"/"Friday" · `lib/useLive.ts:26` + `lib/atRisk.ts:8`
 "Aug 14, 3:05 PM" · `Order.tsx:51` "Thu, Aug 14, 3:05 PM" · `DeadlineBadge.tsx:32-38` +
 `PortalOrderCard.tsx:116` "Thu, 3:00 PM" · `Caregiver.tsx:36` / `VendorPhone.tsx:39` "3:05 PM".
 The board's relative style is the one that matches the north star; the rest read like logs.
 *Fix:* export `formatWhen` from `lib/board.ts` and use it for anything user-facing. **Effort: M**
 
-**Order-ID format drift** — `#1042` (`RowDetail.tsx:52`, `Hospice.tsx:111`, `OrderCard.tsx:86`,
-`Demo.tsx:178`) vs `DME-1042` (`Reports.tsx:505-507`). Pick one. **Effort: XS**
+**~~Order-ID format drift~~** — **FIXED (wave 3):** `Reports.tsx`'s approvals table now prints
+`#1042` like everywhere else; `DME-0042` is gone.
 
 **Raw enums still reaching the screen (lower-traffic surfaces):**
-- `OrderCard.tsx:174` — `({e.actor})` renders `(ai)`, `(vendor)`, `(hospice)`, `(system)`.
-- `OrderCard.tsx:89` and `PortalOrderCard.tsx:97` — bare HCPCS codes beside the equipment name
-  (defensible on vendor-facing surfaces; not on the hospice one).
-- `RiskBadge.tsx:16` — `Risk 100` is an unexplained magic number for a non-technical user; the
-  human sentences live in `risk_reasons` right underneath.
-**Effort: S**
+- ~~`OrderCard.tsx:174` — `({e.actor})`~~ — **FIXED (wave 3):** new `ACTOR_LABEL` / `actorLabel()` in
+  `lib/domain.ts`; `ai` reads **Claude** and `system` reads **automatic**.
+- `OrderCard.tsx:89` and `PortalOrderCard.tsx:97` — bare HCPCS codes beside the equipment name.
+  **NOT A DEFECT as the tree now stands (wave 3):** the audit itself calls these defensible on
+  vendor-facing surfaces, and since wave 1C retired `/vendor` and `/vendor-portal` from the nav,
+  `OrderCard` renders only on `/vendor` and `PortalOrderCard` only on `/portal/:token` — both
+  vendor-facing. No hospice surface prints a bare code.
+- ~~`RiskBadge.tsx:16` — `Risk 100` is an unexplained magic number~~ — **FIXED (wave 3):** reads
+  **Risk 100 of 100** with a title explaining the 70 threshold.
 
-**Focus ring suppressed with no replacement** — `Caregiver.tsx:90` and `VendorPhone.tsx:87` both put
-`outline-none` on the thread-picker `<select>` and add nothing back. Everywhere else that suppresses
-focus supplies a ring (`combobox.tsx:105/124`, `dropdown-menu.tsx:88`, `input.tsx:12`). **Effort: XS**
+**~~Focus ring suppressed with no replacement~~** — **FIXED (wave 3):** both phone-picker `<select>`s
+gained `focus-visible:ring-2`.
 
-**Unlabelled form controls** — four raw `<select>`s with no `<label>` and no `aria-label`
-(`Driver.tsx:40`, `Vendor.tsx:26`, `Caregiver.tsx:89`, `VendorPhone.tsx:86`) and one unlabelled text
-input (`Vendor.tsx:96`, placeholder only). **Effort: XS**
+**~~Unlabelled form controls~~** — **FIXED (wave 3):** `aria-label` on `Driver.tsx`,
+`Caregiver.tsx`, `VendorPhone.tsx` and `ReviewQueueDialog.tsx`'s selects; `sr-only <label>` +
+`htmlFor` on `Vendor.tsx`'s select and reply input and on the phone composer.
 
-**Orphan `<label>`s that label nothing** — `Driver.tsx:169, 177, 185` and `VendorStatus.tsx:160` are
-`<label>` elements with no `htmlFor` and no labelable child (the controls are siblings). They read as
-captions to sighted users and as nothing to assistive tech. **Effort: XS**
+**~~Orphan `<label>`s that label nothing~~** — **FIXED (wave 3):** `Driver.tsx`'s three became
+`<div>` captions; `VendorStatus.tsx`'s got `htmlFor` + a matching `id` on the `Input`.
 
-**Raw `<select>` instead of the shadcn `Select`** — `Driver.tsx:40`, `Vendor.tsx:26`,
-`ReviewQueueDialog.tsx:53`, plus the two phone pickers. Shape and focus treatment drift from
-`Order.tsx` / `Reports.tsx` / `Demo.tsx`, which all use the primitive. **Effort: S**
+**Raw `<select>` instead of the shadcn `Select`** — **PARTLY FIXED / PARKED (wave 3).** All five now
+carry the token palette, the 44px floor and a focus ring, so the *visible* drift the finding
+describes is gone. Swapping in the Radix primitive is parked: it changes keyboard and touch
+behaviour on `/driver` and both phone sims hours before a demo, and a phone simulator should use
+the native picker anyway — that is what a real handset does.
 
-**Button shape drift** — `Hospice.tsx:40` and `BoardRow.tsx:86` use `rounded-[10px]`; `ui/button.tsx`
-uses `rounded-md` (12px); `SwapVendorDialog.tsx:31` uses `rounded-[14px]`; the design system says
-buttons are 11px. **Effort: XS**
+**Button shape drift** — **PARKED (wave 3):** the three values in the tree (10px / 12px / 14px) and
+the 11px in `docs/DESIGN-SYSTEM.md` are four different answers. Picking one is a design call and the
+design system is the authority; not an overnight decision.
 
-**ASCII glyphs where the app otherwise uses lucide icons** — `Hospice.tsx:64` `open ▸`, `:105`
-`history ▸ / ▾`, `:178` `show ▾ / hide ▴`, `Nurse.tsx:146` `›`, `PhoneKeyboard.tsx:60,78,99`
-`⇧ ⌫ ⌄`. The disclosure buttons also lack `aria-expanded`. **Effort: XS**
+**~~ASCII glyphs where the app otherwise uses lucide icons~~** — **FIXED (wave 3):** `Hospice.tsx`'s
+three disclosures and `Nurse.tsx`'s row chevron now use lucide `ChevronRight`/`ChevronDown`/
+`ChevronUp`, and all three disclosure buttons gained `aria-expanded`. `PhoneKeyboard.tsx`'s
+`⇧ ⌫ ⌄` are left alone on purpose — they are what a phone keyboard actually prints.
 
-**No hover state on the board's own disclosure buttons** — `Hospice.tsx:57-65` (review queue) and
-`:170-179` (Later row) are full-width clickable cards with `transition`-less, hover-less styling; the
-only affordance is the `▸` glyph. **Effort: XS**
+**~~No hover state on the board's own disclosure buttons~~** — **FIXED (wave 3):** both gained
+`transition-colors`, a hover wash and a focus ring.
 
-**`/driver` still defaults to vendor 1** — `Driver.tsx:24`. After scenario 1's swap to Canyon the page
-reads "Route's clear" until the picker is changed. Known-open (E2E punch #9). *Fix:* default to the
-first vendor that actually has jobs. **Effort: S**
+**~~`/driver` still defaults to vendor 1~~** — **FIXED (wave 3):** opens on the first vendor with a
+driver-actionable order, settled once so finishing the last job doesn't slide the page to another
+route mid-demo. It also now honours a highlight handoff — "See the pickups" from `/nurse` or
+`/demo` selects the vendor that owns the handed-off order, which the old hard-coded 1 silently got
+wrong whenever the pickup wasn't vendor 1's.
 
-**Vendor thread doesn't scroll to the newest message** — `Vendor.tsx:60` is a `max-h-96 overflow-y-auto`
-list with no auto-scroll; the phone sims do this correctly (`PhoneScreen.tsx:43-45`). New replies land
-below the fold. **Effort: XS**
+**~~Vendor thread doesn't scroll to the newest message~~** — **FIXED (wave 3):** `Vendor.tsx` now
+has the same `scrollIntoView` end-ref the phone sims use.
 
-**Message bubbles have no `break-words`** — `PhoneScreen.tsx:115-119` (`max-w-[82%]`) and
+**~~Message bubbles have no `break-words`~~** — **FIXED (wave 3):** `break-words` + `min-w-0` on
+`PhoneScreen`'s `Bubble`, which `/vendor` now also renders through, so both call sites are covered
+by the one change.
+
+Original finding — `PhoneScreen.tsx:115-119` (`max-w-[82%]`) and
 `Vendor.tsx:64` (`max-w-[85%]`) rely entirely on the browser's break-after-slash behaviour to wrap
 the 48-character magic links they carry (`http://localhost:5173/portal/` + a 20-char token,
 `server/portal.ts:11-18`). It happens to hold in Chrome; a `PORTAL_BASE_URL` change or a longer token
 turns it into horizontal overflow on a phone-width screen. *Fix:* add `break-words`. **Effort: XS**
 *(Lower confidence than the rest — this is a robustness gap, not a reproduced overflow.)*
 
-**POD images have no error fallback** — `RowDetail.tsx:139-151` and `OrderCard.tsx:199-211` render
-`<img src="/api/pods/…">` with good `alt` text but no `onError`; a missing file shows a broken-image
-icon inside the evidence panel. **Effort: XS**
+**~~POD images have no error fallback~~** — **FIXED (wave 3):** new
+`client/src/components/PodImage.tsx` swaps a failed load for a dashed "Photo missing" /
+"Signature missing" tile; both `RowDetail` and `OrderCard` render through it. A gap in the evidence
+trail should say so in words on the screen whose whole pitch is evidence discipline.
 
-**`PhotoInput.tsx:28`** — `alt="captured"` on the preview is not a description. **Effort: XS**
+**~~`PhotoInput.tsx:28` `alt="captured"`~~** — **FIXED (wave 3):** now *"The equipment you just
+photographed"*.
 
-**Vendor phone number isn't tappable** — `RowDetail.tsx:73` renders `vendor.phone` as plain text on
-the pickup row whose whole call to action is *"Call the vendor"* (`board.ts:129`), and that pill
-merely expands the row. On a tablet in a nurse's hand, `<a href="tel:">` is the obvious move.
-**Effort: XS**
+**~~Vendor phone number isn't tappable~~** — **FIXED (wave 3):** `<a href="tel:…">` with the
+non-digits stripped, underlined, with a focus ring.
 
-**Nurse confirm can be double-tapped** — `Nurse.tsx:198-205` has no pending state; `apply()` is async
-and unguarded. Verified against `server/pickups.ts:setPatientStatus`: the second call finds no
-`delivered` orders left, so **no duplicate pickup is created** — but the user gets two identical
-"Pickup … is scheduled" toasts, the second of which is untrue. **Effort: XS**
+**~~Nurse confirm can be double-tapped~~** — **FIXED (wave 3):** a `saving` flag disables both
+buttons and the CTA reads "Saving…".
 
-**Demo EMR buttons can be double-fired** — `Demo.tsx:114-119`, same shape, presenter-only surface.
-**Effort: XS**
+**~~Demo EMR buttons can be double-fired~~** — **FIXED (wave 3):** a page-level `busy` id disables
+every row's buttons while one is in flight.
 
-**Condition-check button fires bare** — `Caregiver.tsx:176-181` — `api.post()` with no await, catch,
-or disable. **Effort: XS**
+**~~Condition-check button fires bare~~** — **ALREADY FIXED (teammate, rotating-reply-slots):**
+`sendConditionCheck` awaits, disables and renders sending / sent / failed inline.
 
-**Scorecard "worst cell" has no sample-size guard** — `Reports.tsx:245-248` sorts `stats` purely by
-`on_time_rate`, so a one-sample cell can win and produce *"runs late on Sunday E0260 orders (0%
-on-time)"* from n=1. `board.ts:108-113` guards this exact case with `cell.sample_size > 0` before
-quoting a percentage. Whether it can fire depends on the seed's derived sample sizes — worth the
-one-line guard regardless, given FAQ §6 on manufactured precision. **Effort: XS**
+**~~Scorecard "worst cell" has no sample-size guard~~** — **FIXED (wave 3):** the worst cell is now
+picked from `stats.filter(s => s.sample_size > 0)` (the same guard `board.ts:108-113` already used),
+and the sentence prints its own n — *"32% on-time across 25 deliveries"*. Checked against a live
+`scenario1` seed: all 84 of the worst vendor's cells have support today, so this changes no demo
+copy; it is a guard against a reseed, not a repair.
 
-**`Button` has no default `type`** — `ui/button.tsx:44-51` renders a bare `<button>`, which is
-`type="submit"` inside a form. **Audited: no live instance** — the only `<form>`s are
-`Order.tsx:154` (whose in-form buttons all set `type="button"` explicitly, `:219`, and whose combobox
-clear button does too, `combobox.tsx:128`), `Vendor.tsx:82` and `PhoneScreen.tsx:65` (single submit
-button each). Flagging as a latent trap, not a bug: add `type={props.type ?? 'button'}`.
-**Effort: XS**
+**~~`Button` has no default `type`~~** — **FIXED (wave 3):** `type={props.type ?? 'button'}`, applied
+after the prop spread and skipped when `asChild` (a `Slot` may wrap an `<a>`). Still no live
+instance — this closes the latent trap.
 
-**Faint text on tinted backgrounds** — `--faint: #93A0AA` on `--card: #FFFFFF` is ≈2.6:1, under the
-4.5:1 AA floor for body text. It is used for timestamps and order IDs at 10–13px in
-`Hospice.tsx:111,115,125`, `BoardRow.tsx:21,58`, `RowDetail.tsx:52,110,126`, `Reports.tsx:279,505`.
-Same story for `text-slate-400` on white in the phone sims. Small dim type is the single most common
-"looks unfinished on a projector" failure. *Fix:* darken `--faint` to ~`#6B7A85` (≈4.6:1).
-**Effort: XS**
+**Faint text on tinted backgrounds** — **PARKED (wave 3).** The fix is a one-line token change, but
+`--faint` paints timestamps, order IDs and captions on every screen in the product, and
+`docs/DESIGN-SYSTEM.md` is the source of truth for the palette. Re-toning the whole app's secondary
+text overnight, with no way to eyeball the result before the demo, is a worse risk than the finding.
+**Recommend taking this in the morning** — it is the highest-value item left on this list, it is one
+line (`--faint: #6b7a85`), and "looks unfinished on a projector" is a real judging cost.
 
-**Bundle is a single 532 kB chunk** — build warns; irrelevant on LAN, worth one line of
-`manualChunks` if anyone demos over hotel wifi. **Effort: XS**
+**Bundle is a single 554 kB chunk** — **PARKED (wave 3):** the audit's own note says it is
+irrelevant on LAN, and touching `manualChunks` the night before a demo trades a real risk (a
+mis-split chunk breaking the boot) for a benefit nobody in the room will observe.
 
 ---
 
@@ -542,9 +597,9 @@ silent-failure default (P0-2) is listed once but affects nine surfaces.
       in flight, toast success/failure, close on success only. *(P0-8, S)*
 - [x] **7.** `pages/Driver.tsx:151-158` — add pending + disabled + error toast to "Start delivery";
       and `:189` add the missing "capture your signature first" hint. *(P0-6 / P0-7, S)*
-- [ ] **8.** `pages/VendorPhone.tsx:57` — use `intentLabel()` instead of `intent.replace(/_/g,' ')`;
+- [x] **8.** `pages/VendorPhone.tsx:57` — use `intentLabel()` instead of `intent.replace(/_/g,' ')`;
       `pages/Reports.tsx:306` — use `byCode(...).equipment_name` instead of the raw HCPCS code.
-      *(P1-16 / P1-15, XS)*
+      *(P1-16 / P1-15, XS)* — done wave 3.
 - [x] **9.** `client/index.html` — add an inline SVG data-URI favicon (coral pill). *(P1-13, XS)*
 - [x] **10.** `pages/Hospice.tsx:91-97` — fix "1 are still waiting on a photo." and add a zero-
       completions branch so the board stops claiming proof for deliveries that don't exist.

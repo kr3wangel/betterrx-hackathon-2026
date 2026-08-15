@@ -5,7 +5,7 @@ export function PhotoInput({ onCapture }: { onCapture: (dataUrl: string) => void
 
   return (
     <div className="space-y-2">
-      <label className="inline-flex cursor-pointer rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-700">
+      <label className="inline-flex min-h-11 cursor-pointer items-center rounded-md bg-secondary px-4.5 text-sm font-semibold text-secondary-foreground transition-colors hover:bg-secondary-hover focus-within:outline-none focus-within:ring-2 focus-within:ring-ring">
         Take photo
         <input
           type="file"

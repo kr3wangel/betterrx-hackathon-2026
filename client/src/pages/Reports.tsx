@@ -331,7 +331,7 @@ function VendorScorecards({
           <p className="mt-4 text-[13px] leading-relaxed text-muted-foreground">
             <span className="font-semibold text-foreground">{worst.vendor.name}</span> runs late on{' '}
             {DAYS[worstCell.day_of_week]}{' '}
-            {byCode(worstCell.hcpcs_code)?.equipment_name.toLowerCase() ?? worstCell.hcpcs_code}{' '}
+            {byCode(worstCell.hcpcs_code)?.equipment_name ?? worstCell.hcpcs_code}{' '}
             orders ({pct(worstCell.on_time_rate)} on-time across {worstCell.sample_size}{' '}
             {worstCell.sample_size === 1 ? 'delivery' : 'deliveries'}) — consider routing urgent{' '}
             {DAYS[worstCell.day_of_week]} discharges elsewhere.

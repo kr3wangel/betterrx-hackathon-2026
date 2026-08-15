@@ -103,9 +103,11 @@ The Foundation lane is done and on `main`. If you're building any frontend, foll
   new-york Radix primitives were **hand-authored** into `client/src/components/ui/` (button, card, badge,
   dialog, input, select, checkbox, table, tabs, sonner, skeleton, separator, avatar, tooltip). **Add new
   primitives by hand** following the existing files, or ask the Foundation author.
-- **Legacy `client/src/components/ui.tsx`** (old Badge/Button/Card) is still imported by
-  `OrderCard`/`Hospice`/`Vendor`/`Driver`. **Migrate your lane's pages to the shadcn primitives** as part
-  of your work; don't add *new* usages of the legacy file.
+- **Legacy `client/src/components/ui.tsx` is gone** (deleted 2026-08-15, wave 3). Its last importer
+  was `Vendor.tsx`, which now uses the shadcn primitives. Everything imports from
+  `@/components/ui/*`; there is no second Button/Card/Badge to pick the wrong one of.
+- **Hover tokens:** `--primary-hover` (`#d2694c`) and `--secondary-hover` (`#22303d`) are real tokens
+  — use `hover:bg-primary-hover` / `hover:bg-secondary-hover`, never the literal hex.
 - **Atoms** (import from `@/components/...`): `StatusPill state={OrderState}`, `EvidenceBadge verified`,
   `RiskBadge score` (exports `RISK_THRESHOLD=70`), `ConditionChecklist value onChange`
   (value = `{clean,functional,patient_ready}` = the upstream `PodCondition` → pass straight to `POST /pod`),
