@@ -101,7 +101,7 @@ between the model and any state change it isn't sure about.
 Scoring is deliberately rules-based, not ML: this vendor's on-time rate for **this equipment on this
 weekday**, their average delivery hours against the hours actually remaining, unacknowledged orders
 near a deadline, and an ETA that lands after the deadline. It produces human sentences — *"vendor is
-62% on-time for Hospital bed, semi-electric on this weekday (n=40)"* — not a black-box number, and a case manager
+62% on-time for Hospital bed, semi-electric on this weekday (40 deliveries)"* — not a black-box number, and a case manager
 can argue with it. Crossing the threshold escalates itself, with a one-click vendor swap that
 re-sends the order and clears the flag. Risk is a flag, never a state, so nothing hides behind it.
 Deadlines exist by default too (same-day for STAT/urgent, 24h routine, configurable — FAQ §7), so an

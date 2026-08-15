@@ -218,9 +218,9 @@ seeded 'scenario1'
   vendor_stats derived from simulated history — not hand-typed
 
   vendor on-time (derived, all codes):
-    Wasatch Medical Supply     NN% on-time  pickup avg NNh  condition N.NN/5 (NN% rated 1-2)  n=NNN
-    Beehive DME Co             NN% on-time  pickup avg NNh  condition N.NN/5 (NN% rated 1-2)  n=NNN
-    Canyon Home Medical        NN% on-time  pickup avg NNh  condition N.NN/5 (NN% rated 1-2)  n=NNN
+    Wasatch Medical Supply     NN% on-time  pickup avg NNh  condition N.NN/5 (NN% rated 1-2)  NNN deliveries
+    Beehive DME Co             NN% on-time  pickup avg NNh  condition N.NN/5 (NN% rated 1-2)  NNN deliveries
+    Canyon Home Medical        NN% on-time  pickup avg NNh  condition N.NN/5 (NN% rated 1-2)  NNN deliveries
     Timpanogos Home Medical    no history — 0 vendor_stats rows (the cold start)
 
   demo orders — computed risk (threshold 70):

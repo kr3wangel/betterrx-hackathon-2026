@@ -24,7 +24,7 @@ export function computeRisk(order: Order, stats: VendorStat[], now: Date): RiskR
       const pts = Math.round((0.85 - stat.on_time_rate) * 200)
       score += pts
       reasons.push(
-        `vendor is ${Math.round(stat.on_time_rate * 100)}% on-time for ${order.equipment_name} on this weekday (n=${stat.sample_size})`,
+        `vendor is ${Math.round(stat.on_time_rate * 100)}% on-time for ${order.equipment_name} on this weekday (${stat.sample_size} deliveries)`,
       )
     }
     if (stat && hoursLeft < stat.avg_delivery_hours) {

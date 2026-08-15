@@ -19,7 +19,7 @@ The dominant DME ordering channel today is phone, fax, and free-text messaging. 
 
 ## Where we deliberately did NOT use AI
 
-- **Risk scoring is a transparent rules engine** (`server/risk.ts`): vendor on-time history × equipment type × weekday × time-to-deadline × ETA-vs-deadline. The signal here is clean thresholds over a handful of variables — exactly the case the brief flags as "an LLM standing in for a lookup table." Rules give us: explainability by construction (every score ships with human-readable reasons: *"vendor is 72% on-time for hospital beds on this weekday, n=25"*), zero latency, zero cost, zero hallucination risk. A learned model becomes worth it only with real historical volume — which BetterRX would have in production, and which we'd frame as the v2 roadmap, not the demo.
+- **Risk scoring is a transparent rules engine** (`server/risk.ts`): vendor on-time history × equipment type × weekday × time-to-deadline × ETA-vs-deadline. The signal here is clean thresholds over a handful of variables — exactly the case the brief flags as "an LLM standing in for a lookup table." Rules give us: explainability by construction (every score ships with human-readable reasons: *"vendor is 72% on-time for hospital beds on this weekday, 25 deliveries"*), zero latency, zero cost, zero hallucination risk. A learned model becomes worth it only with real historical volume — which BetterRX would have in production, and which we'd frame as the v2 roadmap, not the demo.
 - **The state machine, escalation logic, and pickup watchdog are deterministic.** High-stakes lifecycle changes should never depend on a model's mood.
 
 ### How well do the rules do? A backtest — on SYNTHETIC data, and we say so
@@ -29,7 +29,7 @@ seen it live — state rebuilt from the event ledger, no ETA known before one wa
 only counts if it fired *before* the deadline. Against the shipped threshold of 70:
 
 > On a **synthetic** year, the risk engine flagged **78% of late deliveries a median 8.7 hours
-> before the deadline**, with false alarms on **27% of on-time orders** (n=203).
+> before the deadline**, with false alarms on **27% of on-time orders** (203 orders replayed).
 
 Two honesty notes, because the brief penalises manufactured precision. First, the data is
 synthetic — there is no public DME delivery-timing dataset, so the engine is being tested

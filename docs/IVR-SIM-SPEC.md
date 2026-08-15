@@ -392,7 +392,7 @@ That string follows the escalation-reason style already in the codebase — sent
 dash — matching `Pickup not completed after 26h — family is still waiting` in `watchdog.ts` and
 `Vendor declined order #1042: …` in `messaging.ts`. Note that this is deliberately *not* the
 lowercase, fragment style used for **risk** reasons in `risk.ts` (`vendor has not accepted and
-deadline is in 16.0h`, `vendor is 72% on-time for hospital beds on this weekday (n=25)`), because
+deadline is in 16.0h`, `vendor is 72% on-time for hospital beds on this weekday (25 deliveries)`), because
 this is an escalation, not a risk factor.
 
 Risk itself is untouched: an order that is `ordered` near its deadline is already scoring +25 with

@@ -741,7 +741,7 @@ for (const v of VENDORS) {
   console.log(
     `    ${v.name.padEnd(24)} ${((ot / mine.length) * 100).toFixed(0)}% on-time  ` +
       `pickup avg ${avgPickup.toFixed(0)}h  condition ${avgCond.toFixed(2)}/5 ` +
-      `(${(badRate * 100).toFixed(0)}% rated 1-2)  n=${mine.length}`,
+      `(${(badRate * 100).toFixed(0)}% rated 1-2)  ${mine.length} deliveries`,
   )
 }
 console.log(

@@ -59,7 +59,7 @@ describe('computeRisk', () => {
     const { score, reasons } = computeRisk(order(), [stat({ on_time_rate: 0.62 })], NOW)
     expect(score).toBeGreaterThan(0)
     expect(reasons[0]).toContain('62% on-time')
-    expect(reasons[0]).toContain('n=40')
+    expect(reasons[0]).toContain('40 deliveries')
   })
 
   it('penalizes an ETA past the deadline', () => {

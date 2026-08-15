@@ -94,5 +94,5 @@ const fp = onTime.filter((r) => r.flaggedAt !== null)
 const leads = caught.map((r) => r.leadHours!)
 console.log(
   `  "On a SYNTHETIC year, the risk engine flagged ${pct(caught.length, late.length)} of late deliveries a median ` +
-    `${leads.length ? median(leads).toFixed(1) : '—'} hours before the deadline, with false alarms on ${pct(fp.length, onTime.length)} of on-time orders (n=${runs.length})."`,
+    `${leads.length ? median(leads).toFixed(1) : '—'} hours before the deadline, with false alarms on ${pct(fp.length, onTime.length)} of on-time orders (${runs.length} orders replayed)."`,
 )
