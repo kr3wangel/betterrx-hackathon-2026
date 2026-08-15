@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { NavLink, Navigate, Route, Routes } from 'react-router-dom'
+import { NavLink, Navigate, Route, Routes, useNavigate } from 'react-router-dom'
 import { Check, ChevronDown, ExternalLink, LogOut, Smartphone } from 'lucide-react'
 import { useEventStream } from './hooks/useEventStream'
 import { ROLES, useAuth, type RoleId } from './lib/auth'
@@ -62,6 +62,16 @@ const productTabs = [
 // context so the rest of the app can branch on the current role.
 function AccountControl() {
   const { role, signIn, signOut } = useAuth()
+  const navigate = useNavigate()
+
+  // Switching role also lands you on that role's first nav surface — otherwise you'd sit
+  // on a page the new role can't even see in its filtered nav.
+  function chooseRole(id: RoleId) {
+    if (role?.id === id) return
+    signIn(id)
+    const home = surfaceLinks.find((l) => l.roles.includes(id))
+    if (home) navigate(home.to)
+  }
 
   return (
     <DropdownMenu>
@@ -82,7 +92,7 @@ function AccountControl() {
       <DropdownMenuContent align="end" className="w-60">
         <DropdownMenuLabel>{role ? 'Switch role' : 'Sign in as'}</DropdownMenuLabel>
         {ROLES.map((r) => (
-          <DropdownMenuItem key={r.id} active={role?.id === r.id} onClick={() => signIn(r.id)}>
+          <DropdownMenuItem key={r.id} active={role?.id === r.id} onClick={() => chooseRole(r.id)}>
             <span className="grid size-6 place-items-center rounded-full bg-secondary text-[10px] font-bold text-secondary-foreground">
               {r.initials}
             </span>
