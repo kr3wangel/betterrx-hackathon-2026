@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { api } from '../lib/api'
 import { useLive } from '../lib/useLive'
 import { Bubble, PhoneScreen, ThreadEmpty } from '../components/PhoneScreen'
+import { QUICK_REPLIES } from '../../../shared/replies'
 import type { Message, Vendor } from '../../../shared/types'
 
 /**
@@ -12,9 +13,19 @@ import type { Message, Vendor } from '../../../shared/types'
  * style)." So the vendor side of this product IS a text thread, and the demo should show
  * the thread rather than a portal.
  *
- * The contrast with /caregiver is the whole AI argument. A dispatcher types prose —
- * "bed's on the truck, prob 3ish" — so that gets a model, with a confidence gate and a
- * human review queue underneath. A caregiver types a digit, so that gets a regex.
+ * Two reply paths on one screen, and the difference IS the AI argument:
+ *
+ *   Tap a quick reply  → POST /api/messages/reply → the template x digit table in
+ *                        server/sms.ts. Deterministic. No model, no confidence score,
+ *                        nothing to review. At a known lifecycle moment a digit has
+ *                        exactly one meaning (SMS-SIM-SPEC §10).
+ *   Type prose         → POST /api/messages/inbound → Claude, with a 0.8 confidence gate
+ *                        and a human review queue underneath. "bed's on the truck, prob
+ *                        3ish" is genuinely ambiguous, so it genuinely needs a model.
+ *
+ * Same thread, same ledger, two trust levels — we spend the model only where the ambiguity
+ * is real. /caregiver is the same principle with the model removed entirely: a 1–5 rating
+ * is a digit, so it gets a regex.
  */
 
 const INTENT_TONE: Record<string, string> = {
@@ -62,18 +73,41 @@ export default function VendorPhone() {
 function Thread({ vendor, picker }: { vendor: Vendor; picker: React.ReactNode }) {
   const { data: messages } = useLive(() => api.get<Message[]>(`/api/messages?vendor_id=${vendor.id}`))
   const [draft, setDraft] = useState('')
-  const [sending, setSending] = useState(false)
+  // Which path is in flight, not just whether one is: a tap never runs a model, so it must
+  // not show "reading…". The pending state is the only place that distinction is visible.
+  const [pending, setPending] = useState<null | 'parse' | 'tap'>(null)
+  const sending = pending !== null
 
   const thread = useMemo(() => messages ?? [], [messages])
 
+  // Quick replies attach to the most recent question only. An older unanswered one staying
+  // tappable would let a vendor answer a question the thread has already moved past.
+  const openQuestion = useMemo(() => {
+    const last = [...thread].reverse().find((m) => m.direction === 'out' && m.template)
+    if (!last?.template || last.answered_at) return null
+    const replies = QUICK_REPLIES[last.template]
+    return replies ? { id: last.id, replies } : null
+  }, [thread])
+
   async function send() {
     if (!draft.trim() || sending) return
-    setSending(true)
+    setPending('parse')
     try {
       await api.post('/api/messages/inbound', { vendor_id: vendor.id, body: draft.trim() })
       setDraft('')
     } finally {
-      setSending(false)
+      setPending(null)
+    }
+  }
+
+  /** A tap is deterministic — it resolves through the server's route table, never a model. */
+  async function tapReply(digit: string) {
+    if (!openQuestion || sending) return
+    setPending('tap')
+    try {
+      await api.post('/api/messages/reply', { reply_to_message_id: openQuestion.id, digit })
+    } finally {
+      setPending(null)
     }
   }
 
@@ -123,9 +157,24 @@ function Thread({ vendor, picker }: { vendor: Vendor; picker: React.ReactNode })
         )
       })}
 
-      {sending && (
+      {openQuestion && !sending && (
+        <div className="flex flex-wrap justify-end gap-2 pt-1">
+          {openQuestion.replies.map((r) => (
+            <button
+              key={r.digit}
+              type="button"
+              onClick={() => tapReply(r.digit)}
+              className="rounded-full border border-slate-300 bg-white px-3 py-1.5 text-[13px] font-medium text-slate-700 shadow-sm active:bg-slate-100"
+            >
+              <span className="tabular-nums text-slate-400">{r.digit}</span> · {r.label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {pending && (
         <Bubble side="sent">
-          <span className="opacity-70">reading…</span>
+          <span className="opacity-70">{pending === 'parse' ? 'reading…' : 'sending…'}</span>
         </Bubble>
       )}
     </PhoneScreen>

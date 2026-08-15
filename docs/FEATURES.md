@@ -50,7 +50,7 @@ guarded — hiding a link never blocks a URL, so no screen becomes unreachable m
 | Route | Chrome | What it does |
 |---|---|---|
 | `/caregiver` | none | The family's phone. Full-screen SMS simulator: condition check arrives, reply 1–5 or free text, outcome shown as a delivery receipt |
-| `/vendor-phone` | none | The dispatcher's phone. Same chrome, but replies are parsed by a model and show intent, confidence, and applied / sent-to-a-person |
+| `/vendor-phone` | none | The dispatcher's phone. **Two reply paths on one screen:** tap a quick reply (deterministic route table, no model) or type prose (Claude, showing intent, confidence, and applied / sent-to-a-person) |
 | `/portal/:token` | `PortalShell` | Magic-link vendor portal — confirm, set ETA, decline. No account |
 | `/status/:token` | `PortalShell` | Vendor status view, read-only |
 
@@ -88,17 +88,21 @@ these up or don't claim them.
 
 | Thing | Evidence | Status |
 |---|---|---|
-| `POST /api/messages/send` — send any templated message | `sms.ts` `sendTemplate` | **No client caller** (re-checked 08-14) |
-| `POST /api/messages/reply` — inbound digit/keypress replies | `sms.ts` `handleReply` | **No client caller** (re-checked 08-14) |
+| `POST /api/messages/send` — send any templated message | `sms.ts` `sendTemplate` | **Still no client caller** (re-checked 08-14) |
 | Cost-threshold approvals on `/reports` | `Reports.tsx:450` `decide()` | **UI only.** Local `useState` — no API call, no persistence, no ledger event, and **nothing gates dispatch** |
 | Roles / sign-in | `App.tsx:47` is the only `useAuth` consumer | **Nav filtering only.** No page branches on role, no route guards, and `Actor` on the server has no matching split |
 
-`server/sms.ts` is 331 lines with **33 tests** — the largest single test file in the repo —
-and the UI does not call into it. **Resolved 08-14: an integration that got missed, not a spare
-tyre.** It implements the `template × digit → action` table from `SMS-SIM-SPEC.md`, whose §10
-defines a contract for the emulator; the emulator was already built against `/api/messages/inbound`
-and `/api/orders/:id/condition-reply` and never picked it up. Full reasoning and the three options
-in §8.3.
+**`/api/messages/reply` is now wired** (08-14). `VendorPhone` renders tappable quick replies under
+the most recent unanswered question and POSTs the digit; the reply resolves through `sms.ts`'s
+`template × digit → action` table with no model in the loop. Verified against a running server, not
+just typechecked — all four branches exercised: `applied` (digit 1 on a pickup request moved order
+2086 to `pickup_pending`), `prompt` (digit 2 replies *"When can you collect it? Text back a day and
+time."*), `review` (re-answering an already-answered question does **not** re-apply), and
+`unmapped` (digit 9 goes to the review queue rather than being guessed at).
+
+`sendTemplate` is still unreached — it's the presenter's "fire any template on demand" button,
+which no screen exposes. That one may genuinely be a spare tyre; the reply half was the missed
+integration.
 
 **The approvals row is the one most likely to bite on stage.** An order over the $150/mo threshold
 ships to the vendor whether or not the DON ever looks at it. Demo the queue as a *design*, not as a
@@ -197,19 +201,19 @@ $150/mo approval threshold, and every medication spend figure.
 | Differentiation from current DME approaches | 30% | Caregiver condition channel · vendor scorecards · verified vs vendor-reported · silence ladder · nurse-first pickup trigger |
 | Addresses core user problems | 25% | Discharge-readiness risk · automatic pickup on death/discharge · condition attestation · calls-avoided counter · cost approvals for the DON |
 | Architecture / integration-readiness | 15% | State machine with guarded transitions · SSE · integration sketch modelled on the real eRx payloads · forward-compatible inventory hook |
-| AI ROI | 15% | **The split**: model for vendor prose with a confidence gate and review queue; regex for caregiver digits, said out loud. Rules-based risk scoring on purpose |
+| AI ROI | 15% | **The split**: model for vendor prose with a confidence gate and review queue; regex for caregiver digits; **a tapped quick reply on the vendor phone runs no model at all**, so the same thread shows both trust levels. Rules-based risk scoring on purpose |
 | UX / intuitiveness | 15% | Six roles on separate surfaces with a **role-filtered nav that visibly rearranges when you switch** · phone simulators · plain-English state labels · reasons in sentences · every hospice page has a designed exit |
 
 ---
 
 ## 7 · Test coverage
 
-**14 files, 148 tests** (re-derived 08-14). Core logic is covered; UI and routes deliberately
+**14 files, 150 tests** (re-derived 08-14). Core logic is covered; UI and routes deliberately
 are not.
 
 | File | Tests | Covers |
 |---|---:|---|
-| `sms.test.ts` | 33 | SMS templates and reply handling |
+| `sms.test.ts` | 35 | SMS templates, reply handling, and quick-reply/route-table drift |
 | `reports.test.ts` | 15 | Scorecards, calls avoided, latency |
 | `condition.test.ts` | 12 | Caregiver rating parser, including the ambiguity cases |
 | `risk.test.ts` | 12 | Risk scoring and thresholds |
@@ -237,23 +241,16 @@ clicking, not by CI.
    blocks an order.
 2. **`/vendor` is labelled "Vendor phone" in the nav and `/vendor-phone` also exists.** Two
    things, nearly one name. Pick which one the demo drives.
-3. **`sms.ts` is a missed integration, not a spare tyre — question resolved 08-14.** There are two
-   parallel implementations of "handle an inbound reply." The wired one: `VendorPhone` posts free
-   text to `/api/messages/inbound` (`messaging.ts`, LLM + confidence gate) and `Caregiver` posts to
-   `/api/orders/:id/condition-reply` (`condition.ts`, deterministic digit). The unwired one:
-   `sms.ts`'s `/api/messages/send` and `/api/messages/reply`, which implement SMS-SIM-SPEC's
-   `template × digit → action` routing table. That spec says *"the emulator UI is owned by another
-   dev and already built"* and defines an integration contract in §10 — the emulator was built
-   first, against the older endpoints, and never adopted it.
+3. ~~`sms.ts` has no UI path.~~ **Closed 08-14 — the reply half is wired.** `VendorPhone` now shows
+   quick-reply buttons on the most recent unanswered question, POSTing to `/api/messages/reply`.
+   The vendor phone now carries **both** paths on one screen, which is the AI argument made
+   visible rather than asserted: a tap is deterministic (route table, no model, nothing to review),
+   typed prose goes to Claude behind the 0.8 gate with the review queue underneath. `sendTemplate`
+   remains unreached — see §2.
 
-   **Why it's worth a decision rather than a shrug:** the unwired path is the tappable quick-reply
-   one, and the spec's own argument is that *at a known lifecycle moment a digit has exactly one
-   meaning, so no model needs to read it.* The caregiver side already demonstrates that principle;
-   the vendor side routes through the LLM even when a tap is unambiguous. Options: wire
-   `VendorPhone`'s quick-replies to `/api/messages/reply` (makes the AI-split true on both sides and
-   gives 33 tests something real to protect, but changes the most-watched demo beat this close to
-   freeze) · leave it and say so (zero risk, and §6 rewards the honesty) · delete it (**don't** —
-   loses the spec's reference implementation and 33 tests).
+   **Demo note:** the buttons only appear when the newest message in the thread is an unanswered
+   question. If a rehearsal ends with the thread on an answered question, the phone shows no
+   buttons and that is correct behaviour, not a bug — re-seed and the request lands fresh.
 4. **Six roles in the switcher, three in the pitch.** Dispatcher, Driver and Field Nurse are
    selectable. Decide whether we present six personas or three plus supporting cast.
 5. **Re-seed on demo morning.** Demo orders are `now + N hours`, so a database seeded the

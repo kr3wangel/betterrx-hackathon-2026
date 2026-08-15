@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { db } from '../server/db'
+import { QUICK_REPLIES } from '../shared/replies'
 import {
   ackNagText,
   applyParsed,
@@ -478,5 +479,27 @@ describe('silence ladder nag detection', () => {
     tick(new Date(Date.now() + 60_000))
 
     expect(messages(id).filter((m) => m.direction === 'out')).toHaveLength(1)
+  })
+})
+
+// The quick-reply buttons on the vendor's phone are a client-side table; the routing they
+// depend on is a server-side one. A button offering a digit the server can't route returns
+// outcome 'unmapped' and lands in the review queue instead of applying — which reads on
+// stage as the product being broken, not as a missing case. Keep them honest here.
+describe('quick replies match the reply routes', () => {
+  it('every offered digit resolves to a real action', () => {
+    for (const [template, replies] of Object.entries(QUICK_REPLIES)) {
+      const routes = REPLY_ROUTES[template as MessageTemplate]
+      expect(routes, `no REPLY_ROUTES entry for ${template}`).toBeTruthy()
+      for (const { digit } of replies ?? []) {
+        expect(routes?.[digit], `${template} offers "${digit}" with no route`).toBeTruthy()
+      }
+    }
+  })
+
+  it('every offered template is one the vendor actually receives', () => {
+    for (const template of Object.keys(QUICK_REPLIES)) {
+      expect(template.startsWith('v_'), `${template} is not a vendor template`).toBe(true)
+    }
   })
 })
