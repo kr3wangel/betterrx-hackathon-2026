@@ -15,7 +15,7 @@ import type { Order, Patient, Vendor } from '../../../shared/types'
 export default function Driver() {
   const [vendorId, setVendorId] = useState(1)
   const { data: vendors } = useLive(() => api.get<Vendor[]>('/api/vendors'))
-  const { data: jobs } = useLive(() => api.get<Order[]>(`/api/driver/jobs?vendor_id=${vendorId}`))
+  const { data: jobs } = useLive(() => api.get<Order[]>(`/api/driver/jobs?vendor_id=${vendorId}`), [vendorId])
   const { data: patients } = useLive(() => api.get<Patient[]>('/api/patients'))
 
   const patientById = useMemo(() => new Map((patients ?? []).map((p) => [p.id, p])), [patients])

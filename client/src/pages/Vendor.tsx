@@ -12,7 +12,7 @@ export default function VendorPage() {
   const { data: vendors } = useLive(() => api.get<Vendor[]>('/api/vendors'))
   const { data: orders } = useLive(() => api.get<Order[]>('/api/orders'))
   const { data: patients } = useLive(() => api.get<Patient[]>('/api/patients'))
-  const { data: messages } = useLive(() => api.get<Message[]>(`/api/messages?vendor_id=${vendorId}`))
+  const { data: messages } = useLive(() => api.get<Message[]>(`/api/messages?vendor_id=${vendorId}`), [vendorId])
 
   const patientName = useMemo(() => new Map((patients ?? []).map((p) => [p.id, p.name])), [patients])
   const vendor = vendors?.find((v) => v.id === vendorId)

@@ -367,14 +367,12 @@ function NewOrderForm({ patients, vendors }: { patients: Patient[]; vendors: Ven
               <option key={c.hcpcs_code} value={i}>{c.equipment_name} ({c.hcpcs_code})</option>
             ))}
           </select>
-          <div className="flex gap-2">
-            <select className={selectCls} value={form.urgency} onChange={(e) => setForm({ ...form, urgency: e.target.value })}>
-              <option value="routine">Routine</option>
-              <option value="urgent">Urgent</option>
-              <option value="stat">STAT</option>
-            </select>
-            <Input type="datetime-local" value={form.target_at} onChange={(e) => setForm({ ...form, target_at: e.target.value })} />
-          </div>
+          <select className={selectCls} value={form.urgency} onChange={(e) => setForm({ ...form, urgency: e.target.value })}>
+            <option value="routine">Routine</option>
+            <option value="urgent">Urgent</option>
+            <option value="stat">STAT</option>
+          </select>
+          <Input type="datetime-local" value={form.target_at} onChange={(e) => setForm({ ...form, target_at: e.target.value })} />
           <Button type="submit" className="w-full">Place order</Button>
         </form>
       </CardContent>

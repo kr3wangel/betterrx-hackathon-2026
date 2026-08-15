@@ -1,15 +1,22 @@
 import { useEffect, useRef, useState } from 'react'
 import { useEventStream } from '../hooks/useEventStream'
 
-export function useLive<T>(load: () => Promise<T>): { data: T | null; reload: () => void } {
+export function useLive<T>(
+  load: () => Promise<T>,
+  deps: unknown[] = [],
+): { data: T | null; reload: () => void } {
   const { lastEvent } = useEventStream()
   const [data, setData] = useState<T | null>(null)
   const loadRef = useRef(load)
   loadRef.current = load
 
+  // Refetch on every SSE event, and whenever a caller-provided input (e.g. a selected
+  // vendor id) changes — the load closure captures those, so without them the fetch
+  // would stay pinned to the value from first render until the next broadcast.
   useEffect(() => {
     loadRef.current().then(setData).catch(console.error)
-  }, [lastEvent])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lastEvent, ...deps])
 
   return { data, reload: () => loadRef.current().then(setData).catch(console.error) }
 }
