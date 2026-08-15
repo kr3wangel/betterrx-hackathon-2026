@@ -99,6 +99,26 @@ export function PhoneScreen({
   )
 }
 
+/**
+ * Centered day marker, the way Messages breaks a thread — the seeded history spans days,
+ * and without these every timestamp reads as "today" and the thread looks like one
+ * impossible flood. Render when the calendar day changes between consecutive bubbles.
+ */
+export function DayDivider({ iso }: { iso: string }) {
+  const d = new Date(iso)
+  const today = new Date()
+  const label =
+    d.toDateString() === today.toDateString()
+      ? 'Today'
+      : d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })
+  return <div className="py-2 text-center text-[10px] font-semibold text-slate-400">{label}</div>
+}
+
+/** True when two ISO timestamps fall on different calendar days — a DayDivider goes between. */
+export function newDay(prevIso: string | undefined, iso: string): boolean {
+  return !prevIso || new Date(prevIso).toDateString() !== new Date(iso).toDateString()
+}
+
 /** One message. `sent` is the phone's owner talking; `received` is the system texting them. */
 export function Bubble({
   side,

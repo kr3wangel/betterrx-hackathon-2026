@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react'
+import { Fragment, useMemo, useState } from 'react'
 import { api } from '../lib/api'
 import { useLive } from '../lib/useLive'
-import { Bubble, Linkify, PhoneScreen, ThreadEmpty } from '../components/PhoneScreen'
+import { Bubble, DayDivider, Linkify, newDay, PhoneScreen, ThreadEmpty } from '../components/PhoneScreen'
 import { digitLabel, isOpenQuestion } from '../components/QuickReplies'
 import type { Message, SmsReplyResult, Vendor } from '../../../shared/types'
 
@@ -107,13 +107,16 @@ function Thread({ vendor, picker }: { vendor: Vendor; picker: React.ReactNode })
           under a sent text — the vendor's phone has never heard of our review queue.
           What happened to a reply is the hospice board's story: the state pill flips
           when a parse auto-applies, and the review queue holds what didn't. */}
-      {thread.map((m) => {
+      {thread.map((m, i) => {
         // 'out' is hospice → vendor, so on the vendor's own phone it reads as received.
         const mine = m.direction === 'in'
         return (
-          <Bubble key={m.id} side={mine ? 'sent' : 'received'} meta={time(m.created_at)}>
-            <Linkify text={m.body} />
-          </Bubble>
+          <Fragment key={m.id}>
+            {newDay(thread[i - 1]?.created_at, m.created_at) && <DayDivider iso={m.created_at} />}
+            <Bubble side={mine ? 'sent' : 'received'} meta={time(m.created_at)}>
+              <Linkify text={m.body} />
+            </Bubble>
+          </Fragment>
         )
       })}
 

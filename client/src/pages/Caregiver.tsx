@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import { api } from '../lib/api'
 import { useLive } from '../lib/useLive'
-import { Bubble, Linkify, PhoneScreen, ThreadEmpty } from '../components/PhoneScreen'
+import { Bubble, DayDivider, Linkify, newDay, PhoneScreen, ThreadEmpty } from '../components/PhoneScreen'
 import { isOpenQuestion } from '../components/QuickReplies'
 import type {
   CaregiverReplyResult,
@@ -175,23 +175,30 @@ function Thread({ household, picker }: { household: Household; picker: React.Rea
         </ThreadEmpty>
       )}
 
-      {thread.map((item) => {
+      {thread.map((item, i) => {
         // Meta is the timestamp and nothing else — a real handset annotates no outcomes.
+        const divider = newDay(thread[i - 1]?.at, item.at) && <DayDivider iso={item.at} />
         if (item.kind === 'report') {
           return (
-            <Bubble key={`r${item.report.id}`} side="sent" meta={time(item.at)}>
-              <span className="text-lg font-semibold">{item.report.score}</span>
-              {item.report.comment ? ` — ${item.report.comment}` : ''}
-            </Bubble>
+            <Fragment key={`r${item.report.id}`}>
+              {divider}
+              <Bubble side="sent" meta={time(item.at)}>
+                <span className="text-lg font-semibold">{item.report.score}</span>
+                {item.report.comment ? ` — ${item.report.comment}` : ''}
+              </Bubble>
+            </Fragment>
           )
         }
 
         const m = item.message
         const mine = m.direction === 'in'
         return (
-          <Bubble key={m.id} side={mine ? 'sent' : 'received'} meta={time(m.created_at)}>
-            <Linkify text={m.body} />
-          </Bubble>
+          <Fragment key={m.id}>
+            {divider}
+            <Bubble side={mine ? 'sent' : 'received'} meta={time(m.created_at)}>
+              <Linkify text={m.body} />
+            </Bubble>
+          </Fragment>
         )
       })}
 
