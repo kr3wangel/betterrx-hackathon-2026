@@ -15,9 +15,9 @@ emotional *middle* reads as manipulation; an emotional *frame* reads as purpose.
   lines below are what gets *said*; they do not go on the slide.
 - **Nothing on a slide that isn't in the repo**, or that isn't clearly labeled *production path*.
   Use the same words the deliverables use — "built," "spec'd not built," "synthetic."
-- **`[FE PENDING]` awareness** ([DEMO-SCRIPT.md](DEMO-SCRIPT.md)): never show a screenshot of a screen
-  the demo can't open. If the `/reports` view doesn't ship, the "phone calls that never happened"
-  number goes on slide 5 **labeled as computed from the event log** — do not mock a screen.
+- **Never show a screenshot of a screen the demo can't open.** As of the last check every screen this
+  deck references ships (see slide 3's resolved `[FE PENDING]` note) — re-verify at freeze rather
+  than trusting this line.
 - **Do not hardcode vendor percentages on a slide.** Vendor stats are *derived* from `scripts/seed.ts`
   (base rate × weak-day/weak-code penalties), so the numbers change with the seed and the weekday
   (see `CLAUDE.md` → Gotchas). Say "on-time history for this equipment on this weekday"; let the
@@ -81,6 +81,7 @@ what we put above it.*
 - Ladder: phone number → tap → driver proof → board → API
 - FAQ §3 gave every team the SMS/magic-link floor — we don't claim it
 - Above it: **silence ladder · verified vs reported · nurse-primary pickup**
+- **The household grades the equipment — not the vendor**
 - Half a rolodex is landlines → rung 1 is channel-agnostic
 
 **Presenter says**
@@ -101,6 +102,17 @@ what we put above it.*
 > **pickup trigger sits in the nurse's hand** in the living room, with the EMR as the backup, which
 > is the ordering your §8 asked for."
 >
+> **The condition beat** (your CEO asked for this by name this morning): "And one more, because
+> every signal I've just described still comes from the vendor. Your §9 called equipment condition a
+> strong differentiator — the broken wheelchairs, the contaminated chair. So when the driver captures
+> proof of delivery, the system texts the **family caregiver** one question: *is it clean and working
+> properly, reply 1 to 5.* A one or a two escalates immediately; every score lands on that vendor's
+> scorecard. Now — a condition survey is not new, and I'd rather say that than have you say it:
+> DME suppliers are already required to survey patients for accreditation. **What's new is who owns
+> the answers.** Today that data sits in the file of the supplier being graded and never reaches the
+> hospice that picked them. We flipped the direction. The household is the only party who ever sees
+> what actually came off the truck, and nobody asks them."
+>
 > **The landline beat:** "And half a hospice's rolodex is office landlines — a landline cannot
 > receive a text. That's why the ladder's first rung is channel-agnostic by design: carrier lookup
 > routes each number to text or to a 30-second check-in call where pressing 1 is deterministic, no
@@ -108,7 +120,8 @@ what we put above it.*
 
 **Steal from**
 - [DIFFERENTIATION.md](DIFFERENTIATION.md) → *The baseline every team will show*, the *Above the line*
-  table (lift the three left-hand rows as-is), §1 silence ladder, §2 verified vs reported, §3 pickup.
+  table (lift the left-hand rows as-is), §1 silence ladder, §2 verified vs reported, §3 pickup, and
+  **§7 the caregiver condition channel** — §7 carries the ownership-inversion framing verbatim.
 - [PROBLEM-THESIS.md](../PROBLEM-THESIS.md) → *The core asymmetry*, *The vendor adoption ladder*, and
   the landline Q&A bullet.
 - [INTEGRATION-SKETCH.md](INTEGRATION-SKETCH.md) §5 → the shelved voice rung (say "spec'd, cut on
@@ -146,12 +159,13 @@ names, nothing else.*
 **Steal from**
 - [DEMO-SCRIPT.md](DEMO-SCRIPT.md) → *Timing budget*, §3–§5 click tables, *Failure drills*.
 
-> **`[FE PENDING]` honesty.** As of this writing the demo's highest-value missing screen is the
-> **`/portal/:token` page** (backend done, no route in `App.tsx`) — it gates scenario 1 step 4 and
-> scenario 3's climax. Also pending: the nurse status screen, the ✓ Verified badge, plain-language
-> state labels, and the `/reports` view. **Re-check the FE punch list at freeze and delete any slide
-> promise that didn't ship.** If `/reports` doesn't land, beat 6 is cut and its number moves to
-> slide 5 as a computed figure.
+> **`[FE PENDING]` — resolved. Every screen on the old pending list now ships**, verified against
+> `App.tsx` and the components: `/portal/:token` (routed to `VendorPortal`), the nurse status screen
+> (`/nurse`), the ✓ Verified badge (`components/EvidenceBadge.tsx`), plain-language state labels
+> (`lib/domain.ts` — `in_transit` → "On the truck"), and the `/reports` view. **Beat 6 is in, and the
+> "phone calls that never happened" number can be shown live rather than spoken.** Nothing in this
+> deck needs to hedge on a missing screen any more — but re-run the check at freeze, because this
+> note has been wrong in both directions today.
 
 ---
 
@@ -268,9 +282,9 @@ flowchart LR
   (a strong optional slide-5 visual if there's room), and the closing line.
 - [BOUNTY-FAQ.md](../BOUNTY-FAQ.md) §10.
 
-> If the `/reports` counter shipped, the number goes here live. If it didn't, put the figure on this
-> slide **labeled "computed from the append-only event log"** and say that out loud. Do not imply a
-> screen that doesn't exist.
+> **`/reports` shipped** — the counter is live on the DON view, so show it rather than quoting it.
+> Keep the fallback in your pocket anyway: if the screen misbehaves on stage, say the figure and
+> label it **"computed from the append-only event log."** Never imply a screen that isn't up.
 
 ---
 
@@ -281,7 +295,7 @@ has no home, the deck is broken, not the row.
 
 | Row | Weight | Where it gets its evidence |
 |---|---|---|
-| **Differentiation** | 30% | **Slide 2** names the FAQ §3 floor out loud and refuses to claim it, then puts three things above it — silence ladder, verified-vs-reported, nurse-primary pickup — and **demo beat 5b** *shows* the silence ladder nag and escalate live, which is the one beat that is never cut. |
+| **Differentiation** | 30% | **Slide 2** names the FAQ §3 floor out loud and refuses to claim it, then puts four things above it — silence ladder, verified-vs-reported, nurse-primary pickup, and the **caregiver condition channel** (the sponsor's §9 differentiator, raised again by the CEO at the briefing, and the only signal in the system that doesn't originate with the vendor). **Demo beat 5b** *shows* the silence ladder nag and escalate live, which is the one beat that is never cut. |
 | **Core user problems** | 25% | **Slide 1** is the problem in the patient's own frame (the two unwatchable moments, quoted back in the sponsor's discovery language), and **demo beats 3–4** resolve both of them as outcomes — the saved discharge and the dignified pickup — across all three named hospice personas. |
 | **Architecture / integration** | 15% | **Slide 4's** diagram plus the `newDmeOrder`-as-sibling-of-`newMedications` mapping against BetterRX's real eRx payloads; the **Built vs. sketched** table ([INTEGRATION-SKETCH.md](INTEGRATION-SKETCH.md)) is the Q&A backup that lets a judge check every claim. |
 | **AI ROI** | 15% | **Slide 4's** AI block: one deliberate use (open-vocabulary parse where rules structurally cannot work), rules everywhere else, deterministic taps with no model, the 0.8 gate into a human review queue, and **measured** cost of ~$0.003–0.006/order — approach and honesty, per FAQ §6, not claimed accuracy. |
@@ -301,7 +315,8 @@ script before code freeze. **If it isn't in this inbox, it won't be on stage.**
 
 <!-- Format that helps: "<what it is> — <where to click it / file> — <which slide it might strengthen>" -->
 
-- Driver attests clean / functional / patient-ready at delivery; a failed check auto-escalates to the hospice — POD flow on `/driver` (`server/pods.ts`) — slide 2 (FAQ §9 named condition a strong differentiator)
+- ~~Driver attests clean / functional / patient-ready at delivery; a failed check auto-escalates to the hospice — POD flow on `/driver` (`server/pods.ts`) — slide 2 (FAQ §9 named condition a strong differentiator)~~ **HARVESTED → slide 2 condition beat + [DIFFERENTIATION.md](DIFFERENTIATION.md) §7,** where it's now framed as the *first* of two witnesses. Kept visible rather than deleted so nobody re-pitches it as standalone: on its own it's the vendor grading its own homework, and the caregiver rating below is what makes it evidence.
+- Caregiver rates the delivered equipment 1–5 by text, fired automatically by the driver's POD; deterministic parse (no model), a 1–2 escalates, every score hits the vendor scorecard — `/caregiver` + `server/condition.ts`, rollup on `/reports` — **slide 2 (the CEO asked for this by name at the briefing; the only signal in the system that doesn't come from the vendor)**
 - Pickup-overdue clock anchors to the pickup trigger, not order age — no false reds on stage (`pickupAnchor()` in `server/watchdog.ts`) — demo-reliability, not a slide
 - A vendor with no account taps one link from a text and sees every live order with its SLA clock ("due in 4h" / "late by 2h"), then accepts, ETAs, or declines in one tap — the hospice board flips over SSE before their thumb leaves the screen — `/portal/<token>` — slides 2+3 (scenario 3 climax)
 - One thread, one digit, two meanings: reply "1" confirms the delivery arrived, and the very next "1" in the same thread flags the equipment unusable — disambiguated by the message template, never by AI guessing (`server/sms.ts` REPLY_ROUTES) — slide 4 (AI honesty)

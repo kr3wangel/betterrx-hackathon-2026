@@ -87,7 +87,9 @@ Reframed once, the whole problem is: **the hospice has no reporting from the ven
   log into anything and only ever responds via a confirmation email or text (SMS/magic-link style)
   as the baseline." Validation — and a warning: every team read this. SMS-reply vendors are table
   stakes as of this document; our differentiation moves up the stack (IVR/landline reach,
-  silence-as-signal nag ladder, deterministic DTMF vs confidence-gated parse, verified-vs-reported).
+  silence-as-signal nag ladder, deterministic DTMF vs confidence-gated parse, verified-vs-reported,
+  and the caregiver condition channel — the one signal in the system that doesn't come from the
+  vendor at all).
 - **Vendor network-building is out of scope** — participation is an assumed given. Pitch the channel
   UX and the reporting machine, not recruitment.
 - **Judging weight sits primarily on the hospice-side experience** (§3) — the board, review queue,
@@ -106,9 +108,18 @@ Reframed once, the whole problem is: **the hospice has no reporting from the ven
 - **SLA assumption** (§7): same-day for urgent/STAT, 24h for routine — stated, configurable, ours to
   declare.
 - **Equipment condition/cleanliness is a named strong differentiator** (§9) — broken wheelchairs, a
-  contaminated chair in their interviews. A photo/checklist condition step at delivery rides our
-  existing POD capture nearly for free. Design the order flow forward-compatible with a live
-  inventory check (graceful fallback when absent) — "exactly the kind of thinking we value most."
+  contaminated chair in their interviews; the CEO raised vendor accountability for condition again at
+  the pre-build briefing. We built **two witnesses**, and the second is the one that matters:
+  - The **driver's attestation** at delivery (clean / functional / patient-ready) rides our existing
+    POD capture nearly for free — but it is the vendor grading its own homework.
+  - The **caregiver's 1–5 rating by text**, fired automatically by that same POD, is the independent
+    one. Deterministic parse, no model; a 1 or 2 escalates; every score lands on the vendor scorecard.
+    **The framing that survives a knowledgeable judge:** a condition survey is *not* new — DMEPOS
+    suppliers are already required to survey beneficiary satisfaction for accreditation. What's new is
+    **who owns the answers**. Today they sit in the file of the supplier being graded and never reach
+    the hospice that chose them, so they can't inform the next referral. We invert the direction.
+  Design the order flow forward-compatible with a live inventory check (graceful fallback when
+  absent) — "exactly the kind of thinking we value most."
 - **Vendor operational reality can't be validated this week** (§1) — state operational assumptions
   explicitly in every deliverable; an assumptions register earns points.
 
@@ -156,6 +167,9 @@ send them.*
 3. Driver links (seconds) → POD photo/signature/timestamp
 4. Silence (free) → risk flag + escalation
 5. Nurse-in-the-home tap (seconds) → the reverse direction: death/discharge triggers the pickup the moment it's real, with the EMR webhook as the redundant fallback (sponsor-preferred ordering, FAQ §8) — either way, no phone call
+6. The household's 1–5 condition reply (one digit) → **the only source in this list the vendor neither produces nor can shade.** Sources 1–4 all ultimately depend on the vendor choosing to report; 5 and 6 don't. The household is the only party that ever sees what physically arrived, and today nobody asks them
+
+Worth saying plainly, because it's the structural argument: this system's job is extracting truthful status from a party with every reason to round up. Three of these six — silence, the nurse's tap, the household's rating — produce signal *without* the vendor's cooperation, which is why the picture doesn't go dark exactly when a vendor is having a bad week.
 
 ## Positioning and Q&A
 
@@ -165,6 +179,8 @@ send them.*
 - **"A dispatcher presses 1 just to get you off the phone — you've replaced known ambiguity with confident falsehood."** We don't trust the 1. Every status is badged by evidence source — **vendor-reported** (text, keypress) vs **verified** (POD photo/signature) — and the board always shows which is which. A claim can lower a risk score; near a deadline, only verified evidence or a case-manager action clears it. The phone call she makes today produces the same lie with no ledger and no badge.
 - **"Half a vendor rolodex is office landlines — landlines can't receive SMS."** Correct, and it's why the voice channel exists: an automated check-in call with press-1 confirm reaches every phone number ever issued. Carrier lookup routes each number to text or voice automatically; both land in the same pipeline. Rung 1 is channel-agnostic, not SMS-with-hope.
 - **"The FAQ says 'no vendor UI, infer status from delivery/EMR events' is a legitimate path — why not that?"** Because inference can't see *intent before the deadline*. There is no event to infer "accepted" or "on schedule for tomorrow" from until the truck arrives or doesn't — inference-only systems learn about failures at the moment the phone/fax world does: too late. Our channel captures the vendor's forward-looking commitments (accept, ETA) at near-zero vendor cost, which is what deadlines, risk flags, and escalations need to fire *early*. We use event inference too — it's the verification layer, not the visibility layer.
+- **"DME suppliers already have to survey patient satisfaction for accreditation — what's new here?"** Correct, and we say it before they do. The survey isn't the innovation; **the direction it flows is.** That data is collected by the supplier being graded, lives in the supplier's accreditation file, and never reaches the hospice that chose them — so it cannot inform the next referral. We ask, we hold the record, and it lands on the scorecard the hospice uses to pick a vendor next week. Same question, opposite owner, and only one of those owners has an interest in the answer being good.
+- **"Isn't texting a grieving family a terrible idea?"** It would be, which is why the channel is guarded in code rather than in a policy doc: we text the **caregiver, never the patient** (a hospice patient frequently cannot answer a phone); the channel goes **permanently silent once a patient is deceased** or the order moves to pickup; we ask about **the equipment, never the care** — this is an equipment attestation, not a satisfaction survey, and hospices are rightly cautious about anything that resembles interference with CAHPS; and the thread refuses to send while another question is open, honours an opt-out, and asks each order exactly once. The narrow scope is what keeps it clear of CAHPS entirely — an assumption worth confirming with the sponsor.
 - **"You're sending PHI over unencrypted SMS."** No — payloads are minimum-necessary by design: order number, equipment, deadline, area. Names and street addresses never ride the open channel; they live behind the authenticated driver/dispatch link. The telephony provider (Twilio) is HIPAA-eligible and signs BAAs. Designed-in constraint, not a retrofit.
 - **The one-line frame:** *Every solution to this problem dies on the same question — what does the vendor have to do? Our answer: reply to a text.*
 - Lead demo scenarios with outcomes (the saved discharge, the dignified pickup); reporting is the mechanism, not the headline.
