@@ -1,34 +1,71 @@
 # Trip Batching & the Vendor-Side Question Gate — Design Spec
 
-> **STATUS: SPEC'D, NOT BUILT.** Team decision (Angel, 2026-08-14 night): this is a design
+> **STATUS: SPEC'D, NOT BUILT** *(true when written; partly overtaken the same night — see the
+> amendment below)*. Team decision (Angel, 2026-08-14 night): this is a design
 > document only. Nothing in this file exists in code, and nothing in the demo depends on it.
 > It exists because (a) the failure it fixes is real and visible today (§1), and (b) "what
 > happens when a vendor has twenty of these?" is a judge question that deserves a designed
 > answer, not an improvised one. In the pitch this is a production-path item, framed exactly
 > like the IVR fork: *spec'd, cut on purpose.* FAQ §6 register throughout.
 
+> **Amended 08-14 late — rotating reply codes shipped (`ae91367`), and they change half of
+> this document.** Each open vendor question now owns a digit **pair** — (1,2) (3,4) (5,6)
+> (7,8) (9,0), odd is the affirmative — and prints that pair in its own body, so a question
+> buried several texts back is still answerable. See `server/slots.ts` and the amendment at
+> the top of `SMS-SIM-SPEC.md`. Three consequences for this spec, marked inline below:
+>
+> 1. **§1 defect 2 (reply ambiguity) is fixed**, by addressing rather than by gating. The
+>    diagnosis was right and the reasoning still reads correctly; only the remedy differs.
+> 2. **§4's gate must not be built as written** — it would delete the feature that shipped.
+>    Rewritten in place; the part of it that survives is already in code.
+> 3. **§3's tier 3 and the shipped `v_backlog_digest` are the same idea** with different
+>    triggers. One of them has to win (§10.4).
+>
+> **§1 defect 1 — the spam wall — is untouched and still entirely real.** That is the part of
+> this spec worth building, and tier 2 is still the best idea in it. Nothing below about
+> trips, per-order invariants, or the driver stop view is affected.
+
 ## 1 · The failure, observed
 
 Seed a world where one vendor owes several pickups and open `/vendor-phone`: four near-identical
-bubbles land in the same minute —
+bubbles land in the same minute. **As observed on 08-14, before `ae91367`:**
 
 > *Pickup needed for order #2005 (Walker, folding wheeled), area Salt Lake City … Reply 1 if you
 > can get it today, 2 to give us a window: `<link>`* — ×4, one per order, all at 5:58 PM.
 
+Reproduce it today and you get four bubbles still, but reading "Reply 1", "Reply 3", "Reply 5",
+"Reply 7" — which is precisely the split below: one defect fixed, one untouched.
+
 Two distinct defects wearing one costume:
 
-1. **The spam wall.** `setPatientStatus()` loops `sendToVendor(…, 'v_pickup_request')` once per
-   order (`server/pickups.ts:30`), and the watchdog nags per order too. A dispatcher's eyes glaze
-   by bubble two; "please schedule promptly" repeated four times reads as noise, and the channel
-   trains its own audience to ignore it. This is the adoption-risk failure mode from the IVR
-   brainstorm, reproduced in SMS.
-2. **The reply ambiguity.** All four bubbles say "Reply 1" and all four carry the *same*
-   vendor-level portal URL. Today the simulator dodges the ambiguity because every reply carries
-   `reply_to_message_id` (`server/sms.ts:137-141`) — the UI knows which bubble you answered. **A
-   real SMS gateway has no reply-to.** A bare "1" against four open `v_pickup_request` questions
-   is a coin flip wearing confidence 1.0. The family side already has the fix —
-   `householdGate()` (`server/messaging.ts:90`) enforces one open question per household — and the
-   vendor side never got it.
+1. **The spam wall. STILL TRUE — this is the live defect.** `setPatientStatus()` loops
+   `sendVendorQuestion(…, 'v_pickup_request')` once per order (`server/pickups.ts:29-33`), and the
+   watchdog nags per order too. A dispatcher's eyes glaze by bubble two; "please schedule
+   promptly" repeated four times reads as noise, and the channel trains its own audience to
+   ignore it. This is the adoption-risk failure mode from the IVR brainstorm, reproduced in SMS.
+
+   Rotating codes made the four bubbles *distinguishable*, not *fewer*. Ruth's bed and
+   concentrator still cost two texts and two of the vendor's five codes. Everything below stands.
+2. **The reply ambiguity. FIXED in `ae91367`, by addressing rather than gating.** Recorded as
+   written because the diagnosis was correct and the reasoning is what produced the fix.
+
+   What was true: the simulator dodged the ambiguity because every reply carried
+   `reply_to_message_id`, so the UI knew which bubble you answered, and **a real SMS gateway has
+   no reply-to.** A bare "1" against four open `v_pickup_request` questions was a coin flip
+   wearing confidence 1.0.
+
+   What is true now: the four bubbles read "Reply 1", "Reply 3", "Reply 5", "Reply 7", each
+   naming its own codes, and each carries its own **per-order** link (`/o/<token>`, shipped in
+   `0dbb136`) rather than a shared vendor-level URL. `handleVendorInbound()`
+   (`server/sms.ts:420`) resolves a bare digit by *ownership* — which unanswered question holds
+   that pair — so the deterministic route table is reachable from a plain gateway payload with no
+   reply-to at all.
+
+   The family-side comparison in the original text still holds and is worth keeping: `householdGate()`
+   (`server/messaging.ts:186`) enforces one open question per household. The vendor side did not
+   get that rule, deliberately. A household thread carries one question because the household
+   should only ever be asked one thing; a vendor thread carries five because a dispatcher has
+   five jobs, and the answer was to make the five addressable rather than to serialise them.
 
 ## 2 · The organizing idea: the trip
 
@@ -89,58 +126,113 @@ retire**:
 > **4 pickups waiting** — 3 in Ogden, 1 in Salt Lake City. Tap to see and schedule each one:
 > `<portal link>`
 
-No "reply 1": a digit against four questions is not an answer, and *"reply 1 = yes to all"* is
-explicitly rejected (§9) — a bulk undifferentiated yes is exactly the vendor-reported mush the
-evidence system exists to distrust. The portal already lists each open order with its SLA clock
+No digits at all, and *"reply 1 = yes to all"* is explicitly rejected (§9) — a bulk
+undifferentiated yes is exactly the vendor-reported mush the evidence system exists to distrust.
+Note the reason has narrowed since this was written: a digit against several open questions is no
+longer *ambiguous* (each owns its own pair), so the case against a digest digit is now purely
+about evidence quality, which is the stronger argument anyway. The digest carries no pair, and a
+tier-3 digest is precisely the message sent when there are no pairs left to carry. The portal already lists each open order with its SLA clock
 and per-order Confirm / ETA / Can't-do buttons, so at this volume it extracts **more** per-order
 truth than SMS structurally can. The digest is a visibility upgrade disguised as spam control:
 it routes the vendor to the surface where per-order answers are cheapest.
+
+> **Partly shipped already.** `v_backlog_digest` (`server/messaging.ts:105`) is this message,
+> reached from the other direction: it fires when a vendor's five reply pairs are all in use and
+> a sixth question cannot be sent, rather than when a burst is large. It carries no digits, links
+> to the portal, is rate-limited to one per vendor per 4h, and counts open orders from the same
+> call the link lands on so the number in the text cannot contradict the page. Tier 3's *trigger*
+> (burst size, 2+ patients or ≥5 orders) is the part that is not built. Reconcile before building
+> — see §10.4.
 
 **Coalescing window:** tier 2 needs none (same `setPatientStatus()` call = same message). Tier 3
 uses the watchdog's 30s tick as the window — outbound pickup requests queue per vendor and flush
 on tick, so "same burst" needs no new clock. Sub-minute latency on a message about a same-day
 truck roll is free.
 
+### How the tiers sit on top of reply pairs
+
+They compose cleanly, and batching turns out to *raise* the ceiling rather than fight it:
+
+| Tier | Pairs consumed | The digit means |
+|---|---|---|
+| 1 — single order | one | this order |
+| 2 — one stop, N items | **one** | the whole trip (§5 already says this) |
+| 3 — digest | none | nothing; there are no digits |
+
+Tier 2 spending one pair for a stop rather than one per item is not a compromise, it is the same
+claim §2 already makes: *one physical decision, one reply.* The practical effect is that the five
+pairs stop counting orders and start counting **stops**, which is the vendor's actual unit of
+work. Ruth's bed and concentrator take one code between them instead of two, and a vendor with
+eight orders across four homes fits inside the code space with room to spare — so tier 2 also
+pushes the tier-3 threshold further out, and the two changes are worth more together than apart.
+
 **Cross-intent rule:** never merge templates. A `v_order_request` and a `v_pickup_request` in the
 same window stay separate messages — "reply 1" must never mean two verbs in one bubble. Nags
 (`v_ack_nag`) are per order and stay so; whether a tier-3 digest should absorb pending nags for
 the same vendor is an open question (§10).
 
-## 4 · Inbound: the vendor-side question gate
+## 4 · Inbound: the vendor-side question gate — **SUPERSEDED, DO NOT BUILD AS WRITTEN**
 
-Ported from `householdGate()`, independent of batching, and the piece that makes digits honest on
-a real gateway:
+The original rule was: *a digit auto-applies only when exactly one open vendor question exists;
+two or more → deterministic bounce to the portal.*
 
-> A digit reply auto-applies **only when exactly one open (unanswered) vendor question exists in
-> that vendor's thread.** Two or more open questions → deterministic bounce, no model:
->
-> *"You've got 3 open requests — tap here to answer each one: `<portal link>`"*
+**Building that now would delete the feature that shipped in `ae91367`.** Two or more open
+questions is the case rotating codes exist to serve, and it is the common case: five questions
+carrying five distinct pairs are not ambiguous, and bouncing a correctly-addressed digit would
+send a vendor to a web page to answer something they had already answered correctly by text.
 
-- The bounce is a `prompt`-kind route (the `v_eta_check` digit-2 pattern, `sms.ts:74`), records
-  the inbound, answers nothing, and never guesses.
-- Free text is ungated — prose already goes to Claude with the vendor's open orders as context
-  and the 0.8 confidence gate underneath (`routeText()`, `sms.ts:288-301`). "The bed yes, the
-  concentrator no" is expressible in prose and lands in review if the model isn't sure.
-- The gate also covers cases batching can't prevent: a nag and a fresh order request overlapping
-  in one thread.
+The instinct was right about *where* the danger is; it was aimed at a count when the real
+question is ownership. The corrected rule, which is **already in code**:
+
+> A digit auto-applies when **some unanswered question in that vendor's thread owns that pair.**
+> A digit nothing owns is never applied to whatever is newest. If one or two questions are open
+> we text back naming their codes; past that we send the portal link.
+
+- Resolution is by ownership, not by count: `resolveDigit()` (`server/slots.ts:76`) walks the
+  vendor's unanswered questions newest-first and returns the one holding the pair.
+- The bounce survives, narrowed to unowned digits: `clarifyText()` (`server/messaging.ts:139`)
+  produces *"That code doesn't match anything open. Reply 1 or 2 for #1042, 5 or 6 for #2204."*
+  and past two open questions falls back to the portal link. The inbound is still recorded as
+  `needs_review`, so the hospice sees it either way; the outcome is `clarify`.
+- Free text stays ungated, exactly as originally specced — prose goes to Claude with the vendor's
+  open orders as context, now plus a focus hint naming the newest unanswered question, under the
+  same 0.8 gate (`routeText()`, `server/sms.ts:339`). "The bed yes, the concentrator no" is
+  expressible in prose and lands in review if the model isn't sure.
+- The overlapping-nag case the gate was partly aimed at is handled at the *send* side instead: a
+  follow-up about an order we have already asked about reuses that order's pair rather than
+  allocating a second one (`allocateSlot()`, `server/slots.ts:65`), so a nag and its original
+  request are one question with one code.
+
+**What genuinely remains open** is the ceiling, not the gate: there are five pairs, and a vendor
+can have more than five open questions. That is what §3's tier 3 and the shipped digest are both
+answers to, and it is the one place the two specs still have to be reconciled (§10.4).
 
 ## 5 · Reply semantics & provenance
 
-A tier-2 group message keys one `REPLY_ROUTES` entry (e.g. `v_pickup_group`) whose digit-1 action
-applies `pickup_scheduled` to **every order in the group**, each event stamped
+A tier-2 group message keys one `VENDOR_ROUTES` entry (e.g. `v_pickup_group`) whose **affirmative
+position** applies `pickup_scheduled` to **every order in the group**, each event stamped
 `payload.source: 'group reply'` — rendering in the ledger as *"group reply · no model"* and on
-the badge as **vendor-reported**. Same for digit-2's prompt. The family-side `f_pickup_notice`
-side effect (`sms.ts:233-235`) fires once per household, not once per order — the household hears
+the badge as **vendor-reported**. Same for the problem position's prompt. The family-side
+`f_pickup_notice` side effect fires once per household, not once per order — the household hears
 about the visit, not the manifest.
+
+> Note the table is now indexed by **position, not digit**: `REPLY_ROUTES` split into
+> `VENDOR_ROUTES` (a `[affirmative, problem]` tuple per template, because vendor digits rotate)
+> and `FAMILY_ROUTES` (literal digits, unchanged). A group entry is a tuple like any other. The
+> group message owns one pair, so "reply 5 for the whole stop, 6 to give us a window" is what the
+> body says, and `routeDigit()` resolves 5 to offset 0 exactly as it does for a single order —
+> the fan-out is in the action, not in the addressing.
 
 **The digit speaks only for the whole trip.** Partial answers ("we can get the bed today, not the
 concentrator") are not expressible in a digit by design — they go through the portal's per-order
 buttons or through prose + the 0.8 gate. Bounce copy carries the hint: *"Tap here if it's not all
 of them."*
 
-**ETA anti-gaming rule survives batching:** the group digit-1 writes `eta: null` exactly as the
-single `v_pickup_request` route does (`sms.ts:76-87`) — a vendor must not keep a whole trip
-permanently not-overdue by texting 1 once a day. `pickupAnchor()` semantics unchanged.
+**ETA anti-gaming rule survives batching:** the group affirmative writes `eta: null` exactly as
+the single `v_pickup_request` route does (`VENDOR_ROUTES.v_pickup_request` in `server/sms.ts`) —
+a vendor must not keep a whole trip permanently not-overdue by answering yes once a day.
+`pickupAnchor()` semantics unchanged. This matters more under batching, not less: one gamed digit
+would now hold N orders out of overdue instead of one.
 
 ## 6 · The driver's stop view (same concept, other end of the truck)
 
@@ -175,30 +267,43 @@ Stated as invariants so a future implementer can't trade them away:
    produce `delivery_verified` / a POD row / `family_confirmed`.
 4. **PHI discipline** — batch bodies name counts, items, and areas; never patients. "2 items from
    one home" identifies no one.
-5. **The confidence gate** — group digits are template×digit lookups at confidence 1.0 like every
-   digit today; prose still goes through the 0.8 gate. No new model surface.
+5. **The confidence gate** — group digits are template×position lookups at confidence 1.0 like
+   every digit today; prose still goes through the 0.8 gate. No new model surface.
+6. **One pair per question, and a pair is never recycled while its question is open.** Batching
+   changes how many orders sit behind a question; it must not change how many codes a question
+   holds. A group that allocated one pair per item would spend the vendor's whole code space on a
+   single stop and put several live digits on one decision — the same defect the ack-nag reuse
+   rule exists to prevent (`server/slots.ts`).
 
 ## 8 · Implementation sketch (for whoever builds it later)
 
-- **Schema:** `messages.order_id` is single today (`sms.ts:153`). Group messages need
+- **Schema:** `messages.order_id` is single today. Group messages need
   `message_orders(message_id, order_id)` — a join table beats a JSON column because replies must
   fan out per order transactionally. Single-order messages keep `order_id` as-is; the join table
-  is only written for groups.
-- **Templates:** add `v_pickup_group` (tier 2) and `v_pickup_digest` (tier 3) to
-  `MessageTemplate`, `VENDOR_BODY`, and `REPLY_ROUTES` (digest gets **no** digit routes — an
-  unmapped digit already lands in review via the `unmapped` outcome, `sms.ts:210-211`; with the
-  §4 gate it bounces instead).
-- **Send path:** `setPatientStatus()` groups its own `pickups_triggered` per vendor before
-  sending (tier 1 vs 2 falls out of group size); the watchdog accumulates per-vendor pickup
-  requests and flushes on tick for tier 3.
-- **Gate:** one `COUNT(*)` over unanswered outbound vendor questions in `routeDigit()` before the
-  action dispatch; ≥2 → the bounce prompt. ~15 lines.
-- **Tests** (the invariants that must be pinned): group digit-1 writes N `pickup_scheduled`
-  events with group provenance; digest carries no digit routes; the gate bounces at 2+ open
-  questions and stays out of the way at 1; `f_pickup_notice` fires once per household; eta stays
-  null on group digit-1.
-- Rough order: gate → tier 2 → tier 3 → driver stop view. First two are small; tier 3 adds the
-  flush queue; the stop view is a real FE lift.
+  is only written for groups. `messages.reply_slot` already exists and needs no change: a group
+  message owns one pair like any other question.
+- **Templates:** add `v_pickup_group` (tier 2) and, if tier 3 survives §10.4, `v_pickup_digest` to
+  `VendorTemplate`, `VENDOR_BODY`, and `VENDOR_ROUTES`. The digest gets **no** entry — it is
+  informational, exactly like the shipped `v_backlog_digest`, and the route-table integrity test
+  in `tests/sms.test.ts` already asserts that digests never appear in the route tables.
+- **Bodies take their digits:** every question template now renders from the pair it was allocated
+  (`orderRequestText(order, area, digits)` and friends), and the group body must do the same —
+  "reply 5 for the whole stop, 6 to give us a window". There is deliberately no default pair; a
+  template that hardcodes 1/2 is a bug the type checker will catch.
+- **Send path:** `setPatientStatus()` groups its own `pickups_triggered` per vendor before sending
+  (tier 1 vs 2 falls out of group size), and calls `sendVendorQuestion()` once for the group
+  rather than once per order — that one call is what collapses N pairs into one. The watchdog
+  accumulates per-vendor pickup requests and flushes on tick for tier 3.
+- **~~Gate~~ — do not build.** See §4. Ownership already does this work, and a `COUNT(*)` bounce
+  at 2+ open questions would break correctly-addressed replies. If you are reading this section
+  looking for the ~15-line change, the 15 lines are already in `server/slots.ts`.
+- **Tests** (the invariants that must be pinned): the group affirmative writes N
+  `pickup_scheduled` events with group provenance; a group message consumes exactly one pair; the
+  digest carries no digit routes; `f_pickup_notice` fires once per household; eta stays null on
+  the group affirmative; and a digit owned by a group applies to every order in it and to nothing
+  outside it.
+- Rough order: tier 2 → reconcile the digests (§10.4) → tier 3 trigger → driver stop view. Tier 2
+  is now the small one and carries most of the value; the stop view is a real FE lift.
 
 ## 9 · Explicitly rejected
 
@@ -206,7 +311,11 @@ Stated as invariants so a future implementer can't trade them away:
   answer, and a wrong bulk yes writes four confident-looking lies onto the board. Visibility
   argues for fewer, truer signals — the portal gives four real answers for one tap each.
 - **Per-order sender numbers** (thread-per-order). Real gateways make this cost-prohibitive and
-  it destroys the one-thread-per-vendor mental model the phones are built on.
+  it destroys the one-thread-per-vendor mental model the phones are built on. *Independently
+  reached and rejected during the rotating-codes work for the same reasons, plus one more: a
+  number pool does not survive a vendor with thirty open orders, which is exactly the volume
+  where you need it. Worth saying on stage — it shows we know the medium — but as the thing we
+  chose against, not the thing we are missing.*
 - **Marking digest orders "seen/acknowledged"** on link tap. Opening a list is not a commitment;
   inferring anything from it would be exactly the evidence inflation §7.3 forbids.
 
@@ -218,14 +327,33 @@ Stated as invariants so a future implementer can't trade them away:
 2. Digest refresh policy when the list changes materially (2 waiting → 6 waiting) before any
    portal visit: silent, or one "now 6 waiting" update per silence-ladder window?
 3. Does the tier-2 group message get its own nag wording, or does the standard per-order nag
-   ladder take over on the group's orders individually? (Lean: group nag, same fan-out rules.)
+   ladder take over on the group's orders individually? (Lean: group nag, same fan-out rules —
+   and note the pair-reuse rule makes this nearly free, since a group nag would reuse the group's
+   own pair the way an ack-nag reuses its order's.)
+4. **Reconcile tier 3 with the shipped `v_backlog_digest`.** They are one message with two
+   triggers: burst size (this spec) versus reply pairs exhausted (built). Burst size catches a
+   flood the moment it is sent; exhaustion catches a backlog however it accumulated, including
+   slowly. They are not mutually exclusive and the honest answer is probably "fire on either,
+   share one body and one rate limit" — but two digests racing each other in a thread is exactly
+   the spam wall this spec opposes, so it needs deciding rather than assuming. Whichever wins
+   should keep the shipped behaviour of counting open orders from the same call the link lands on.
+5. Does tier 2 group across *directions*? A household with a delivery arriving and a pickup owed
+   is one address but two errands, and §3's cross-intent rule says never merge templates. (Lean:
+   no — that rule is right, and the driver stop view (§6) is where the two are rejoined.)
 
 ## Pitch integration
 
 - **Q&A pocket** (do not volunteer): *"When a vendor has twenty of these, texts collapse into one
   digest and the portal becomes the workspace — but we batch the asking, never the answering:
   every order keeps its own confirmation, its own clock, and its own escalation, no matter how we
-  packaged the text. Designed, not built this weekend — same status as the voice fork, and I'll
-  say so."*
-- If a judge notices the flooded thread on a phone sim, this spec is the answer, by name.
-- Do **not** add this to the SLIDES show-off inbox — that list is for built things.
+  packaged the text. The digest is built; the trip grouping above it is designed, not built this
+  weekend — same status as the voice fork, and I'll say so."*
+- **Split the claim carefully now that half of this shipped.** Built: rotating reply codes, the
+  unowned-digit bounce, and the backlog digest — those belong on stage and in the SLIDES show-off
+  inbox, and one line is already there. Designed only: trip grouping (tiers 1–2), the burst-size
+  trigger, and the driver stop view. Claiming the trip story as built would be exactly the
+  manufactured precision FAQ §6 penalises, and the built half is strong enough not to need it.
+- If a judge notices the flooded thread on a phone sim, this spec is the answer, by name — and
+  the honest version of that answer is "the four texts are now individually answerable, and
+  collapsing them into one is designed and next."
+- Do **not** add the unbuilt tiers to the SLIDES show-off inbox — that list is for built things.
