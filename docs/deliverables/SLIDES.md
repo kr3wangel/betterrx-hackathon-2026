@@ -82,6 +82,7 @@ what we put above it.*
 - FAQ §3 gave every team the SMS/magic-link floor — we don't claim it
 - Above it: **silence ladder · verified vs reported · nurse-primary pickup**
 - **The household grades the equipment — not the vendor**
+- One death → one text → one trip
 - Half a rolodex is landlines → rung 1 is channel-agnostic
 
 **Presenter says**
@@ -101,6 +102,13 @@ what we put above it.*
 > evidence, and a 'delivered' with no photo and no signature opens its own escalation. And the
 > **pickup trigger sits in the nurse's hand** in the living room, with the EMR as the backup, which
 > is the ordering your §8 asked for."
+>
+> **The trip beat:** "When a patient dies with two machines in the house, the vendor doesn't get two
+> texts — they get one: *pick up both, reply one digit.* We batch the **asking**, never the
+> **answering** — each order keeps its own clock, its own escalation, its own proof-of-pickup, and
+> there is no 'trip' object anywhere in the system. One digit back writes the schedule onto both
+> orders, and the grieving family gets one notice instead of two. An item the vendor can't take that
+> day is named and skipped, not silently dropped."
 >
 > **The condition beat** (your CEO asked for this by name this morning): "And one more, because
 > every signal I've just described still comes from the vendor. Your §9 called equipment condition a
@@ -126,6 +134,10 @@ what we put above it.*
   the landline Q&A bullet.
 - [INTEGRATION-SKETCH.md](INTEGRATION-SKETCH.md) §5 → the shelved voice rung (say "spec'd, cut on
   purpose" — never imply it runs).
+- [DEMO-SCRIPT.md](DEMO-SCRIPT.md) scenario 2 → the trip-batching beat (one text for both pickups);
+  the invariant lives in `server/pickups.ts` + `v_pickup_group` (`server/sms.ts`), test-covered
+  (`tests/pickups.test.ts`, `tests/sms.test.ts`). Honest edge: the *driver's* grouped stop view is
+  designed only — `/driver` still shows two cards, so don't claim a batched driver screen.
 
 ---
 
@@ -179,6 +191,7 @@ names, nothing else.*
 - One state machine, one append-only ledger
 - DME rides the pipe medications already ride
 - **Haiku only where rules can't go**; a tap needs no model
+- **Reply-code addressing is arithmetic, not a model**
 - **0.8 confidence gate → human review queue**
 - **~$0.003–0.006 per order, measured**
 - Hospice pays PPD, bundled with pharmacy PPD (your §5)
@@ -218,6 +231,13 @@ flowchart LR
 > the parse only auto-applies at **confidence ≥ 0.8 with a resolved order**; everything else lands
 > in a review queue where a person decides. With no API key at all, the pipeline degrades *to the
 > queue* rather than guessing."
+>
+> "One more place we refused to spend the model: a vendor with several open questions in one SMS
+> thread. SMS is one flat thread with no reply-to, so 'just reply 1' quietly loses every question but
+> the newest. We gave each open question a rotating digit-pair printed in its own text, so a bare '7'
+> texted back days later routes to the right order by **arithmetic** — no reply-to header, no
+> inference, no confidence score. We solved the addressing without a model, and spend Haiku only on
+> the sentence a dispatcher actually types in prose."
 >
 > "It runs on Haiku 4.5 because it's extraction, not reasoning: about 620 input and 50 output tokens
 > per message, roughly **a tenth of a cent per message and $0.003 to $0.006 per order end to end**,
@@ -295,10 +315,10 @@ has no home, the deck is broken, not the row.
 
 | Row | Weight | Where it gets its evidence |
 |---|---|---|
-| **Differentiation** | 30% | **Slide 2** names the FAQ §3 floor out loud and refuses to claim it, then puts four things above it — silence ladder, verified-vs-reported, nurse-primary pickup, and the **caregiver condition channel** (the sponsor's §9 differentiator, raised again by the CEO at the briefing, and the only signal in the system that doesn't originate with the vendor). **Demo beat 5b** *shows* the silence ladder nag and escalate live, which is the one beat that is never cut. |
+| **Differentiation** | 30% | **Slide 2** names the FAQ §3 floor out loud and refuses to claim it, then puts five things above it — silence ladder, verified-vs-reported, nurse-primary pickup, the **trip-batched pickup** (one text for the whole trip; we batch the asking, never the answering, so per-order clocks stay intact), and the **caregiver condition channel** (the sponsor's §9 differentiator, raised again by the CEO at the briefing, and the only signal in the system that doesn't originate with the vendor). **Demo beat 5b** *shows* the silence ladder nag and escalate live, which is the one beat that is never cut. |
 | **Core user problems** | 25% | **Slide 1** is the problem in the patient's own frame (the two unwatchable moments, quoted back in the sponsor's discovery language), and **demo beats 3–4** resolve both of them as outcomes — the saved discharge and the dignified pickup — across all three named hospice personas. |
 | **Architecture / integration** | 15% | **Slide 4's** diagram plus the `newDmeOrder`-as-sibling-of-`newMedications` mapping against BetterRX's real eRx payloads; the **Built vs. sketched** table ([INTEGRATION-SKETCH.md](INTEGRATION-SKETCH.md)) is the Q&A backup that lets a judge check every claim. |
-| **AI ROI** | 15% | **Slide 4's** AI block: one deliberate use (open-vocabulary parse where rules structurally cannot work), rules everywhere else, deterministic taps with no model, the 0.8 gate into a human review queue, and **measured** cost of ~$0.003–0.006/order — approach and honesty, per FAQ §6, not claimed accuracy. |
+| **AI ROI** | 15% | **Slide 4's** AI block: one deliberate use (open-vocabulary parse where rules structurally cannot work), rules everywhere else, deterministic taps with no model, **reply-code addressing resolved by arithmetic rather than inference**, the 0.8 gate into a human review queue, and **measured** cost of ~$0.003–0.006/order — approach and honesty, per FAQ §6, not claimed accuracy. |
 | **UX** | 15% | **The demo itself (slide 3)** carries this row: one obvious action per screen, plain words instead of state-machine terms, the nurse's one-tap pickup and the vendor's no-login one-tap confirm — say the sponsor's own bar back to the room while the board is up: *"think of your mom's least technical friend."* |
 
 **Rubric audit ritual** (`docs/BUILD-DAY-TASKS.md`): run this table twice — mid-day and pre-freeze.
@@ -323,7 +343,7 @@ script before code freeze. **If it isn't in this inbox, it won't be on stage.**
 - Those digits are now **tappable on both phones**: the vendor taps `1 · Accept` and the board flips `ordered → dispatched` with the reply badged *applied · no model needed*; the family taps `1 · Yes, it's here` and the condition check arrives underneath it in the same thread — `/vendor-phone` and `/caregiver` — slide 4 (AI honesty) + de-risks the scenario-3 climax if the portal page ever stalls
 
 - **Two trust levels in one text box:** on `/vendor-phone` a dispatcher types **1** against an open question and it resolves through the `template × digit` route table — **no model, no confidence score, nothing to review** — or types prose, which goes to Claude behind the 0.8 gate with the human queue underneath. Same thread, same ledger, and the UI labels them differently as they send ("sending…" vs "reading…"). There is deliberately **nothing to tap**: an SMS on a real handset has no buttons, so the demo doesn't invent any, and the server decides digit-vs-prose from the text itself the way a gateway would. `client/src/pages/VendorPhone.tsx` + `server/sms.ts` — **slide 4 (AI ROI): we spend the model only where the ambiguity is real, and here you can watch us not spend it**
-- **Send a vendor three texts at once and every one of them is still answerable.** SMS is one flat thread with no reply-to, so the honest failure of every "just reply 1" system is that a dispatcher answers whichever text is on top and the two underneath are buried forever — while the reminder bot nags them and pushes them further up. We gave each open question its own **reply pair** — (1,2) (3,4) (5,6) (7,8) (9,0) — printed in the message itself, so the vendor scrolls back to a text from Tuesday and it tells them which digits are its own. Five questions deep, answerable in any order, days apart, nothing to remember and nothing to install. Odd is always yes, so the habit still forms. **A digit nobody owns gets asked about, never guessed** — and the sixth question is refused rather than given a recycled code. `server/slots.ts` — **slide 4 (AI ROI): the addressing is arithmetic, not inference; we spend the model on prose and nothing else**
+- ~~**Send a vendor three texts at once and every one of them is still answerable** — each open question owns a rotating reply-pair printed in its own text, so a digit routes by ownership, no reply-to header, no model (`server/slots.ts`).~~ **HARVESTED (2026-08-15) → slide 4 bullet "reply-code addressing is arithmetic, not a model" + the new AI-honesty presenter beat.** (Details not carried onto the slide but true if a judge probes: five pairs deep, sixth question is refused rather than given a recycled code, odd is always yes so the habit holds.)
 - Sub-60s order placement with a live "why it matters" rail — the nurse sees the stakes (who, what, by when, which vendor) as she fills it, then it lands on the board instantly — `/order` (`client/src/pages/Order.tsx`) — slide 1 (discharge readiness)
 - One-tap nurse pickup: pick a patient → "went home" or "passed away" → equipment pickup auto-appears for the driver, with respectful copy the whole way — `/nurse` (`client/src/pages/Nurse.tsx`) — slide 2 (post-death pickup; the sponsor-preferred primary trigger, no EMR needed)
 - DON reports view: "phone calls that never happened" coral hero (265 auto-updates from the real event ledger) + vendor scorecards from real endpoints (Beehive surfaces at 62% on-time with a Saturday-CPAP routing hint) + cost-of-care and DON cost approvals — `/reports` (`client/src/pages/Reports.tsx`) — the reporting-cost + oversight slide
@@ -333,7 +353,7 @@ script before code freeze. **If it isn't in this inbox, it won't be on stage.**
 - **The backtest: the risk engine graded against a year it hadn't seen.** `npm run backtest` replays every seeded order tick by tick exactly as the watchdog would have lived it (state from the event ledger, no ETA before one was set, flags only count before the deadline): **caught 78% of late deliveries a median 8.7h early, false alarms on 27% of on-time orders (n=203)** — plus a 50/70/90 threshold sweep showing why 70. All SYNTHETIC and labelled as such; the false-alarm number stays in because most of those flags were reasonable when they fired — `scripts/backtest.ts`, written into AI-APPROACH.md — the AI-ROI slide (rules where rules win, and we measured them)
 - **The ledger now records which hat acted, not just which building.** Every internally-driven event carries `actor_role` — place an order as Case Manager and the timeline reads "Order placed · by Case Manager"; switch roles and cancel, and it says so. Mock auth (trusted header, recorded not verified — say it that way) — order timeline in the board's row detail — the audit-trail beat in scenario 1
 - **Vendor responsiveness, measured from the texts themselves.** Every question we text a vendor carries a sent timestamp and, once a reply resolves it, an answered one — so the same panel shows median time-to-answer and the share of questions never answered at all (ignored only after 24h; younger ones are still in play). Beehive sits on a question for a median ~8.6h and never answers ~32% of them; Wasatch answers in ~40 minutes. That's the "does the channel even work with this vendor" number, and no phone-call workflow could ever produce it — "Contract leverage" panel on `/reports` — oversight slide / AI-ROI Q&A (the measurement is free because the questions are already structured)
-- **One death, one text, one trip.** Ruth dies with a hospital bed and an oxygen concentrator in the house — one truck, one door, one decision — so the vendor gets **one** text, not two: *"Pickup needed — 2 items from one home (hospital bed, oxygen concentrator), area Ogden… Reply 1 if you can get both today, 2 to give us a window."* It spends **one** of that vendor's five reply codes, which means the code space counts *stops* rather than items. One digit back writes a `pickup_scheduled` on **both** orders (receipt: *"applied to 2 orders · no model needed"*, ledger: *"group reply · no model"*), the family gets one notice rather than two, and an item that can't take it is skipped and named instead of aborting the trip. The invariant is the pitch: **we batch the asking, never the answering** — per-order clocks, escalations and PODs are untouched, and there is no `trips` table. Scenario 2, Wasatch's thread on `/vendor-phone` (`server/pickups.ts` + `v_pickup_group` in `server/sms.ts`) — **slide 2 (the scenario-2 / post-death pickup beat)**. Honest edge: the *driver's* grouped stop view is designed only, so `/driver` still shows two cards.
+- ~~**One death, one text, one trip** — a death with two machines in the house sends the vendor one pickup text spending one reply code; one digit writes `pickup_scheduled` on both orders, family gets one notice, an item the vendor can't take is named and skipped. Invariant: **batch the asking, never the answering** — per-order clocks/escalations/PODs untouched, no `trips` table (`server/pickups.ts` + `v_pickup_group` in `server/sms.ts`).~~ **HARVESTED (2026-08-15) → slide 2 on-slide bullet "One death → one text → one trip" + the new "trip beat" presenter block + rubric Differentiation row.** Honest edge kept live: the *driver's* grouped stop view is designed only, so `/driver` still shows two cards — carried into slide 2's "Steal from" so the slide-maker doesn't over-claim a batched driver screen.
 - 
 - 
 - 
