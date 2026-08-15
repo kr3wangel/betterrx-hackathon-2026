@@ -6,6 +6,7 @@ import {
   orderToken,
   orderLink,
   magicLink,
+  demoLinks,
   resolveOrderToken,
   portalOrders,
   portalConfirm,
@@ -41,6 +42,15 @@ describe('magic link tokens', () => {
 
   it('rejects an unknown token', () => {
     expect(resolveToken('not-a-real-token')).toBeNull()
+  })
+})
+
+describe('demoLinks', () => {
+  it('lists every vendor with its own portal link', () => {
+    expect(demoLinks()).toEqual([
+      { vendor_id: 1, name: 'Vendor One', portal_link: magicLink(1) },
+      { vendor_id: 2, name: 'Vendor Two', portal_link: magicLink(2) },
+    ])
   })
 })
 

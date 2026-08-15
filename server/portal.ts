@@ -58,6 +58,18 @@ export function portalLink(vendorId: number): string {
   return `${baseUrl().replace(/^https?:\/\//, '')}/portal/${vendorToken(vendorId)}`
 }
 
+/**
+ * Every vendor's portal link, for the presenter launcher on `/demo`. Derived, never
+ * pasted: the same tokens already ride in every text we send, so this exposes nothing new.
+ */
+export function demoLinks(): { vendor_id: number; name: string; portal_link: string }[] {
+  const vendors = db.prepare('SELECT id, name FROM vendors ORDER BY id').all() as {
+    id: number
+    name: string
+  }[]
+  return vendors.map((v) => ({ vendor_id: v.id, name: v.name, portal_link: magicLink(v.id) }))
+}
+
 export function resolveOrderToken(token: string): Order | null {
   return listOrders().find((o) => orderToken(o.id) === token) ?? null
 }

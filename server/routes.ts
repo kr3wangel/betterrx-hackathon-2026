@@ -18,6 +18,7 @@ import { handleReply, handleVendorInbound, sendTemplate } from './sms'
 import { setPatientStatus } from './pickups'
 import { resolveTargetAt } from './sla'
 import {
+  demoLinks,
   resolveToken,
   resolveOrderToken,
   vendorToken,
@@ -232,6 +233,10 @@ routes.post('/portal/:token/capacity', (req, res) => {
   const vendor = resolveToken(req.params.token)
   if (!vendor) return res.status(404).json({ error: 'unknown link' })
   res.json(declareCapacity(vendor.id, Number(req.body?.stops)))
+})
+
+routes.get('/demo/links', (_req, res) => {
+  res.json(demoLinks())
 })
 
 routes.get('/vendors/load', (_req, res) => {

@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useMemo, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import { ExternalLink } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '../lib/api'
 import { expectOwn } from '../lib/expectedEvents'
@@ -43,9 +44,86 @@ const TEMPLATES: { value: MessageTemplate; label: string }[] = [
   { value: 'f_picked_up_thanks', label: 'Family — picked up, thank you' },
 ]
 
+interface DemoLink {
+  vendor_id: number
+  name: string
+  portal_link: string
+}
+
+interface Stop {
+  label: string
+  to?: string
+  external?: boolean
+  portalVendorId?: number
+}
+
+interface Scenario {
+  seed: string
+  name: string
+  stops: Stop[]
+}
+
+const SCENARIOS: Scenario[] = [
+  {
+    seed: 'scenario1',
+    name: 'Scenario 1 — the case worker’s save',
+    stops: [
+      { label: 'Board — Margaret Osei in Needs you; open the row, then Swap vendor', to: '/hospice' },
+      {
+        label: 'Vendor phone — the new vendor’s thread; tap the magic link, then Confirm',
+        to: '/vendor-phone',
+        external: true,
+      },
+      {
+        label: 'Driver — switch the picker to the new vendor, then Start → Complete delivery, sign',
+        to: '/driver',
+      },
+    ],
+  },
+  {
+    seed: 'scenario2',
+    name: 'Scenario 2 — the nurse in the home',
+    stops: [
+      { label: 'Nurse — Ruth Nakamura → Passed away → Confirm, with care', to: '/nurse' },
+      { label: 'Board — the two pickups arrive as one grouped row', to: '/hospice' },
+      {
+        label: 'Vendor phone — Wasatch’s thread; type the digit the text itself names',
+        to: '/vendor-phone',
+        external: true,
+      },
+      { label: 'Driver — the two PICK UP cards → Complete pickup, sign', to: '/driver' },
+      {
+        label: 'Caregiver phone — the family’s sentence (optional)',
+        to: '/caregiver',
+        external: true,
+      },
+    ],
+  },
+  {
+    seed: 'scenario3',
+    name: 'Scenario 3 — the cold-start vendor',
+    stops: [
+      { label: 'Board — open Frank Delgado’s row (#1060, the vendor with no history)', to: '/hospice' },
+      { label: 'Vendor phone — Timpanogos’ thread, one outbound text', to: '/vendor-phone', external: true },
+      { label: 'Timpanogos portal — Confirm', portalVendorId: 4 },
+      { label: 'Vendor phone — Beehive’s thread, the nag that fires on its own', to: '/vendor-phone', external: true },
+      { label: 'Board — Eleanor Vance jumps into Needs you; open the row for the red sentence', to: '/hospice' },
+      { label: 'Reports — the directing nurse’s screen (the reporting beat that follows)', to: '/reports' },
+    ],
+  },
+]
+
 export default function Demo() {
   const { data: patients } = useLive(() => api.get<Patient[]>('/api/patients'))
   const { data: orders } = useLive(() => api.get<Order[]>('/api/orders'))
+  const [links, setLinks] = useState<DemoLink[]>([])
+
+  useEffect(() => {
+    api
+      .get<DemoLink[]>('/api/demo/links')
+      .then(setLinks)
+      .catch(() => setLinks([]))
+  }, [])
 
   return (
     <div className="mx-auto max-w-3xl space-y-8">
@@ -58,9 +136,143 @@ export default function Demo() {
         </p>
       </div>
 
+      <DemoFlows links={links} />
+
       <EmrFeed patients={patients ?? []} />
       <TemplateSend orders={orders ?? []} patients={patients ?? []} />
     </div>
+  )
+}
+
+function DemoFlows({ links }: { links: DemoLink[] }) {
+  return (
+    <section className="space-y-4">
+      <div>
+        <h2 className="font-display text-lg font-semibold tracking-tight text-foreground">
+          Demo flows
+        </h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Every stop in the script, in order. In-app stops open here; phones and vendor portals
+          open in a new tab.
+        </p>
+      </div>
+
+      {SCENARIOS.map((s) => (
+        <ScenarioCard key={s.seed} scenario={s} links={links} />
+      ))}
+
+      <VendorRail links={links} />
+    </section>
+  )
+}
+
+function ScenarioCard({ scenario, links }: { scenario: Scenario; links: DemoLink[] }) {
+  const command = `npm run db:reset && npm run seed ${scenario.seed}`
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{scenario.name}</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="rounded-[10px] border border-border bg-muted/40 px-3 py-2.5">
+          <div className="flex items-center justify-between gap-3">
+            <code className="min-w-0 truncate font-mono text-xs text-foreground">{command}</code>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="shrink-0"
+              onClick={() => {
+                navigator.clipboard
+                  .writeText(command)
+                  .then(() => toast.success('Seed command copied'))
+                  .catch(() => toast.error('Copy it by hand', { description: command }))
+              }}
+            >
+              Copy
+            </Button>
+          </div>
+          <p className="mt-1.5 text-xs text-muted-foreground">
+            …then hard-refresh every open tab. Seeding writes straight to SQLite and broadcasts
+            nothing.
+          </p>
+        </div>
+
+        <ol className="space-y-1.5">
+          {scenario.stops.map((stop, i) => (
+            <li key={stop.label} className="flex gap-2 text-sm">
+              <span className="w-4 shrink-0 text-right tabular-nums text-muted-foreground">
+                {i + 1}.
+              </span>
+              <StopLink stop={stop} links={links} />
+            </li>
+          ))}
+        </ol>
+      </CardContent>
+    </Card>
+  )
+}
+
+function StopLink({ stop, links }: { stop: Stop; links: DemoLink[] }) {
+  const className = 'text-foreground underline-offset-4 hover:text-primary hover:underline'
+
+  if (stop.portalVendorId !== undefined) {
+    const href = links.find((l) => l.vendor_id === stop.portalVendorId)?.portal_link
+    if (!href) return <span className="text-muted-foreground">{stop.label}</span>
+    return (
+      <a href={href} target="_blank" rel="noopener noreferrer" className={className}>
+        {stop.label}
+        <ExternalLink className="ml-1 inline size-3 align-[-1px] text-muted-foreground" />
+      </a>
+    )
+  }
+
+  if (stop.external) {
+    return (
+      <a href={stop.to} target="_blank" rel="noopener noreferrer" className={className}>
+        {stop.label}
+        <ExternalLink className="ml-1 inline size-3 align-[-1px] text-muted-foreground" />
+      </a>
+    )
+  }
+
+  return (
+    <Link to={stop.to!} className={className}>
+      {stop.label}
+    </Link>
+  )
+}
+
+function VendorRail({ links }: { links: DemoLink[] }) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Vendor portals</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <p className="text-sm text-muted-foreground">
+          The same magic links the vendors are texted — for when a link in a thread won’t open.
+        </p>
+        {links.length === 0 ? (
+          <EmptyState title="No vendors seeded" description="Run the seed, then reload." className="py-8" />
+        ) : (
+          <div className="grid gap-2 sm:grid-cols-2">
+            {links.map((l) => (
+              <a
+                key={l.vendor_id}
+                href={l.portal_link}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 rounded-[10px] border border-border bg-card px-3 py-2 text-sm transition-colors hover:border-primary"
+              >
+                <span className="min-w-0 truncate text-foreground">{l.name}</span>
+                <ExternalLink className="ml-auto size-3.5 shrink-0 text-muted-foreground" />
+              </a>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   )
 }
 
