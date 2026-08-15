@@ -49,6 +49,8 @@ import {
   type Vendor,
 } from '../shared/types'
 
+import { placeOrders, type OrderItem } from './orders'
+
 export const routes = Router()
 
 /**
@@ -103,29 +105,18 @@ routes.post('/vendors', (req, res) => {
 })
 
 routes.post('/orders', (req, res) => {
-  const { patient_id, vendor_id, hcpcs_code, equipment_name, quantity, urgency, target_at } = req.body
-  const resolvedUrgency = urgency ?? 'routine'
-  const result = db
-    .prepare(
-      'INSERT INTO orders (patient_id, vendor_id, hcpcs_code, equipment_name, quantity, urgency, target_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-    )
-    .run(
-      patient_id,
-      vendor_id,
-      hcpcs_code,
-      equipment_name,
-      quantity ?? 1,
-      resolvedUrgency,
-      resolveTargetAt(target_at, resolvedUrgency),
-    )
-  const orderId = Number(result.lastInsertRowid)
-  const order = applyEvent(orderId, 'order_placed', null, 'hospice', roleFrom(req))
-
-  const patient = db.prepare('SELECT * FROM patients WHERE id = ?').get(patient_id) as Patient | undefined
-  sendVendorQuestion(vendor_id, orderId, 'v_order_request', (digits) =>
-    orderRequestText(order, patient?.market ?? '', digits),
+  const { patient_id, vendor_id, hcpcs_code, equipment_name, quantity, urgency, target_at, items } = req.body
+  // Multi-item placements arrive as `items`; the classic single-item body still works.
+  const resolvedItems: OrderItem[] =
+    Array.isArray(items) && items.length
+      ? items
+      : [{ hcpcs_code, equipment_name, quantity }]
+  const orders = placeOrders(
+    { patient_id, vendor_id, urgency, target_at, items: resolvedItems },
+    roleFrom(req),
   )
-  res.status(201).json(order)
+  // Single order keeps its legacy shape; a bundle returns every row it created.
+  res.status(201).json(orders.length === 1 ? orders[0] : { orders })
 })
 
 routes.get('/orders', (req, res) => {

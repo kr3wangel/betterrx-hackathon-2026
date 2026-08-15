@@ -21,12 +21,13 @@ npm run typecheck && npm test                                        # it all st
 **Last verified against `main` on 2026-08-15 (afternoon)**, after trip batching (tier 2) merged on
 top of the overnight run (narration + handoffs + front door + P1/P2 sweep), the verified-vs-claimed
 panel (née contract leverage), rotating reply codes, the placement-anchored silence escalation,
-add-vendor-by-phone, the in-depth cost-of-care drill-down (`/reports/cost-of-care`), and the V5
-resupply scheduler (consumables + payer cadence, `server/resupply.ts`). `/` is a
+add-vendor-by-phone, the in-depth cost-of-care drill-down (`/reports/cost-of-care`), the V5
+resupply scheduler (consumables + payer cadence, `server/resupply.ts`), and delivery-side order
+batching (multi-item placements, one `v_order_group` text, `server/orders.ts`). `/` is a
 real landing page now, `surfaceLinks` lives in `client/src/lib/surfaces.ts` (the third command's
 file changed), and the counts above were re-derived by running the commands on the merged tree, not
-by arithmetic: **36 endpoints, 15 pages (16 route rows minus the `*` catch-all), 18 test files,
-293 tests**, typecheck clean. The new
+by arithmetic: **36 endpoints, 15 pages (16 route rows minus the `*` catch-all), 19 test files,
+300 tests**, typecheck clean. The new
 cost-of-care page adds no endpoint and no test (UI/routes stay test-free by convention). Test
 count: re-run the suite rather than trusting any doc — it has moved most of the times anyone has
 looked.
@@ -46,7 +47,7 @@ looked.
 | Route | Label | What it does |
 |---|---|---|
 | `/hospice` | Board | Case-manager board, rebuilt as v8: three sections (Needs you / On the way / Done) of five-slot rows, tap-open detail with risk reasons and evidence, escalation acknowledge, AI-parse review queue (confirm / reject), swap-vendor dialog. **The inline new-order form and the EMR simulator are no longer here** — ordering is `/order`, the EMR feed moved to `/demo` |
-| `/order` | New order | Place an order. SLA defaults applied by urgency — same-day for urgent, 24h routine. **Add a vendor by phone** inline under the vendor picker (`POST /api/vendors`, idempotent on phone number): service area picked per market chip (the patient's own market is locked in — dropping it would hide the vendor from the picker it was just added to), zero history, and their *first order text is their invite* — magic link, reply pair, portal already waiting. The V7 "identify, invite, activate from a cold start" rung, clickable. **Consumables resupply themselves (V5):** CPAP mask/filters and wound dressing carry their Medicare replacement schedule in the catalog (`resupply_days`); once a delivered consumable's payer window elapses, the watchdog places the next order on the same state machine (`server/resupply.ts`, vitest-covered) — actor `system`, ledger reads *"auto-resupply · payer cadence, no model"*, one successor ever, never for a deceased or discharged patient |
+| `/order` | New order | Place an order. SLA defaults applied by urgency — same-day for urgent, 24h routine. **Multi-item placements (order batching):** "+ Add another item" builds an admission bundle (bed + oxygen + walker) that stays one order row per item (state machine, risk, PODs untouched) but sends the vendor **one `v_order_group` text** — same manifest machinery as trip batching (`server/orders.ts` `placeOrders()`, manifest in `message_orders`), one reply pair for the bundle, one affirmative digit accepts everything (`applyGroup` fan-out, source `group reply`), the negative escalates every item so nothing is silently dropped. We batch the asking, never the answering — on the delivery side too now. **Add a vendor by phone** inline under the vendor picker (`POST /api/vendors`, idempotent on phone number): service area picked per market chip (the patient's own market is locked in — dropping it would hide the vendor from the picker it was just added to), zero history, and their *first order text is their invite* — magic link, reply pair, portal already waiting. The V7 "identify, invite, activate from a cold start" rung, clickable. **Consumables resupply themselves (V5):** CPAP mask/filters and wound dressing carry their Medicare replacement schedule in the catalog (`resupply_days`); once a delivered consumable's payer window elapses, the watchdog places the next order on the same state machine (`server/resupply.ts`, vitest-covered) — actor `system`, ledger reads *"auto-resupply · payer cadence, no model"*, one successor ever, never for a deceased or discharged patient |
 | `/nurse` | Nurse | Nurse-in-the-field status change. Death or discharge fires the pickup trigger directly, ahead of EMR propagation |
 | `/driver` | Driver | Phone-sized. Today's deliveries and pickups, POD capture: photo, signature, and a condition attestation |
 | `/reports` | Reports | Vendor scorecards, condition stats, calls-avoided counter (all four sub-counters printed, so the breakdown sums to the hero), pickup latency, DME spend, cost-threshold approvals (labelled `synthetic` — decisions aren't saved). The single-patient cost card carries a **View all patients** link to the drill-down below |
@@ -264,6 +265,7 @@ acknowledgement receipts). Core logic is covered; UI and routes deliberately are
 | `pickups.test.ts` | 9 | Pickup triggers, trip grouping per vendor |
 | `silence.test.ts` | 9 | Silence ladder, incl. placement-anchored escalation |
 | `resupply.test.ts` | 6 | V5 scheduler: payer window, one-successor idempotency, equipment never resupplied, deceased/discharged guard, ledger stamp |
+| `order-group.test.ts` | 6 | Order batching: one text + one pair per bundle, digit fan-out accepts all, decline escalates all, no family text, single item keeps v_order_request |
 | `evidence.test.ts` | 7 | Verified vs reported |
 | `pickup-clock.test.ts` | 6 | Pickup clocks |
 | `pods.test.ts` | 6 | POD capture and conditions |

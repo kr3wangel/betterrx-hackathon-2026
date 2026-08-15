@@ -159,6 +159,8 @@ export type VendorTemplate =
   | 'v_pickup_request'
   /** One question for a whole stop: N items, one household, one pair. Manifest in message_orders. */
   | 'v_pickup_group'
+  /** The delivery-side twin: one multi-item placement, one text, one pair. Manifest in message_orders. */
+  | 'v_order_group'
   /** Overflow: sent instead of a question once all five reply pairs are in use. Carries no digits. */
   | 'v_backlog_digest'
 
