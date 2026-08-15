@@ -462,6 +462,41 @@ one, so this is a stage direction, not a problem.
 | 3 | Click the magic link (new tab) | A page opens: vendor name, their open orders — **exactly one**, nothing else in the list — and **Confirm · Set ETA · Can't fill it** | "No login screen. No signup. No password reset email at 6pm on a Thursday." |
 | 4 | Tap **Confirm**, then `Cmd+W` → tab 1 | Frank's row pill flips **`Waiting on vendor` → `Accepted ✓`** live over SSE. The row does not move — it was never in trouble | "One tap. Deterministic — confidence 1.0, no model, nothing to review. The portal isn't something vendors adopt. **It's what's already waiting behind the link we sent them.**" |
 
+### 5a-alt · The rolodex, performed live (~60s) — **either this or 5a, never both**
+
+Same beat, stronger claim: instead of pointing at seeded Timpanogos, type a vendor into
+existence on stage. V7's "identify, invite, activate" becomes three things the audience watches
+happen. Costs ~15s over 5a (scenario runs ~1:45) — and the typing time is not dead air: it is
+exactly what covers the watchdog ticks 5b needs, so you arrive at the silence beat with the nag
+and escalation already landed. Decide at rehearsal which variant you're doing; don't improvise
+the choice on stage.
+
+| # | Click | What the audience sees | Presenter says |
+|---|---|---|---|
+| 1 | Tab: `/order` → patient **Harold Whitfield** (or Dorothy Chen — **never Frank or Eleanor**, their rows carry this scenario's beats) → keep Hospital bed / Urgent | The form filling in; the context rail naming the patient | "New admission, needs a bed — and the vendor I want isn't in our network. Yet." |
+| 2 | Under the vendor picker → **"Not listed? Add a vendor by phone…"** → type a name (*Alpine Mobility*) and **`385-555-0142`** → tick extra **Serves** chips or leave them → **Add vendor** | The inline form; the patient's market chip is locked on; toast: *"their first text — with their portal link — goes out when you place this order"* | "This vendor does not exist in our system. No contract, no account, no software. The hospice types their phone number in from its own rolodex — that's the entire recruitment step." |
+| 3 | **Place order** | Auto-navigates to the board, the new row highlighted under **On the way** | "Identified. Now watch the invite." |
+| 4 | Tab 7 `/vendor-phone` → picker → **Alpine Mobility** | **Exactly one text**: order details, a reply pair, the magic link | "This is everything we send them. This is the entire onboarding." |
+| 5 | Click the magic link (new tab) → **Confirm** → `Cmd+W` → tab 1 | Portal: vendor name, exactly one order, **Confirm · Set ETA · Can't fill it**. Back on tab 1 the row flips **`Waiting on vendor` → `Accepted ✓`** live | "Activated — one minute, start to finish. The portal isn't something they adopted. **It's what was already waiting behind the link we sent them.**" |
+
+**5a-alt traps (all verified live 08-15 on a scenario3 scratch server):**
+- **The phone number must not collide with a seeded vendor** (`801-555-0101/0202/…`).
+  `POST /api/vendors` is idempotent on phone — a collision *selects* the existing vendor
+  instead of creating yours, and the beat dies. `385-555-0142` is safe. Fat-fingering is
+  also safe: re-adding the same number never duplicates, it re-selects.
+- **The new order stays quiet by design** — measured risk 25 after the first tick, far
+  under the 70 threshold, so **Needs you · 0 survives** and Eleanor's row is still the only
+  one that moves in 5b. The only open escalation on the board is #1061's.
+- The phone simulator's vendor picker refreshes over SSE when the order broadcasts — the
+  new vendor is in the picker by the time you switch tabs. If it ever isn't, hard-refresh
+  tab 7.
+- **Don't tap the link or type the digit before the board beat** — same rule as scenario 1
+  step 3. The reply pair on the invite is scenario-3 ammunition only if you haven't spent it.
+- **Every reseed wipes the added vendor**, so rehearsal runs are clean and the same
+  name/number works every time.
+- If the typing feels risky on the day, fall back to 5a unchanged — seeded Timpanogos tells
+  the same story and the rolodex line stays narration.
+
 ### 5b · The silence (~45s)
 
 | # | Click | What the audience sees | Presenter says |
