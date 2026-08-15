@@ -5,7 +5,14 @@
 > **shadcn/ui** components themed with the tokens below. When in doubt, open the reference:
 >
 > **▶ Rendered reference:** [`docs/design/hospice-board-reference.html`](./design/hospice-board-reference.html) — open in a browser.
-> **Live artifact:** https://claude.ai/code/artifact/50c86f0a-c003-4ce9-a6cb-3c5b81c9e4bd
+> **Live artifact (board):** https://claude.ai/code/artifact/50c86f0a-c003-4ce9-a6cb-3c5b81c9e4bd
+>
+> **▶ Screen gallery:** [`docs/design/screens-gallery.html`](./design/screens-gallery.html) — order form, vendor status page, driver POD, vendor portal, DON reports.
+> **Live artifact (gallery):** https://claude.ai/code/artifact/29646341-54a2-47f5-bcbf-585f57ab1a38
+>
+> *The committed `.html` files are the source of truth (self-contained, work offline). The claude.ai
+> artifact URLs are the rendered versions — a future agent can `WebFetch` them, or re-render by editing
+> the HTML and re-publishing. To view all your artifacts, see the artifacts gallery on claude.ai.*
 
 ## The feel (in one line)
 
