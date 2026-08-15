@@ -3,8 +3,9 @@
 *Assumptions this document relies on: see [ASSUMPTIONS.md](ASSUMPTIONS.md).*
 
 *Rewritten for the magic-link vendor channel (team decision, `docs/PROBLEM-THESIS.md`). Every step
-below was checked against the code at commit `b1b7995`. Rehearse twice against the clock after code
-freeze.*
+below was checked against the code at commit `b1b7995`; the seed edits it used to ask for have since
+landed and every number quoted below was **read off a real seed + server run on 2026-08-14** (see
+"Numbers, and how to re-read them"). Rehearse twice against the clock after code freeze.*
 
 **Arc (north star):** heart open → mechanism middle → heart close. We open on Margaret, not on a
 board. The product is the meat in the middle; the family is the bread.
@@ -12,7 +13,8 @@ board. The product is the meat in the middle; the family is the bread.
 **Markers used below**
 - `[FE PENDING: x]` — backend works, no screen yet. This doubles as the FE teammate's checklist;
   every one is listed again in [FE punch list](#fe-punch-list).
-- `[SEED PENDING: x]` — needs a line in `scripts/seed.ts` before the beat lands as written.
+- `[SEED PENDING: x]` — needed a line in `scripts/seed.ts` before the beat landed as written.
+  **None remain**: every seed edit this script asked for is in `scripts/seed.ts` (see pre-demo §1).
 - `[BLOCKED: x]` — cannot work as described today, even with FE time, without new backend.
 - `[QUIRK: x]` — works, but behaves in a way that will bite you on stage if you don't know it.
 
@@ -40,56 +42,35 @@ then the reporting beat. **Never cut scenario 3's silence variant** — it is th
 
 ## Pre-demo checklist
 
-**1. Seed edits this script assumes.** Three small `scripts/seed.ts` changes; without them the names
-on screen contradict the words coming out of the presenter's mouth.
+**1. Seed state — `[SEED PENDING]` items are all landed.** `scripts/seed.ts` now produces exactly
+what this script narrates; nothing has to be hand-edited before the demo. What changed, and why it
+matters on stage:
 
-```diff
-  # scenario 1 — the cold open is Margaret's bed, so her name has to be on the card
-- if (scenario === 'scenario1') {
--   seedOrder(1042, 1, 2, 0, 'ordered', 16, null)
--   seedOrder(1043, 1, 2, 1, 'dispatched', 16, 12)
-+ if (scenario === 'scenario1') {
-+   seedOrder(1042, 3, 2, 0, 'ordered', 16, null)   // patient 3 = Margaret Osei
-+   seedOrder(1043, 3, 2, 1, 'dispatched', 16, 12)
-
-  # scenario 2 — the prescribed closing line names Ruth (patient 5), seed currently uses Harold (2)
-- } else if (scenario === 'scenario2') {
--   seedOrder(1050, 2, 1, 0, 'delivered', null, null)
--   seedOrder(1051, 2, 1, 1, 'delivered', null, null)
-+ } else if (scenario === 'scenario2') {
-+   seedOrder(1050, 5, 1, 0, 'delivered', null, null)  // patient 5 = Ruth Nakamura
-+   seedOrder(1051, 5, 1, 1, 'delivered', null, null)
-
-  # scenario 3 — needs a vendor with NO history (the cold start) and orders still awaiting a tap
-+ insertVendor.run(4, 'Timpanogos Home Medical', '801-555-0404', 'sms', 'Provo / Orem', 'Ray')
-+ // deliberately NO vendor_stats rows for vendor 4 — brand new, we have nothing on them
-- } else if (scenario === 'scenario3') {
--   seedOrder(1060, 3, 1, 0, 'dispatched', 20, null)
--   seedOrder(1061, 4, 1, 2, 'dispatched', 44, null)
-+ } else if (scenario === 'scenario3') {
-+   seedOrder(1060, 4, 4, 0, 'ordered', 20, null)   // Frank Delgado → the brand-new vendor
-+   seedOrder(1061, 1, 2, 2, 'ordered', 44, null)   // Eleanor Vance → Beehive: the link nobody taps
-```
-
-`[SEED PENDING]` **Backdating (strongly recommended, ~10 lines).** The silence ladder escalates with
-`No response to the automated check-in — order #1061 is still unconfirmed ${h}h after placement`,
-where `h` is *real* elapsed hours since the `order_placed` event (`server/watchdog.ts:57-58`). On a
-freshly seeded order that renders **"unconfirmed 0h after placement"** — a weak quote at the climax.
-Fix: let `seedOrder` write an explicit past `created_at` on the order row and its `order_placed`
-event (e.g. 5h ago) for #1061. Then set `ACK_NAG_HOURS=4`, `ACK_ESCALATE_HOURS=0`: the first
-watchdog tick sends the nag, the next one escalates, and the reason reads **"still unconfirmed 5h
-after placement."** Without the backdate, fall back to `ACK_NAG_HOURS=0` + `ACK_ESCALATE_HOURS=0`
-and accept the "0h" wording.
+| Landed in the seed | Why the script needs it |
+|---|---|
+| **Vendor 4 "Timpanogos Home Medical"**, inserted in every seed with **zero `vendor_stats` rows** | Scenario 3's cold start. Its portal token now resolves (it 404'd before); the risk engine says nothing about them because there is nothing to say. |
+| Scenario 1 → **Margaret Osei** (patient 3); scenario 2 → **Ruth Nakamura** (patient 5) | The cold open and the closing line name them out loud. |
+| Scenario 3 → #1060 (Frank Delgado) to **Timpanogos**, #1061 (Eleanor Vance) to **Beehive**, both in **`ordered`** | The silence ladder only runs on `ordered`. Both beats were dead before this. |
+| #1061 **backdated 5h** — order row *and* its `order_placed` event | The escalation reads "still unconfirmed **5h** after placement" instead of "0h". `requestAnchor()` reads the event, not just `created_at` (`server/watchdog.ts:18-25`). |
+| #1042 backdated **6h**, deadline pulled to **+12h** | Puts the hero card over the threshold on *every* demo date — a (vendor × code × weekday) stats cell holds only ~20 orders, so its on-time rate alone is too noisy to carry the beat. |
+| #1043 moved to **Canyon Home Medical** | The contrast card has to be genuinely healthy. It now scores ≤ 17 on every weekday. |
+| Each seeded order writes its outbound **`v_order_request`** message (same template `POST /orders` uses) | The vendor thread shows the real text with the real magic link before anyone clicks anything. |
+| A demo patient's *older* episodes are only materialized once closed | Marking Ruth deceased used to trigger **13** pickups (her share of the synthetic year). Now it triggers exactly the **2** the script promises. |
 
 **2. `.env` for the demo machine**
 
 ```bash
 ANTHROPIC_API_KEY=<real key>   # only needed for the S1 fallback path + Q&A parse demo
 PORT=3001
-ACK_NAG_HOURS=4                # with the backdate above; use 0 without it
-ACK_ESCALATE_HOURS=0           # escalate on the tick after the nag
+ACK_NAG_HOURS=4                # 5b's order is 5h old → nags on the first tick; 5a's is fresh → never
+ACK_ESCALATE_HOURS=0           # REQUIRED: escalate on the tick after the nag (default 2 = never, on stage)
 # PICKUP_WINDOW_HOURS — LEAVE UNSET (24).
 ```
+
+> `ACK_ESCALATE_HOURS=0` is the one setting the demo cannot do without: the ladder escalates only
+> once the nag itself is older than this, so at the default `2` the beat-5b banner never appears.
+> `ACK_NAG_HOURS` can stay at its default `2` — 5a's fresh order is still inside the grace window
+> either way. Verified live: nag at the boot tick, escalation 30s later, and **no** nag for 5a.
 
 > `[QUIRK]` Do **not** set `PICKUP_WINDOW_HOURS=0` "to demo the overdue path": the pickup clock now
 > correctly anchors to the `pickup_triggered` event (`pickupAnchor()` in `server/watchdog.ts`), but
@@ -114,10 +95,10 @@ rule: *seed, count to thirty, confirm the board looks right, then talk.*
 | 1 | `http://localhost:5173/hospice` | all |
 | 2 | `http://localhost:5173/vendor` | S1, S3 |
 | 3 | `http://localhost:5173/driver` | S1, S2 |
-| 4 | `http://localhost:5173/reports` | S6 · `[FE PENDING]` |
+| 4 | `http://localhost:5173/reports` | S6 · `[FE PENDING: reports page]` (both backend routes exist) |
 
 Phone (optional, for the driver POD): `/driver` over the venue LAN needs `server.host: true` in
-`client/vite.config.ts` — **not set today** `[FE PENDING: vite host]`. Laptop fallback works: the
+`client/vite.config.ts` — **set** (`vite.config.ts:17`), so this works. Laptop fallback works too: the
 POD submit only requires the **signature** (photo is optional, `Driver.tsx:88`), and "Take photo" on
 a laptop opens a file dialog, not a camera — so **sign with the trackpad and skip the photo** unless
 you're on a phone.
@@ -133,14 +114,34 @@ you're on a phone.
 | 3 Canyon Home Medical | `http://localhost:5173/portal/5c231c9153da814e84df` |
 | 4 Timpanogos Home Medical | `http://localhost:5173/portal/1c228237679004bcd506` |
 
-**6. Two rehearsal checks that only fail on the day**
-- Run scenario 1 once and look at what weekday `now + 16h` lands on. Vendor 1 is 62% on-time for
-  **hospital beds on Fridays** by design (`scripts/seed.ts:29`). If the deadline lands on a Friday,
-  swapping to Wasatch re-escalates the card ~30s later — **swap to Canyon Home Medical (90%)
-  instead** that day.
-- Confirm the cold-open story matches the clock. Seed deadlines are relative (`now + 16h`), so
-  "Friday morning / Thursday night" only lines up on a Thursday demo. Universal wording that is
-  always true: *"home tomorrow morning — the bed has to be there tonight."*
+All four verified live (`GET /api/portal/1c2282…` → 200, Timpanogos, one `ordered` order).
+
+**6. Numbers, and how to re-read them on demo morning.** Vendor rates are *derived* from a simulated
+year keyed to `Date.now()`, so a per-weekday cell moves when the demo date moves. **`npm run seed`
+prints everything this script quotes** — vendor on-time, each demo order's score and reasons, and a
+`swap options` line for any at-risk card. Read that print, then use these words. As of the
+**2026-08-14** run (deadlines landing Sat/Mon):
+
+| Figure | Value that day |
+|---|---|
+| Wasatch Medical Supply, all codes | **88%** on-time · pickups avg **24h** · condition **4.13/5** |
+| Beehive DME Co, all codes | **61%** on-time · pickups avg **73h** · condition **3.54/5** (17% rated 1–2) |
+| Canyon Home Medical, all codes | **88%** on-time · pickups avg **31h** · condition **4.12/5** |
+| Timpanogos Home Medical | **no history at all** — 0 `vendor_stats` rows |
+| #1042 (hero) | risk **100**, four reasons |
+| #1043 (contrast) | risk **17** |
+| #1060 (cold start) | risk **25**, one reason |
+| #1061 (the silence) | risk **58** — deliberately *under* 70, so nothing but the silence flags it |
+
+**Two rehearsal checks that only fail on the day**
+- **Which vendor to swap to.** The seed prints `swap options (<weekday> deadline): …` under #1042 —
+  say that vendor and that number. On 2026-08-14 it read *Wasatch 73% · Canyon 91%*, so Canyon was
+  the right swap; Beehive's bed cell swings between **27% and 87%** across weekdays and Wasatch's
+  drops to **61% on Fridays** (the planted Friday heavy-item weakness, `scripts/seed.ts`). Never
+  quote a number the print didn't just give you.
+- Confirm the cold-open story matches the clock. Seed deadlines are relative (`now + 12h` for the
+  hero), so "Friday morning / Thursday night" only lines up on a Thursday demo. Universal wording
+  that is always true: *"home tomorrow morning — the bed has to be there tonight."*
 
 ---
 
@@ -172,31 +173,34 @@ Now open tab 1.
 
 **Starting state (after the first watchdog tick):**
 - Board columns: **Ordered** holds #1042 *Hospital bed, semi-electric* for Margaret Osei / Beehive
-  DME Co — red ring, `risk 81`, due in 16h. **Dispatched** holds #1043 *Oxygen concentrator*
-  (risk 56, no ring — a healthy card for contrast).
+  DME Co — red ring, **risk 100**, placed 6h ago, due in 12h. **Accepted** holds #1043 *Oxygen
+  concentrator* for Margaret / Canyon Home Medical (**risk 17**, no ring — the healthy contrast).
 - A red escalation banner across the top: `1 escalation needs attention` with the joined reasons.
+  (It stays at one: `escalate()` refuses a second open escalation on the same order,
+  `statemachine.ts:80-84`. The ladder does quietly text Beehive a nag in the background — same card,
+  and the swap clears everything.)
 
 | # | Click | What the audience sees | Presenter says |
 |---|---|---|---|
-| 1 | *(none)* — point at the #1042 card | Risk 81, three plain-English reasons under the card: *"vendor is 72% on-time for Hospital bed, semi-electric on this weekday (n=25)"* · *"vendor has not accepted and deadline is in 16.0h"* | "Nobody called anyone to learn this. It's rules, not a model — every reason is a sentence a case manager can argue with." |
-| 2 | In the red banner → **Swap vendor…** → *Wasatch Medical Supply (92% on-time)* | Banner clears (escalation auto-resolved, `routes.ts:71`), card returns to **Ordered** with the new vendor, risk badge gone (cleared on swap, `statemachine.ts:55`) | "One action. The order re-issues to a vendor who is 92% on-time, and the text goes out on its own." |
-| 3 | Tab 2 `/vendor` → vendor picker → **Wasatch Medical Supply** | Phone thread shows the outbound: *"New order #1042: 1x Hospital bed… Confirm here: http://localhost:5173/portal/…"* | "That's the entire vendor onboarding. A text with a link." |
-| 4 | Click the link → portal page → **Confirm** (with ETA) | `[FE PENDING: portal page]` No-login page for Wasatch's open orders; board flips #1042 to **Dispatched** live | "No login. One tap. Confidence 1.0 — no model involved in a vendor telling us yes." |
-| 5 | Tab 3 `/driver` → vendor **Wasatch** → **Start delivery** → **Complete delivery** → sign → **Submit proof of delivery** | Card walks **In transit → Delivered**; a `✓ Verified` badge on the delivered card `[FE PENDING: badge]` | "Delivered isn't a claim here. It's a signature and a timestamp — **verified**, not vendor-reported. Margaret's bed is in the house tonight." |
+| 1 | *(none)* — point at the #1042 card | Risk 100 and four plain-English reasons: *"vendor is 27% on-time for Hospital bed, semi-electric on this weekday (n=26)"* · *"12.0h until deadline but vendor averages 15.9h for this equipment"* · *"vendor has not accepted and deadline is in 12.0h"* · *"vendor has not acknowledged the order 6.0h after placement"* | "Nobody called anyone to learn this. It's rules, not a model — every reason is a sentence a case manager can argue with." |
+| 2 | In the red banner → **Swap vendor…** → the vendor the seed's `swap options` line named (Canyon Home Medical, 91% on that run) | Banner clears (escalation auto-resolved, `routes.ts:71`), card returns to **Ordered** with the new vendor, risk badge gone (cleared on swap, `statemachine.ts:55`) | "One action. The order re-issues to a vendor who is 91% on-time for this equipment on this day, and the text goes out on its own." |
+| 3 | Tab 2 `/vendor` → vendor picker → the new vendor | Phone thread shows the outbound: *"New order #1042: 1x Hospital bed… Confirm here: http://localhost:5173/portal/…"* | "That's the entire vendor onboarding. A text with a link." |
+| 4 | Click the link → portal page → **Confirm** (with ETA) | No-login page listing that vendor's open orders; board flips #1042 to **Accepted** live | "No login. One tap. Confidence 1.0 — no model involved in a vendor telling us yes." |
+| 5 | Tab 3 `/driver` → the same vendor → **Start delivery** → **Complete delivery** → sign → **Submit proof of delivery** | Card walks **On the truck → Delivered**; a `✓ Verified` badge on the delivered card | "Delivered isn't a claim here. It's a signature and a timestamp — **verified**, not vendor-reported. Margaret's bed is in the house tonight." |
 
 **Read this before you rehearse:**
-- `[FE PENDING: portal page]` — `GET /api/portal/:token`, confirm / ETA / decline all exist
-  (`server/portal.ts`, `routes.ts:118-141`); there is **no `/portal/:token` route in
-  `client/src/App.tsx`**. Step 4 is the only thing standing between backend and beat.
-- **Fallback if the portal page isn't built by freeze:** in the same phone simulator, type
+- The `/portal/:token` page, the plain-language state labels and the `✓ Verified` badge have all
+  **shipped** (`client/src/pages/VendorPortal.tsx`, `client/src/lib/domain.ts:9-18`,
+  `client/src/components/EvidenceBadge.tsx`). Steps 4 and 5 are clicks now, not narration.
+- Risk 100 is not a fluke of the demo date: the card was re-checked against all seven possible
+  deadline weekdays and scores **75–100** on every one, while #1043 never exceeds **17**.
+- **Fallback if the portal page misbehaves:** in the same phone simulator, type
   *"yes, we'll have it there by 7am"* → Claude parses it → confidence ≥ 0.8 auto-applies →
-  **Dispatched**. Needs `ANTHROPIC_API_KEY`. Say: *"a vendor who won't tap can just text back — same
+  **Accepted**. Needs `ANTHROPIC_API_KEY`. Say: *"a vendor who won't tap can just text back — same
   pipeline, one extra safety gate."*
-- `[FE PENDING: plain-language labels]` — the board still reads `Dispatched` / `In transit`. The
-  thesis bar is "Accepted" / "On the truck". Presenter says the plain words either way; the mismatch
-  is visible on screen until `STATE_LABEL` in `client/src/lib/domain.ts` is reworded.
-- `[QUIRK]` The middle risk reason renders as *"16.0h until deadline but vendor averages 16.0h"* —
-  true but reads like a rounding artifact. Read the other two aloud.
+- The old `[QUIRK]` about *"16.0h until deadline but vendor averages 16.0h"* is gone — the deadline
+  moved to +12h, so that reason now reads *"12.0h until deadline but vendor averages 15.9h"*. It is
+  the single best line on the card; read it aloud.
 
 ---
 
@@ -216,6 +220,9 @@ both for **Ruth Nakamura**, vendor Wasatch. No risk, no deadlines. Ruth is `acti
 | 5 | Point at the timeline | `family_notified` event | **"Ruth's family made zero phone calls. That's the product."** |
 
 **Read this before you rehearse:**
+- "Two pickups" is now literally two: the trigger returns `pickups_triggered: [1050, 1051]`. Before
+  the seed fix it returned **13** — Ruth's share of the synthetic year was still sitting in
+  `delivered`, and every one of them fired a pickup text into Wasatch's thread.
 - `[FE PENDING: nurse screen]` — the backend route is live and is the *preferred primary* trigger:
   `POST /api/patients/:id/status {status:'deceased'}` → actor `hospice`, `payload.source:'nurse'`
   (`server/pickups.ts:26`). Needs a phone-shaped screen (patient list → "Died / Discharged" →
@@ -240,8 +247,10 @@ both for **Ruth Nakamura**, vendor Wasatch. No risk, no deadlines. Ruth is `acti
 seed time and you want the nag and the escalation to land live, on stage, during this scenario.
 
 **Starting state:** **Ordered** column holds #1060 *Hospital bed* for Frank Delgado → **Timpanogos
-Home Medical** (a vendor with zero history — no stats rows), and #1061 *Standard wheelchair* for
-Eleanor Vance → Beehive DME Co. No red banner yet.
+Home Medical** (a vendor with zero history — no stats rows; risk **25**, one reason, no ring), and
+#1061 *Standard wheelchair* for Eleanor Vance → Beehive DME Co (risk **58** — under the threshold on
+every deadline weekday it can land on, deliberately: nothing but the silence is allowed to flag it).
+No red banner yet.
 
 ### 5a · The tap (~45s)
 
@@ -249,8 +258,8 @@ Eleanor Vance → Beehive DME Co. No red banner yet.
 |---|---|---|---|
 | 1 | Point at #1060 on the board | Ordered, no risk history, vendor "Timpanogos Home Medical" | "This vendor has never heard of us. No contract, no account, no software. The hospice typed their phone number in from its own rolodex." |
 | 2 | Tab 2 `/vendor` → **Timpanogos Home Medical** | One outbound text: order details + `Confirm here: …/portal/1c22…` | "This is everything we send them." |
-| 3 | Click the magic link | `[FE PENDING: portal page]` A page opens: vendor name, their open orders, **Confirm · Set ETA · Can't fill it** | "No login screen. No signup. No password reset email at 6pm on a Thursday." |
-| 4 | Tap **Confirm** | Tab 1: #1060 flips **Ordered → Dispatched** live over SSE | "One tap. Deterministic — confidence 1.0, no model, nothing to review. The portal isn't something vendors adopt. **It's what's already waiting behind the link we sent them.**" |
+| 3 | Click the magic link | A page opens: vendor name, their open orders, **Confirm · Set ETA · Can't fill it** | "No login screen. No signup. No password reset email at 6pm on a Thursday." |
+| 4 | Tap **Confirm** | Tab 1: #1060 flips **Ordered → Accepted** live over SSE | "One tap. Deterministic — confidence 1.0, no model, nothing to review. The portal isn't something vendors adopt. **It's what's already waiting behind the link we sent them.**" |
 
 ### 5b · The silence (~45s)
 
@@ -261,14 +270,16 @@ Eleanor Vance → Beehive DME Co. No red banner yet.
 | 7 | Point at the **Swap vendor…** control in that banner | The same one-action escape hatch from scenario 1 | "And the case manager's next move is already sitting in the alert." |
 
 **Read this before you rehearse:**
-- `[FE PENDING: portal page]` — same single missing screen as scenario 1 step 4. **This is the
-  highest-value FE item in the repo**: without it the climax has no click.
-- Timing: with `ACK_NAG_HOURS=4` + the backdate, the nag fires on the first tick after the seed
-  (≤30s) and the escalation on the next (≤60s) — which is roughly when 5a ends. If you arrive early,
-  pause on the nag message and let the escalation appear live; if it hasn't, narrate it and move on.
-  **Never stand in silence waiting for a tick.**
-- Without the backdate, the escalation reads *"unconfirmed 0h after placement"* — say
-  *"we've compressed the clock for the demo; in production this ladder is hours."*
+- The portal page has **shipped** — step 3 is a real click, and the confirm was verified end to end
+  (`POST /api/portal/1c2282…/orders/1060/confirm` → `state: "dispatched"`).
+- Timing, measured: with `ACK_NAG_HOURS=4`, `ACK_ESCALATE_HOURS=0` and #1061's 5h backdate, the nag
+  goes out on the **first** tick (the boot tick, or ≤30s after the seed) and the escalation on the
+  **next** (≤60s) — roughly when 5a ends. #1060 is freshly placed and is never nagged. If you arrive
+  early, pause on the nag message and let the escalation appear live; if it hasn't, narrate it and
+  move on. **Never stand in silence waiting for a tick.**
+- The escalation text is verbatim: *"No response to the automated check-in — order #1061 is still
+  unconfirmed 5h after placement"*. It fires once and only once, and Beehive is nagged once and only
+  once (matched by template, `server/watchdog.ts:46-53`).
 - `[FE PENDING: evidence source on the timeline]` — portal taps write `payload.source: 'portal'`
   (`server/portal.ts:38`), but the Activity list shows only type + actor, so "confidence 1.0, no
   model" is a spoken claim with nothing on screen backing it. Rendering *"via magic link · no model"*
@@ -288,14 +299,15 @@ Eleanor Vance → Beehive DME Co. No red banner yet.
 | Vendor scorecards — on-time by equipment × weekday, the same table the risk engine reads | "The third hospice user is the directing nurse. She never opens the board. This is her screen — and it's the exact data the risk engine already uses, so it cost us nothing." |
 | A **"phone calls that never happened"** counter | "And this is the number we actually care about: every status this system got without a human picking up a phone." |
 
-- `[BLOCKED: no endpoint exposes per-code/weekday `vendor_stats`]` — `GET /api/vendors` returns only
-  `avg_on_time_rate` (`routes.ts:17-26`); the scorecard grid needs a small new route over
-  `vendorStats()` in `server/store.ts`. Three lines of backend, but it does not exist today.
-- `[BLOCKED: no counter endpoint]` — "phone calls that never happened" is derivable from
-  `order_events` (auto-applied vendor updates + portal confirms + auto-triggered pickups), but
-  nothing aggregates it yet.
-- If neither ships: **cut this beat entirely** and put the number on a slide, labelled as computed
-  from the event log. Do not mock a screen and call it live.
+- Both former `[BLOCKED]` markers are **stale — the backend shipped**:
+  `GET /api/reports/vendor-scorecards` and `GET /api/reports/summary` (`routes.ts:317,321`,
+  `server/reports.ts`), and `summary` already feeds the calls-avoided number on the board. Only the
+  `/reports` **page** is missing.
+- The calls-avoided figure counts the seeded synthetic year, not the demo. Wherever it appears it
+  needs the SYNTHETIC label — say "computed from the event log of a simulated year", never imply it
+  came from the five minutes on stage.
+- If the page doesn't ship: **cut this beat entirely** and put the number on a slide, labelled as
+  computed from the event log. Do not mock a screen and call it live.
 
 ---
 
@@ -329,22 +341,22 @@ Close the laptop or step away from it.
 
 Everything the demo needs that has no screen yet, in the order that buys the most demo.
 
-1. **`/portal/:token` page** — route in `App.tsx`, fetch `GET /api/portal/:token`, big
-   **Confirm / Set ETA / Can't fill it** buttons hitting `POST /api/portal/:token/orders/:id/{confirm,eta,decline}`.
-   Blocks **scenario 3's climax and scenario 1 step 4**. Backend is done.
+1. ~~**`/portal/:token` page**~~ — **DONE** (`client/src/pages/VendorPortal.tsx`, route in
+   `App.tsx:94`). Confirm / ETA / decline all wired; verified live against vendor 4's token.
 2. **Nurse status screen** — phone-shaped, patient list → "Died / Discharged" → confirm →
    `POST /api/patients/:id/status`. Blocks scenario 2's primary framing (EMR button is a fallback,
-   not a substitute).
-3. **`✓ Verified` vs `vendor-reported` badge** on `OrderCard` — driven by POD presence / event actor.
-   Blocks scenario 1's closing point.
-4. **Linkify magic links** in the vendor phone simulator (currently plain text).
-5. **Plain-language state labels** in `client/src/lib/domain.ts` — "Accepted", "On the truck",
-   "Picked up" instead of `Dispatched` / `In transit`.
+   not a substitute). **The one demo-critical screen still missing.**
+3. ~~**`✓ Verified` vs `vendor-reported` badge**~~ — **DONE** (`components/EvidenceBadge.tsx`, on the
+   card and per event in `OrderCard.tsx:124,179`).
+4. **Linkify magic links** in the vendor phone simulator (currently plain text). Demo-critical,
+   ~10 lines: without it both magic-link beats need a copy-paste on stage.
+5. ~~**Plain-language state labels**~~ — **DONE** (`client/src/lib/domain.ts:9-18`: "Accepted",
+   "On the truck", "Picked up").
 6. **Render `family_notified` payload text** on the order timeline — makes scenario 2's last beat
    land.
 7. **Render event `payload.source`** (`portal` / `vendor_message` / `nurse` / `emr`) on the timeline —
    turns "confidence 1.0, no model" into something visible.
-8. **`/reports` view** + the two small backend routes it needs (vendor scorecards, calls-never-made
-   counter). Cuttable.
-9. **`server.host: true`** in `client/vite.config.ts` — only needed to drive `/driver` from a real
-   phone with a real camera. Cuttable (sign on the trackpad instead).
+8. **`/reports` view** — the two backend routes it needs already exist
+   (`/api/reports/vendor-scorecards`, `/api/reports/summary`). Cuttable.
+9. ~~**`server.host: true`**~~ — **DONE** (`client/vite.config.ts:17`), so `/driver` runs from a real
+   phone on the venue LAN.

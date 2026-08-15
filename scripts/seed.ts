@@ -1,6 +1,8 @@
 import { db } from '../server/db'
+import { orderRequestText } from '../server/messaging'
 import { computeRisk, RISK_THRESHOLD } from '../server/risk'
 import { conditionCheckText } from '../server/condition'
+import { getOrder } from '../server/store'
 import { CATALOG, byCode } from '../shared/catalog'
 import type { Order, VendorStat } from '../shared/types'
 
@@ -87,7 +89,10 @@ const VENDORS: VendorProfile[] = [
     base_hours: 19,
     // National branch: nobody works the weekend, so Sat/Sun orders rot.
     weak_days: { 0: 0.3, 6: 0.28 },
-    weak_codes: {},
+    // Beds need the two-person truck this branch shares with three other counties. Applies
+    // on every weekday on purpose — the hero order's deadline lands on a different one each
+    // time the demo is run.
+    weak_codes: { E0260: 0.09 },
     pickup_hours: 61,
     notes: 'National branch, M–F 9–5. Slow, and pickups drift for days.',
   },
@@ -106,6 +111,21 @@ const VENDORS: VendorProfile[] = [
     notes: 'Regional. Steady, mild weekend softness.',
   },
 ]
+
+/**
+ * The cold start. Phone number out of the hospice's own rolodex, never used before, so it
+ * takes no part in the simulated year above and gets NO vendor_stats rows — scenario 3's
+ * whole point is a vendor we have nothing on. The risk engine must stay quiet about them
+ * rather than invent a rate.
+ */
+const COLD_START_VENDOR = {
+  id: 4,
+  name: 'Timpanogos Home Medical',
+  phone: '801-555-0404',
+  channel: 'sms',
+  service_area: 'Provo / Orem',
+  contact_name: 'Ray',
+}
 
 /**
  * Caregivers, not patients, are the contact for the condition channel. Hospice patients
@@ -262,7 +282,8 @@ for (const p of PATIENTS) insertPatient.run(p.id, p.name, 'active', p.address, p
 const insertVendor = db.prepare(
   'INSERT INTO vendors (id, name, phone, channel, service_area, contact_name) VALUES (?, ?, ?, ?, ?, ?)',
 )
-for (const v of VENDORS) insertVendor.run(v.id, v.name, v.phone, v.channel, v.service_area, v.contact_name)
+for (const v of [...VENDORS, COLD_START_VENDOR])
+  insertVendor.run(v.id, v.name, v.phone, v.channel, v.service_area, v.contact_name)
 
 // Vendor stats derived from the simulated year, not hand-typed.
 const insertStat = db.prepare(
@@ -325,8 +346,10 @@ const insertEvent = db.prepare(
 const insertPod = db.prepare(
   'INSERT INTO pods (order_id, kind, photo_path, signature_path, captured_at) VALUES (?, ?, ?, ?, ?)',
 )
-const insertMessage = db.prepare(
-  'INSERT INTO messages (order_id, vendor_id, direction, body, parsed, confidence, review_status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+// Mirrors what sendToVendor() writes for POST /orders — same template key, so the digit
+// router and the watchdog's nag de-dup both recognise a seeded thread.
+const insertVendorMessage = db.prepare(
+  "INSERT INTO messages (order_id, vendor_id, direction, body, recipient_type, template, created_at) VALUES (?, ?, 'out', ?, 'vendor', ?, ?)",
 )
 const insertEscalation = db.prepare(
   'INSERT INTO escalations (order_id, reason, status, created_at) VALUES (?, ?, ?, ?)',
@@ -339,10 +362,18 @@ const iso = (d: Date) => d.toISOString()
 let nextId = 2000
 let materialized = 0
 
+/**
+ * Patients the scenarios below put on stage. Their older episodes are materialized only
+ * once closed: a leftover `delivered` row joins the pickup cascade the moment the nurse
+ * marks the patient deceased, and scenario 2 promises the room exactly two pickups.
+ */
+const DEMO_PATIENTS = new Set([1, 3, 4, 5])
+
 for (const h of history.filter((x) => x.day_offset <= MATERIALIZE_DAYS)) {
+  const done = h.picked_up_at !== null
+  if (!done && DEMO_PATIENTS.has(h.patient_id)) continue
   const id = nextId++
   const item = byCode(h.code)!
-  const done = h.picked_up_at !== null
   insertOrder.run(
     id,
     h.patient_id,
@@ -419,8 +450,12 @@ function seedOrder(
   state: string,
   targetInHours: number | null,
   etaInHours: number | null,
+  placedHoursAgo = 0,
 ) {
   const item = byCode(code)!
+  // The silence ladder and the ack-SLA risk rule both measure from the order_placed event,
+  // so a backdated order has to move the event row too, not just created_at.
+  const placedAt = hours(-placedHoursAgo)
   insertOrder.run(
     id,
     patientId,
@@ -432,9 +467,16 @@ function seedOrder(
     targetInHours === null ? null : hours(targetInHours),
     state,
     etaInHours === null ? null : hours(etaInHours),
-    new Date().toISOString(),
+    placedAt,
   )
-  insertEvent.run(id, 'order_placed', null, 'hospice', new Date().toISOString())
+  insertEvent.run(id, 'order_placed', null, 'hospice', placedAt)
+  insertVendorMessage.run(
+    id,
+    vendorId,
+    orderRequestText(getOrder(id)!, PATIENTS.find((p) => p.id === patientId)?.market ?? ''),
+    'v_order_request',
+    placedAt,
+  )
   if (['dispatched', 'in_transit', 'delivered', 'pickup_pending'].includes(state)) {
     insertEvent.run(id, 'vendor_accepted', null, 'vendor', new Date().toISOString())
   }
@@ -454,19 +496,32 @@ const OXY = 'E1390'
 const CHAIR = 'K0001'
 const CPAP = 'E0601'
 
+/**
+ * Beehive is M–F 9–5, so a routine deadline that would land on their weekend is quoted for
+ * the Monday. Keeps #1061 off the at-risk panel on every demo date: scenario 3's second
+ * order has to be flagged by SILENCE, not by a weekend risk score that fires at seed time.
+ */
+function nextBusinessDeadline(h: number): number {
+  const day = new Date(Date.now() + h * 3_600_000).getDay()
+  return day === 6 ? h + 48 : day === 0 ? h + 24 : h
+}
+
 if (scenario === 'scenario1') {
-  seedOrder(1042, 1, 2, BED, 'ordered', 16, null)
-  seedOrder(1043, 1, 2, OXY, 'dispatched', 16, 12)
+  // A (vendor × code × weekday) cell holds ~20 orders, so its on-time rate swings either
+  // side of the risk rule's 85% and cannot carry this card alone. The 6h backdate and the
+  // 12h deadline are what hold it over the threshold on every demo date (75-100).
+  seedOrder(1042, 3, 2, BED, 'ordered', 12, null, 6)
+  seedOrder(1043, 3, 3, OXY, 'dispatched', 16, 12)
 } else if (scenario === 'scenario2') {
-  seedOrder(1050, 2, 1, BED, 'delivered', null, null)
-  seedOrder(1051, 2, 1, OXY, 'delivered', null, null)
+  seedOrder(1050, 5, 1, BED, 'delivered', null, null)
+  seedOrder(1051, 5, 1, OXY, 'delivered', null, null)
 } else if (scenario === 'scenario3') {
-  seedOrder(1060, 3, 1, BED, 'dispatched', 20, null)
-  seedOrder(1061, 4, 1, CHAIR, 'dispatched', 44, null)
+  seedOrder(1060, 4, 4, BED, 'ordered', 20, null)
+  seedOrder(1061, 1, 2, CHAIR, 'ordered', nextBusinessDeadline(44), null, 5)
 } else {
-  seedOrder(1042, 1, 2, BED, 'ordered', 16, null)
-  seedOrder(1050, 2, 1, OXY, 'delivered', null, null)
-  seedOrder(1060, 3, 1, BED, 'dispatched', 20, null)
+  seedOrder(1042, 3, 2, BED, 'ordered', 12, null, 6)
+  seedOrder(1050, 5, 1, OXY, 'delivered', null, null)
+  seedOrder(1060, 4, 4, BED, 'ordered', 20, null)
   seedOrder(1070, 5, 3, CPAP, 'in_transit', 30, 26)
 }
 
@@ -477,7 +532,7 @@ const allStats = db.prepare('SELECT * FROM vendor_stats').all() as VendorStat[]
 
 console.log(`\nseeded '${scenario}'`)
 console.log(
-  `  patients=${PATIENTS.length} vendors=${VENDORS.length} catalog=${CATALOG.length} codes` +
+  `  patients=${PATIENTS.length} vendors=${VENDORS.length + 1} catalog=${CATALOG.length} codes` +
     `\n  history: ${history.length} simulated orders over ${HISTORY_DAYS}d, ${materialized} materialized (last ${MATERIALIZE_DAYS}d)` +
     `\n  vendor_stats derived from simulated history — not hand-typed`,
 )
@@ -499,6 +554,14 @@ for (const v of VENDORS) {
       `(${(badRate * 100).toFixed(0)}% rated 1-2)  n=${mine.length}`,
   )
 }
+console.log(
+  `    ${COLD_START_VENDOR.name.padEnd(24)} no history — ` +
+    `${allStats.filter((s) => s.vendor_id === COLD_START_VENDOR.id).length} vendor_stats rows (the cold start)`,
+)
+
+const dowName = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+const rateFor = (vendorId: number, code: string, dow: number) =>
+  allStats.find((s) => s.vendor_id === vendorId && s.hcpcs_code === code && s.day_of_week === dow)
 
 console.log('\n  demo orders — computed risk (threshold ' + RISK_THRESHOLD + '):')
 for (const o of orders) {
@@ -507,6 +570,17 @@ for (const o of orders) {
   const flag = r.score >= RISK_THRESHOLD ? 'AT RISK' : 'ok'
   console.log(`    #${o.id} ${o.equipment_name.padEnd(30)} score=${String(r.score).padStart(3)}  ${flag}`)
   for (const reason of r.reasons) console.log(`         · ${reason}`)
+  // What the swap-vendor menu is worth on stage today: same code, same deadline weekday.
+  if (r.score >= RISK_THRESHOLD && o.target_at) {
+    const dow = new Date(o.target_at).getDay()
+    const alts = VENDORS.filter((v) => v.id !== o.vendor_id)
+      .map((v) => {
+        const s = rateFor(v.id, o.hcpcs_code, dow)
+        return `${v.name} ${s ? Math.round(s.on_time_rate * 100) + '%' : 'n/a'}`
+      })
+      .join(' · ')
+    console.log(`         swap options (${dowName[dow]} deadline): ${alts}`)
+  }
 }
 console.log(
   '\n  NOTE: risk keys off the TARGET DATE weekday, so scores shift depending on the day' +
