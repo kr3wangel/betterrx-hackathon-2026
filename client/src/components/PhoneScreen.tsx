@@ -126,6 +126,34 @@ export function Bubble({
   )
 }
 
+const URL_PART = /(https?:\/\/\S+)/g
+
+/**
+ * Message bodies carry genuine /portal/<token> magic links — nothing about them is faked,
+ * so they render as real anchors.
+ */
+export function Linkify({ text }: { text: string }) {
+  return (
+    <>
+      {text.split(URL_PART).map((part, i) =>
+        /^https?:\/\//.test(part) ? (
+          <a
+            key={i}
+            href={part}
+            target="_blank"
+            rel="noreferrer"
+            className="underline underline-offset-2 hover:opacity-80"
+          >
+            {part}
+          </a>
+        ) : (
+          part
+        ),
+      )}
+    </>
+  )
+}
+
 /** Centered placeholder for an empty thread. */
 export function ThreadEmpty({ children }: { children: ReactNode }) {
   return <div className="pt-16 text-center text-xs text-slate-400">{children}</div>

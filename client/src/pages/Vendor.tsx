@@ -3,6 +3,7 @@ import { api } from '../lib/api'
 import { useLive } from '../lib/useLive'
 import { Badge, Button, Card } from '../components/ui'
 import { OrderCard } from '../components/OrderCard'
+import { Linkify } from '../components/PhoneScreen'
 import { PersonaHeader } from '@/components/PersonaHeader'
 import { intentLabel, REVIEW_STATUS_LABEL } from '../lib/domain'
 import type { Message, Order, Patient, Vendor } from '../../../shared/types'
@@ -64,7 +65,7 @@ function PhoneSimulator({ vendorId, vendorName, messages }: { vendorId: number; 
                 m.direction === 'in' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-800'
               }`}
             >
-              {m.body}
+              <Linkify text={m.body} />
               {m.direction === 'in' && m.parsed && (
                 <div className="mt-1 text-[10px] opacity-80">
                   → {intentLabel(m.parsed.intent)} · {Math.round((m.parsed.confidence ?? 0) * 100)}% ·{' '}

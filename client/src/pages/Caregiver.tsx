@@ -1,8 +1,16 @@
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import { api } from '../lib/api'
 import { useLive } from '../lib/useLive'
-import { Bubble, PhoneScreen, ThreadEmpty } from '../components/PhoneScreen'
-import type { CaregiverReplyResult, ConditionReport, Message, Order, OrderEvent, Patient } from '../../../shared/types'
+import { Bubble, Linkify, PhoneScreen, ThreadEmpty } from '../components/PhoneScreen'
+import { QuickReplies, ReplyReceipt, answeredQuestion, digitLabel, isOpenQuestion } from '../components/QuickReplies'
+import type {
+  CaregiverReplyResult,
+  ConditionReport,
+  Message,
+  Order,
+  Patient,
+  SmsReplyResult,
+} from '../../../shared/types'
 
 /**
  * The family caregiver's phone — a demo prop, not a product surface. Unlisted.
@@ -11,8 +19,10 @@ import type { CaregiverReplyResult, ConditionReport, Message, Order, OrderEvent,
  * LAN and it needs no explaining: the driver captures proof of delivery, the check sends
  * itself, the household taps a number, and the hospice board lights up over SSE.
  *
- * Parsing is deterministic — see server/condition.ts. That is the deliberate contrast with
- * /vendor-phone, where a dispatcher's prose gets a model.
+ * One thread per household, keyed by patient (SMS-SIM-SPEC §10.1) — the delivery confirm,
+ * its chained condition check, and the pickup notices are all the same conversation with
+ * the same phone. Digits route through POST /api/messages/reply; the template on the
+ * question is what gives a "1" its meaning, so no model reads this thread at all.
  */
 
 const SCALE: Record<number, string> = {
@@ -25,62 +35,66 @@ const SCALE: Record<number, string> = {
 
 const time = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
 
-interface OrderDetail {
-  order: Order
-  events: OrderEvent[]
-  messages: Message[]
+interface Household {
+  patient: Patient
+  rows: Message[]
+  /** A delivered order whose household could decently be asked, for the manual check. */
+  askableOrderId: number | null
 }
 
-type Msg =
-  | { side: 'received'; at: string; body: string }
-  | { side: 'sent'; at: string; score: number; comment: string | null }
-
 export default function Caregiver() {
+  const { data: messages } = useLive(() => api.get<Message[]>('/api/messages'))
   const { data: orders } = useLive(() => api.get<Order[]>('/api/orders'))
   const { data: patients } = useLive(() => api.get<Patient[]>('/api/patients'))
-  const [orderId, setOrderId] = useState<number | null>(null)
+  const [patientId, setPatientId] = useState<number | null>(null)
 
-  // Only households that could decently be asked: delivered, and the patient still living.
-  const askable = useMemo(() => {
-    const byId = new Map((patients ?? []).map((p) => [p.id, p]))
-    return (orders ?? [])
-      .filter((o) => o.state === 'delivered')
-      .map((o) => ({ order: o, patient: byId.get(o.patient_id) }))
-      .filter((x) => x.patient && x.patient.status !== 'deceased')
-      .sort((a, b) => b.order.id - a.order.id)
-      // A year of seeded history means ~150 delivered orders. Nobody scrolls that on stage.
+  const households = useMemo<Household[]>(() => {
+    const family = (messages ?? []).filter((m) => m.recipient_type === 'family')
+    const out: Household[] = []
+    for (const patient of patients ?? []) {
+      const rows = family.filter((m) => m.patient_id === patient.id).sort((a, b) => a.id - b.id)
+      const askable =
+        patient.status === 'deceased'
+          ? null
+          : ((orders ?? []).filter((o) => o.patient_id === patient.id && o.state === 'delivered').sort((a, b) => b.id - a.id)[0]
+              ?.id ?? null)
+      if (rows.length || askable) out.push({ patient, rows, askableOrderId: askable })
+    }
+    // Live conversations first; a year of seeded history means nobody scrolls the rest.
+    return out
+      .sort((a, b) => (b.rows.at(-1)?.id ?? 0) - (a.rows.at(-1)?.id ?? 0) || (b.askableOrderId ?? 0) - (a.askableOrderId ?? 0))
       .slice(0, 15)
-  }, [orders, patients])
+  }, [messages, orders, patients])
 
   useEffect(() => {
-    if (orderId === null && askable.length) setOrderId(askable[0].order.id)
-  }, [askable, orderId])
+    if (patientId === null && households.length) setPatientId(households[0].patient.id)
+  }, [households, patientId])
 
-  const selected = askable.find((x) => x.order.id === orderId)
+  const selected = households.find((h) => h.patient.id === patientId)
 
-  if (!selected?.patient) {
+  if (!selected) {
     return (
       <div className="flex h-[100dvh] items-center justify-center px-6 text-center text-sm text-slate-400">
-        No delivered orders to ask about. Capture a proof of delivery on <b className="mx-1">/driver</b> and the check
-        sends itself.
+        No household threads yet. Capture a proof of delivery on <b className="mx-1">/driver</b> and the check sends
+        itself.
       </div>
     )
   }
 
   return (
     <Thread
-      key={selected.order.id}
-      orderId={selected.order.id}
-      patient={selected.patient}
+      key={selected.patient.id}
+      household={selected}
       picker={
         <select
           className="max-w-[13rem] truncate rounded-md border-0 bg-transparent text-[11px] text-slate-400 outline-none"
-          value={orderId ?? ''}
-          onChange={(e) => setOrderId(Number(e.target.value))}
+          value={patientId ?? ''}
+          onChange={(e) => setPatientId(Number(e.target.value))}
         >
-          {askable.map(({ order, patient }) => (
-            <option key={order.id} value={order.id}>
-              #{order.id} · {order.equipment_name} · {patient?.name}
+          {households.map(({ patient, rows }) => (
+            <option key={patient.id} value={patient.id}>
+              {patient.caregiver_name || 'Caregiver'} · caring for {patient.name}
+              {rows.length ? '' : ' · no messages'}
             </option>
           ))}
         </select>
@@ -89,39 +103,54 @@ export default function Caregiver() {
   )
 }
 
-function Thread({ orderId, patient, picker }: { orderId: number; patient: Patient; picker: React.ReactNode }) {
-  const { data: detail, reload: reloadDetail } = useLive(() => api.get<OrderDetail>(`/api/orders/${orderId}`))
-  const { data: reports, reload: reloadReports } = useLive(() =>
-    api.get<ConditionReport[]>(`/api/orders/${orderId}/condition`),
+type Item = { kind: 'msg'; at: string; message: Message; index: number } | { kind: 'report'; at: string; report: ConditionReport }
+
+function Thread({ household, picker }: { household: Household; picker: React.ReactNode }) {
+  const { patient, rows, askableOrderId } = household
+  const activeOrderId = rows.at(-1)?.order_id ?? askableOrderId
+  const { data: reports, reload: reloadReports } = useLive(
+    () =>
+      activeOrderId
+        ? api.get<ConditionReport[]>(`/api/orders/${activeOrderId}/condition`)
+        : Promise.resolve<ConditionReport[]>([]),
+    [activeOrderId],
   )
   const [draft, setDraft] = useState('')
   const [sending, setSending] = useState(false)
-  const [result, setResult] = useState<CaregiverReplyResult | null>(null)
+  const [reply, setReply] = useState<SmsReplyResult | null>(null)
+  const [legacy, setLegacy] = useState<CaregiverReplyResult | null>(null)
 
-  // Outbound texts live in the messages table on the household thread (sendToFamily), not
-  // in the event payload — so eta notices and pickup notices show up here too, which is
-  // what this family's phone would actually look like.
-  const familyMessages = useMemo(
-    () => (detail?.messages ?? []).filter((m) => m.recipient_type === 'family'),
-    [detail],
-  )
-  const hasCheck = familyMessages.some((m) => m.template === 'f_condition_check')
+  const openQuestion = useMemo(() => [...rows].reverse().find(isOpenQuestion), [rows])
+  const hasCheck = rows.some((m) => m.template === 'f_condition_check')
 
-  const thread: Msg[] = useMemo(() => {
-    const out: Msg[] = []
-    for (const m of familyMessages) out.push({ side: 'received', at: m.created_at, body: m.body })
-    for (const r of reports ?? []) out.push({ side: 'sent', at: r.created_at, score: r.score, comment: r.comment })
-    return out.sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime())
-  }, [familyMessages, reports])
+  const thread = useMemo<Item[]>(() => {
+    const items: Item[] = rows.map((message, index) => ({ kind: 'msg', at: message.created_at, message, index }))
+    // A reply routed through /api/messages/reply is already a row above. Ratings recorded
+    // through the older /condition-reply route are not, so they only render when this
+    // order's thread has no inbound row of its own — one bubble per answer, never two.
+    const threaded = rows.some((m) => m.direction === 'in' && m.order_id === activeOrderId)
+    if (!threaded) {
+      for (const report of reports ?? []) items.push({ kind: 'report', at: report.created_at, report })
+    }
+    return items.sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime())
+  }, [rows, reports, activeOrderId])
 
   async function send() {
-    if (!draft.trim() || sending) return
+    const body = draft.trim()
+    if (!body || sending) return
     setSending(true)
     try {
-      setResult(await api.post<CaregiverReplyResult>(`/api/orders/${orderId}/condition-reply`, { body: draft.trim() }))
+      if (openQuestion) {
+        // Thread-aware: the server derives order and template from the question, and the
+        // condition rating still goes through parseConditionReply() unchanged.
+        setLegacy(null)
+        setReply(await api.post<SmsReplyResult>('/api/messages/reply', { reply_to_message_id: openQuestion.id, body }))
+      } else if (activeOrderId) {
+        setReply(null)
+        setLegacy(await api.post<CaregiverReplyResult>(`/api/orders/${activeOrderId}/condition-reply`, { body }))
+        reloadReports()
+      }
       setDraft('')
-      reloadDetail()
-      reloadReports()
     } finally {
       setSending(false)
     }
@@ -132,7 +161,7 @@ function Thread({ orderId, patient, picker }: { orderId: number; patient: Patien
       title={patient.caregiver_name || 'Caregiver'}
       subtitle={`${patient.caregiver_phone || '—'} · caring for ${patient.name}`}
       picker={picker}
-      scrollKey={`${thread.length}:${result?.score}:${result?.needs_review}`}
+      scrollKey={`${thread.length}:${reply?.message_id ?? ''}:${legacy?.score ?? ''}`}
       draft={draft}
       onDraft={setDraft}
       onSend={send}
@@ -141,12 +170,9 @@ function Thread({ orderId, patient, picker }: { orderId: number; patient: Patien
       {thread.length === 0 && (
         <ThreadEmpty>
           No messages yet.
-          {!hasCheck && (
+          {!hasCheck && askableOrderId && (
             <button
-              onClick={async () => {
-                await api.post(`/api/orders/${orderId}/condition-check`, {})
-                reloadDetail()
-              }}
+              onClick={() => api.post(`/api/orders/${askableOrderId}/condition-check`, {})}
               className="mt-3 block w-full rounded-full border border-slate-300 py-1.5 text-slate-600 hover:bg-slate-50"
             >
               Send the condition check
@@ -155,34 +181,50 @@ function Thread({ orderId, patient, picker }: { orderId: number; patient: Patien
         </ThreadEmpty>
       )}
 
-      {thread.map((m, i) => (
-        <Bubble
-          key={`${m.side}-${m.at}-${i}`}
-          side={m.side}
-          meta={
-            <>
-              {time(m.at)}
-              {m.side === 'sent' && ` · ${SCALE[m.score]}`}
-            </>
-          }
-        >
-          {m.side === 'received' ? (
-            m.body
-          ) : (
-            <>
-              <span className="text-lg font-semibold">{m.score}</span>
-              {m.comment ? ` — ${m.comment}` : ''}
-            </>
-          )}
-        </Bubble>
-      ))}
+      {thread.map((item) => {
+        if (item.kind === 'report') {
+          return (
+            <Bubble key={`r${item.report.id}`} side="sent" meta={`${time(item.at)} · ${SCALE[item.report.score]}`}>
+              <span className="text-lg font-semibold">{item.report.score}</span>
+              {item.report.comment ? ` — ${item.report.comment}` : ''}
+            </Bubble>
+          )
+        }
+
+        const m = item.message
+        const mine = m.direction === 'in'
+        const label = mine ? digitLabel(answeredQuestion(rows, item.index)?.template ?? null, m.body.trim()) : null
+        return (
+          <Fragment key={m.id}>
+            <Bubble
+              side={mine ? 'sent' : 'received'}
+              meta={
+                <>
+                  {time(m.created_at)}
+                  {label && ` · ${label}`}
+                  {mine && m.review_status === 'needs_review' && (
+                    <span className="text-amber-600"> · sent to a person</span>
+                  )}
+                </>
+              }
+            >
+              <Linkify text={m.body} />
+            </Bubble>
+            {isOpenQuestion(m) && <QuickReplies message={m} onResult={setReply} />}
+            {mine && reply?.message_id === m.id && <ReplyReceipt result={reply} />}
+          </Fragment>
+        )
+      })}
+
+      {/* Until the SSE refetch brings the new row in, the receipt is the only feedback. */}
+      {reply && !rows.some((m) => m.id === reply.message_id) && <ReplyReceipt result={reply} />}
 
       {/* Delivery-receipt style status, so the consequence reads as part of the conversation. */}
-      {result && (
+      {legacy && (
         <div className="pt-1 text-right text-[11px]">
-          {result.needs_review ? (
+          {legacy.needs_review ? (
             <span className="text-amber-600">Couldn't read a rating — sent to a person rather than guessed</span>
-          ) : result.escalated ? (
+          ) : legacy.escalated ? (
             <span className="text-red-600">Flagged to the hospice · vendor scorecard updated</span>
           ) : (
             <span className="text-slate-400">Recorded · vendor scorecard updated</span>

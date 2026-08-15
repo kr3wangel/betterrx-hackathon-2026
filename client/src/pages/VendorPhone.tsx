@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react'
+import { Fragment, useMemo, useState } from 'react'
 import { api } from '../lib/api'
 import { useLive } from '../lib/useLive'
-import { Bubble, PhoneScreen, ThreadEmpty } from '../components/PhoneScreen'
-import type { Message, Vendor } from '../../../shared/types'
+import { Bubble, Linkify, PhoneScreen, ThreadEmpty } from '../components/PhoneScreen'
+import { QuickReplies, ReplyReceipt, answeredQuestion, digitLabel, isOpenQuestion } from '../components/QuickReplies'
+import type { Message, SmsReplyResult, Vendor } from '../../../shared/types'
 
 /**
  * The DME dispatcher's phone — a demo prop, not a product surface. Unlisted.
@@ -15,6 +16,10 @@ import type { Message, Vendor } from '../../../shared/types'
  * The contrast with /caregiver is the whole AI argument. A dispatcher types prose —
  * "bed's on the truck, prob 3ish" — so that gets a model, with a confidence gate and a
  * human review queue underneath. A caregiver types a digit, so that gets a regex.
+ *
+ * Two doors to the same room: free text goes to POST /api/messages/inbound and the parse
+ * gate; a tapped digit goes to POST /api/messages/reply and the template routing table,
+ * where it costs no model call at all.
  */
 
 const INTENT_TONE: Record<string, string> = {
@@ -30,6 +35,39 @@ const INTENT_TONE: Record<string, string> = {
 }
 
 const time = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+
+/** What happened to a reply the vendor sent: a tapped digit, parsed prose, or neither. */
+function replyMeta(m: Message, label: string | null) {
+  if (label) {
+    return (
+      <>
+        {' · '}
+        <span className="text-slate-500">{label}</span>
+        {m.review_status === 'auto_applied' && <span className="text-green-600"> · applied · no model needed</span>}
+        {m.review_status === 'needs_review' && <span className="text-amber-600"> · sent to a person</span>}
+      </>
+    )
+  }
+  if (m.parsed) {
+    return (
+      <>
+        {' · '}
+        <span className={INTENT_TONE[m.parsed.intent] ?? 'text-slate-400'}>
+          read as {m.parsed.intent.replace(/_/g, ' ')}
+        </span>
+        {' · '}
+        {Math.round((m.parsed.confidence ?? 0) * 100)}%
+        {m.review_status === 'needs_review' && <span className="text-amber-600"> · sent to a person</span>}
+        {m.review_status === 'auto_applied' && <span className="text-green-600"> · applied</span>}
+      </>
+    )
+  }
+  return m.review_status === 'auto_applied' ? (
+    <span className="text-green-600"> · applied</span>
+  ) : (
+    <span className="text-amber-600"> · awaiting review</span>
+  )
+}
 
 export default function VendorPhone() {
   const { data: vendors } = useLive(() => api.get<Vendor[]>('/api/vendors'))
@@ -60,9 +98,12 @@ export default function VendorPhone() {
 }
 
 function Thread({ vendor, picker }: { vendor: Vendor; picker: React.ReactNode }) {
+  // vendor_id filtering excludes recipient_type = 'family' server-side, so household
+  // texts can never surface in a vendor's thread.
   const { data: messages } = useLive(() => api.get<Message[]>(`/api/messages?vendor_id=${vendor.id}`))
   const [draft, setDraft] = useState('')
   const [sending, setSending] = useState(false)
+  const [reply, setReply] = useState<SmsReplyResult | null>(null)
 
   const thread = useMemo(() => messages ?? [], [messages])
 
@@ -72,6 +113,7 @@ function Thread({ vendor, picker }: { vendor: Vendor; picker: React.ReactNode })
     try {
       await api.post('/api/messages/inbound', { vendor_id: vendor.id, body: draft.trim() })
       setDraft('')
+      setReply(null)
     } finally {
       setSending(false)
     }
@@ -82,7 +124,7 @@ function Thread({ vendor, picker }: { vendor: Vendor; picker: React.ReactNode })
       title={vendor.contact_name || vendor.name}
       subtitle={`${vendor.name} · ${vendor.phone}`}
       picker={picker}
-      scrollKey={`${thread.length}:${sending}`}
+      scrollKey={`${thread.length}:${sending}:${reply?.message_id ?? ''}`}
       draft={draft}
       onDraft={setDraft}
       onSend={send}
@@ -92,36 +134,32 @@ function Thread({ vendor, picker }: { vendor: Vendor; picker: React.ReactNode })
         <ThreadEmpty>No messages yet. Place an order on the hospice board and the request lands here.</ThreadEmpty>
       )}
 
-      {thread.map((m) => {
+      {thread.map((m, i) => {
         // 'out' is hospice → vendor, so on the vendor's own phone it reads as received.
         const mine = m.direction === 'in'
+        const digit = mine && /^[1-9]$/.test(m.body.trim()) ? m.body.trim() : null
+        const label = digit ? digitLabel(answeredQuestion(thread, i)?.template ?? null, digit) : null
         return (
-          <Bubble
-            key={m.id}
-            side={mine ? 'sent' : 'received'}
-            meta={
-              <>
-                {time(m.created_at)}
-                {mine && m.parsed && (
-                  <>
-                    {' · '}
-                    <span className={INTENT_TONE[m.parsed.intent] ?? 'text-slate-400'}>
-                      read as {m.parsed.intent.replace(/_/g, ' ')}
-                    </span>
-                    {' · '}
-                    {Math.round((m.parsed.confidence ?? 0) * 100)}%
-                    {m.review_status === 'needs_review' && <span className="text-amber-600"> · sent to a person</span>}
-                    {m.review_status === 'auto_applied' && <span className="text-green-600"> · applied</span>}
-                  </>
-                )}
-                {mine && !m.parsed && <span className="text-amber-600"> · awaiting review</span>}
-              </>
-            }
-          >
-            {m.body}
-          </Bubble>
+          <Fragment key={m.id}>
+            <Bubble
+              side={mine ? 'sent' : 'received'}
+              meta={
+                <>
+                  {time(m.created_at)}
+                  {mine && replyMeta(m, label)}
+                </>
+              }
+            >
+              <Linkify text={m.body} />
+            </Bubble>
+            {isOpenQuestion(m) && <QuickReplies message={m} onResult={setReply} />}
+            {mine && reply?.message_id === m.id && <ReplyReceipt result={reply} />}
+          </Fragment>
         )
       })}
+
+      {/* Until the SSE refetch brings the new row in, the receipt is the only feedback. */}
+      {reply && !thread.some((m) => m.id === reply.message_id) && <ReplyReceipt result={reply} />}
 
       {sending && (
         <Bubble side="sent">
