@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { db } from '../server/db'
-import { reportSummary, vendorScorecards } from '../server/reports'
+import { reportSummary, vendorLeverage, vendorScorecards } from '../server/reports'
 import { seedFixtures, seedOrder } from './helpers'
 
 beforeEach(() => {
@@ -154,6 +154,107 @@ describe('reportSummary — calls avoided', () => {
     expect(summary.calls_avoided_breakdown.household_confirmations).toBe(1)
     expect(summary.calls_avoided).toBe(2)
     expect(summary.calls_avoided_definition).toMatch(/household confirmations/i)
+  })
+})
+
+describe('vendorLeverage', () => {
+  const TARGET = '2026-08-10T12:00:00.000Z'
+  const BEFORE = '2026-08-10T09:00:00.000Z'
+  const AFTER = '2026-08-10T18:00:00.000Z'
+
+  function deliveredOrder(deliveredAt: string, withPod: boolean, vendorId = 1): number {
+    const id = seedOrder({ vendor_id: vendorId, state: 'delivered', target_at: TARGET })
+    insertEvent(id, 'delivered', null, 'driver', deliveredAt)
+    if (withPod) {
+      db.prepare("INSERT INTO pods (order_id, kind) VALUES (?, 'delivery')").run(id)
+    }
+    return id
+  }
+
+  it('splits deliveries into verified and claimed by delivery-POD presence', () => {
+    deliveredOrder(BEFORE, true)
+    deliveredOrder(AFTER, true)
+    deliveredOrder(BEFORE, false)
+
+    const row = vendorLeverage().find((l) => l.vendor.id === 1)!
+    expect(row.deliveries_measured).toBe(3)
+    expect(row.verified_deliveries).toBe(2)
+    expect(row.claimed_deliveries).toBe(1)
+    expect(row.verified_on_time_rate).toBeCloseTo(0.5, 10)
+    expect(row.claimed_on_time_rate).toBe(1)
+  })
+
+  it('computes the trust gap as claimed minus verified once both cohorts have support', () => {
+    for (let i = 0; i < 5; i++) deliveredOrder(BEFORE, true)
+    for (let i = 0; i < 5; i++) deliveredOrder(AFTER, true)
+    for (let i = 0; i < 10; i++) deliveredOrder(BEFORE, false)
+
+    const row = vendorLeverage().find((l) => l.vendor.id === 1)!
+    expect(row.verified_on_time_rate).toBeCloseTo(0.5, 10)
+    expect(row.claimed_on_time_rate).toBe(1)
+    expect(row.trust_gap).toBeCloseTo(0.5, 10)
+  })
+
+  it('withholds the trust gap while either cohort is below the minimum sample', () => {
+    for (let i = 0; i < 10; i++) deliveredOrder(BEFORE, true)
+    for (let i = 0; i < 9; i++) deliveredOrder(AFTER, false)
+
+    const row = vendorLeverage().find((l) => l.vendor.id === 1)!
+    expect(row.claimed_on_time_rate).toBe(0)
+    expect(row.trust_gap).toBeNull()
+  })
+
+  it('leaves the trust gap null when a cohort has no samples at all', () => {
+    deliveredOrder(BEFORE, true)
+    const row = vendorLeverage().find((l) => l.vendor.id === 1)!
+    expect(row.trust_gap).toBeNull()
+    expect(row.claimed_on_time_rate).toBeNull()
+  })
+
+  it('excludes deliveries with no target and undelivered orders from the rates', () => {
+    const noTarget = seedOrder({ state: 'delivered', target_at: null })
+    insertEvent(noTarget, 'delivered', null, 'driver', BEFORE)
+    seedOrder({ state: 'ordered', target_at: TARGET })
+
+    const row = vendorLeverage().find((l) => l.vendor.id === 1)!
+    expect(row.orders_total).toBe(2)
+    expect(row.deliveries_measured).toBe(0)
+    expect(row.verified_on_time_rate).toBeNull()
+  })
+
+  it('grades on-time against the first delivered event, not a later re-delivery', () => {
+    const id = deliveredOrder(BEFORE, true)
+    insertEvent(id, 'delivered', null, 'driver', AFTER)
+
+    const row = vendorLeverage().find((l) => l.vendor.id === 1)!
+    expect(row.verified_on_time_rate).toBe(1)
+  })
+
+  it('counts ack nags and escalations into interventions per order', () => {
+    const a = seedOrder({ vendor_id: 1 })
+    seedOrder({ vendor_id: 1 })
+    db.prepare(
+      "INSERT INTO messages (order_id, vendor_id, direction, body, recipient_type, template) VALUES (?, 1, 'out', 'nag', 'vendor', 'v_ack_nag')",
+    ).run(a)
+    db.prepare("INSERT INTO escalations (order_id, reason, status) VALUES (?, 'late', 'open')").run(a)
+    db.prepare("INSERT INTO escalations (order_id, reason, status) VALUES (?, 'later', 'resolved')").run(a)
+
+    const row = vendorLeverage().find((l) => l.vendor.id === 1)!
+    expect(row.nags_sent).toBe(1)
+    expect(row.escalations).toBe(2)
+    expect(row.interventions_per_order).toBeCloseTo(1.5, 10)
+
+    const quiet = vendorLeverage().find((l) => l.vendor.id === 2)!
+    expect(quiet.nags_sent).toBe(0)
+    expect(quiet.escalations).toBe(0)
+    expect(quiet.interventions_per_order).toBeNull()
+  })
+
+  it('returns a null-safe row for a vendor with no orders at all', () => {
+    const row = vendorLeverage().find((l) => l.vendor.id === 2)!
+    expect(row.orders_total).toBe(0)
+    expect(row.trust_gap).toBeNull()
+    expect(row.interventions_per_order).toBeNull()
   })
 })
 

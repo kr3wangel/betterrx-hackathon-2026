@@ -12,15 +12,17 @@ truthful.
 **How to re-verify** (do this before the rubric audit, things move fast):
 
 ```bash
-grep -oE "routes\.(get|post)\('[^']+'" server/routes.ts | sort -u   # every endpoint (31)
+grep -oE "routes\.(get|post)\('[^']+'" server/routes.ts | sort -u   # every endpoint (33)
 grep -oE 'path="[^"]*"' client/src/App.tsx | sort -u                # every screen (13)
 grep -n "roles:" client/src/App.tsx                                  # who sees which nav link
 npm run typecheck && npm test                                        # it all still holds
 ```
 
-**Last verified against `main` on 2026-08-14**, after the role-filtered nav and `PortalShell`
-merge (`6696d8c`, `d331fb1`). Every count in this file was re-derived on that pass, not carried
-over.
+**Last verified against `main` on 2026-08-15**, after the contract-leverage panel. Endpoint
+count re-derived at 33 (the 08-14 pass recorded 31 against the same command — one endpoint
+landed undocumented in between; the count here is from running the grep, not arithmetic).
+Screens still 13 — the path grep returns 15 rows, but two are the `/` redirect and the `*`
+catchall.
 
 ---
 
@@ -87,6 +89,7 @@ suppresses itself on real handsets.
 | Proof of delivery | `pods.ts` | Photo, signature, timestamp, plus condition attestation |
 | EMR webhook | `pickups.ts` | Simulated patient-status events drive automatic pickup |
 | Reports | `reports.ts` | Vendor scorecards, calls avoided, pickup latency |
+| Contract leverage | `reports.ts` `vendorLeverage()` | **The renewal-negotiation table**, computed live from the event ledger — never from seeded `vendor_stats`. Splits each vendor's on-time rate into POD-**verified** vs **claimed** (vendor's word only); the difference is the **trust gap**, withheld until both cohorts have 10 deliveries so a small sample can't masquerade as a finding. Plus interventions per order (ack nags + escalations = staff time the vendor cost us). `GET /api/reports/vendor-leverage`, rendered on `/reports`. The seed gives each vendor a `pod_rate` and a `fudge_rate` (a late, unverified delivery sometimes gets reported as on-time), so Beehive's word measurably outruns its PODs |
 | Live updates | `sse.ts` + `useEventStream` | One shared SSE stream app-wide |
 | Synthetic world | `scripts/seed.ts` + `shared/catalog.ts` | CMS-grounded 12-code catalog, a simulated year, vendor stats **derived** from it |
 
@@ -201,7 +204,9 @@ rental vs purchase, average Medicare allowed amounts.
 
 Synthetic: 12 patients and caregivers, 3 vendor personalities, a simulated year of orders,
 all delivery times and outcomes, all condition ratings, all vendor performance stats, the
-$150/mo approval threshold, and every medication spend figure.
+$150/mo approval threshold, every medication spend figure, and — feeding the contract-leverage
+panel — which deliveries got a driver POD and whether an unverified late delivery was reported
+as on-time anyway (per-vendor `pod_rate` / `fudge_rate` in the seed).
 
 ---
 
@@ -209,7 +214,7 @@ $150/mo approval threshold, and every medication spend figure.
 
 | Judging row | Weight | Features that earn it |
 |---|---:|---|
-| Differentiation from current DME approaches | 30% | Caregiver condition channel · vendor scorecards · verified vs vendor-reported · silence ladder · nurse-first pickup trigger |
+| Differentiation from current DME approaches | 30% | Caregiver condition channel · vendor scorecards · verified vs vendor-reported · **the trust gap as a contract-renewal number** · silence ladder · nurse-first pickup trigger |
 | Addresses core user problems | 25% | Discharge-readiness risk · automatic pickup on death/discharge · condition attestation · calls-avoided counter · cost approvals for the DON |
 | Architecture / integration-readiness | 15% | State machine with guarded transitions · SSE · integration sketch modelled on the real eRx payloads · forward-compatible inventory hook |
 | AI ROI | 15% | **The split**: model for vendor prose with a confidence gate and review queue; regex for caregiver digits; **a tapped quick reply on the vendor phone runs no model at all**, so the same thread shows both trust levels. Rules-based risk scoring on purpose |
@@ -219,13 +224,13 @@ $150/mo approval threshold, and every medication spend figure.
 
 ## 7 · Test coverage
 
-**14 files, 172 tests** (re-derived 08-14, after rotating reply codes). Core logic is covered; UI
-and routes deliberately are not.
+**14 files, 185 tests** (re-derived 08-15, after the contract-leverage panel). Core logic is
+covered; UI and routes deliberately are not.
 
 | File | Tests | Covers |
 |---|---:|---|
 | `sms.test.ts` | 53 | SMS templates, reply handling, route-table integrity, rotating reply codes, gateway-shaped inbound |
-| `reports.test.ts` | 15 | Scorecards, calls avoided, latency |
+| `reports.test.ts` | 23 | Scorecards, calls avoided, latency, contract leverage (trust gap, cohort minimum, interventions) |
 | `portal.test.ts` | 13 | Magic-link flows |
 | `condition.test.ts` | 12 | Caregiver rating parser, including the ambiguity cases |
 | `risk.test.ts` | 12 | Risk scoring and thresholds |

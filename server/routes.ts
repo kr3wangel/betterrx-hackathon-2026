@@ -30,7 +30,7 @@ import {
   sendConditionCheck,
   vendorConditionStats,
 } from './condition'
-import { reportSummary, vendorScorecards } from './reports'
+import { reportSummary, vendorLeverage, vendorScorecards } from './reports'
 import type {
   ConditionSource,
   Escalation,
@@ -345,6 +345,10 @@ routes.get('/reports/vendor-scorecards', (_req, res) => {
 
 routes.get('/reports/summary', (_req, res) => {
   res.json(reportSummary())
+})
+
+routes.get('/reports/vendor-leverage', (_req, res) => {
+  res.json(vendorLeverage())
 })
 
 export { escalate }

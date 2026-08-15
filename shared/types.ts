@@ -236,6 +236,32 @@ export interface VendorScorecard {
   stats: VendorStat[]
 }
 
+/**
+ * Contract-negotiation rollup, computed live from the event ledger — never from
+ * vendor_stats, which is seeded history. See vendorLeverage() in server/reports.ts.
+ */
+export interface VendorLeverage {
+  vendor: Vendor
+  /** Every order ever placed with this vendor, any state. */
+  orders_total: number
+  /** Delivered orders that had a target to grade against. */
+  deliveries_measured: number
+  /** Subset backed by a driver POD — the ground truth cohort. */
+  verified_deliveries: number
+  verified_on_time_rate: number | null
+  /** Subset with no POD — we have only the vendor's word for when it landed. */
+  claimed_deliveries: number
+  claimed_on_time_rate: number | null
+  /** claimed − verified. Positive = the vendor's story outruns the evidence. Null until both cohorts have samples. */
+  trust_gap: number | null
+  /** Automated ack chases sent because this vendor sat on an order. */
+  nags_sent: number
+  /** Escalations raised on this vendor's orders — each one pulled a human in. */
+  escalations: number
+  /** (nags + escalations) / orders_total. The staff-time tax of working with this vendor. */
+  interventions_per_order: number | null
+}
+
 export interface ReportSummary {
   calls_avoided: number
   calls_avoided_definition: string

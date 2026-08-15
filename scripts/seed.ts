@@ -59,6 +59,10 @@ interface VendorProfile {
   weak_codes: Partial<Record<string, number>>
   /** Hours after a pickup trigger before retrieval, on average. */
   pickup_hours: number
+  /** Share of deliveries where a driver captures a POD; the rest are the vendor's word. */
+  pod_rate: number
+  /** When late with no POD, odds the vendor reports it as on time anyway. Feeds the trust gap. */
+  fudge_rate: number
   notes: string
 }
 
@@ -77,6 +81,8 @@ const VENDORS: VendorProfile[] = [
     weak_days: { 5: 0.34 },
     weak_codes: { E0260: 0.06, E0277: 0.08, E0630: 0.05 },
     pickup_hours: 20,
+    pod_rate: 0.86,
+    fudge_rate: 0.1,
     notes: 'Regional. Reliable except Friday heavy-item runs.',
   },
   {
@@ -95,6 +101,10 @@ const VENDORS: VendorProfile[] = [
     // time the demo is run.
     weak_codes: { E0260: 0.09 },
     pickup_hours: 61,
+    // The trust-gap story: drivers rarely capture PODs, and a late run gets called in as
+    // on-time more often than not. Their claimed rate looks fine; their verified rate doesn't.
+    pod_rate: 0.45,
+    fudge_rate: 0.55,
     notes: 'National branch, M–F 9–5. Slow, and pickups drift for days.',
   },
   {
@@ -109,6 +119,8 @@ const VENDORS: VendorProfile[] = [
     weak_days: { 6: 0.12 },
     weak_codes: {},
     pickup_hours: 26,
+    pod_rate: 0.8,
+    fudge_rate: 0.15,
     notes: 'Regional. Steady, mild weekend softness.',
   },
 ]
@@ -377,6 +389,17 @@ for (const h of history.filter((x) => x.day_offset <= MATERIALIZE_DAYS)) {
   if (!done && DEMO_PATIENTS.has(h.patient_id)) continue
   const id = nextId++
   const item = byCode(h.code)!
+
+  // Not every delivery gets a driver POD — the rest are the vendor's word, and a late
+  // vendor-reported run sometimes gets called in as on-time. The ledger then records the
+  // CLAIM (a timestamp just inside the target), which is all the hospice would have known.
+  // vendorLeverage() surfaces the difference as the trust gap. Drawn here, after the
+  // history loop, so vendor_stats and the scorecards are untouched by these rolls.
+  const profile = VENDORS.find((v) => v.id === h.vendor_id)!
+  const hasPod = rand() < profile.pod_rate
+  const fudged = !hasPod && !h.on_time && rand() < profile.fudge_rate
+  const recorded_at = fudged ? new Date(h.target_at.getTime() - between(10, 50) * 60_000) : h.delivered_at
+
   insertOrder.run(
     id,
     h.patient_id,
@@ -387,15 +410,22 @@ for (const h of history.filter((x) => x.day_offset <= MATERIALIZE_DAYS)) {
     item.typical_urgency,
     iso(h.target_at),
     done ? 'picked_up' : 'delivered',
-    iso(h.delivered_at),
+    iso(recorded_at),
     iso(h.ordered_at),
   )
   insertEvent.run(id, 'order_placed', null, 'hospice', iso(h.ordered_at))
   insertEvent.run(id, 'vendor_accepted', null, 'vendor', iso(new Date(h.ordered_at.getTime() + 900_000)))
-  insertEvent.run(id, 'delivered', JSON.stringify({ on_time: h.on_time }), 'driver', iso(h.delivered_at))
-  insertPod.run(id, 'delivery', null, null, iso(h.delivered_at))
+  insertEvent.run(
+    id,
+    'delivered',
+    JSON.stringify({ on_time: h.on_time || fudged }),
+    hasPod ? 'driver' : 'vendor',
+    iso(recorded_at),
+  )
+  if (hasPod) insertPod.run(id, 'delivery', null, null, iso(h.delivered_at))
 
-  if (!h.on_time) {
+  // A fudged delivery raises no escalation — with no POD and an on-time claim, nobody knew.
+  if (!h.on_time && !fudged) {
     insertEscalation.run(
       id,
       `delivered ${(h.hours - (h.target_at.getTime() - h.ordered_at.getTime()) / 3_600_000).toFixed(1)}h after the deadline`,
