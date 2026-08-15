@@ -436,7 +436,7 @@ one, so this is a stage direction, not a problem.
 - **The digit beat, if you have 10 spare seconds at beat 5:** type `1` into the box on the vendor
   phone (there is nothing to tap — SMS has no buttons, and no annotations appear under the sent
   text, exactly like a real handset). Two things then happen at once: **a receipt texts back on
-  the phone** — *"Got it — order #1061 (…) is confirmed with you. Thanks."*, exactly what a
+  the phone** — *"Got your \"1\" — order #1061 (…) is confirmed with you. Thanks."*, exactly what a
   production SMS system would send — and on **tab 1**, #1061 flips to **Accepted ✓** live over
   SSE, with the event noting *"Vendor accepted by text (replied 1)"* at confidence 1.0 — a
   template × position lookup (`server/sms.ts` `VENDOR_ROUTES`), no model call at all. Narrate it

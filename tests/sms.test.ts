@@ -812,7 +812,9 @@ describe('acknowledgement receipts', () => {
 
     const receipts = acks(id)
     expect(receipts).toHaveLength(1)
-    expect(receipts[0].body).toMatch(new RegExp(`Got it — order #${id}.*confirmed with you`))
+    // Echoes the digit as the lead — in a flat thread that's how the sender knows which
+    // of their texts this receipt answers.
+    expect(receipts[0].body).toMatch(new RegExp(`Got your "1" — order #${id}.*confirmed with you`))
   })
 
   it("texts back the reassignment promise on can't-fill", async () => {

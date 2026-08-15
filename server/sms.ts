@@ -297,7 +297,7 @@ function routeDigit(question: Message, digit: string): SmsReplyResult {
       }
       // The receipt, sent only after applyParsed committed — an ack for a reply that
       // bounced off the state machine would confirm something that never happened.
-      sendToVendor(question.vendor_id, order.id, vendorAckText(order, action.intent))
+      sendToVendor(question.vendor_id, order.id, vendorAckText(order, action.intent, digit))
       if (template === 'v_pickup_request') {
         sendToFamily(order.patient_id, order.id, pickupNoticeText('today'), 'f_pickup_notice')
       }
@@ -307,7 +307,7 @@ function routeDigit(question: Message, digit: string): SmsReplyResult {
     case 'escalate': {
       const messageId = recordInbound(question, digit, null, 'auto_applied', true)
       escalate(order.id, action.reason(order))
-      sendToVendor(question.vendor_id, order.id, vendorAckText(order, 'decline'))
+      sendToVendor(question.vendor_id, order.id, vendorAckText(order, 'decline', digit))
       return result(question, messageId, digit, 'applied')
     }
 

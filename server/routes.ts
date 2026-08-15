@@ -261,7 +261,10 @@ routes.get('/messages', (req, res) => {
     params.push(vendorId)
   }
   if (where.length) sql += ` WHERE ${where.join(' AND ')}`
-  sql += ' ORDER BY id'
+  // Chronological, id as tiebreak: the seed writes a question's whole thread (nag, reply,
+  // ack) in one pass, so insert order and time order disagree across orders — sorting by
+  // id alone made the phone jump from "Today 1:03 AM" back to "Fri 8:18 PM".
+  sql += ' ORDER BY created_at, id'
   res.json((db.prepare(sql).all(...params) as never[]).map(rowToMessage))
 })
 

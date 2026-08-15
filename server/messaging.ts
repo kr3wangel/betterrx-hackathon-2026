@@ -262,26 +262,29 @@ export function etaCheckText(order: Order, [yes, no]: SlotDigits): string {
  * vendor's receipt — exactly as a production SMS system would confirm. Conversational
  * send: no template, no reply pair, asks for nothing back.
  */
-export function vendorAckText(order: Order, intent: MessageIntent): string {
+export function vendorAckText(order: Order, intent: MessageIntent, digit: string | null = null): string {
+  // A digit reply gets its digit echoed back as the lead — in a flat SMS thread that is
+  // how the sender knows WHICH of their texts this receipt answers. Prose keeps the plain lead.
+  const got = digit ? `Got your "${digit}"` : null
   switch (intent) {
     case 'accept':
-      return `Got it — order #${order.id} (${order.equipment_name}) is confirmed with you. Thanks.`
+      return `${got ?? 'Got it'} — order #${order.id} (${order.equipment_name}) is confirmed with you. Thanks.`
     case 'eta_update':
-      return `Thanks — delivery time for order #${order.id} is noted.`
+      return `${got ?? 'Thanks'} — delivery time for order #${order.id} is noted.`
     case 'out_for_delivery':
-      return `Thanks — order #${order.id} noted as out for delivery.`
+      return `${got ?? 'Thanks'} — order #${order.id} noted as out for delivery.`
     case 'delivered':
-      return `Thanks — order #${order.id} is marked delivered on our end.`
+      return `${got ?? 'Thanks'} — order #${order.id} is marked delivered on our end.`
     case 'pickup_scheduled':
-      return `Thanks — pickup for order #${order.id} is on the books.`
+      return `${got ?? 'Thanks'} — pickup for order #${order.id} is on the books.`
     case 'picked_up':
-      return `Thanks — pickup of order #${order.id} (${order.equipment_name}) is recorded.`
+      return `${got ?? 'Thanks'} — pickup of order #${order.id} (${order.equipment_name}) is recorded.`
     case 'delay':
-      return `Thanks for the heads up — order #${order.id} is noted as delayed and the care team has been told.`
+      return `${got ?? 'Thanks for the heads up'} — order #${order.id} is noted as delayed and the care team has been told.`
     case 'decline':
-      return `Understood — we'll reassign order #${order.id}. Nothing else needed from you.`
+      return `${got ?? 'Understood'} — we'll reassign order #${order.id}. Nothing else needed from you.`
     default:
-      return `Got your message about order #${order.id} — a coordinator will take a look.`
+      return `${got ?? 'Got your message'} — a coordinator will take a look at order #${order.id}.`
   }
 }
 
