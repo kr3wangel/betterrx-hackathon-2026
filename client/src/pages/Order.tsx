@@ -5,7 +5,6 @@ import { api } from '../lib/api'
 import { CATALOG, BED_CODE } from '../lib/domain'
 import type { CatalogItem } from '../lib/domain'
 import type { Order, Patient, Urgency, Vendor } from '../../../shared/types'
-import { PersonaHeader } from '@/components/PersonaHeader'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -20,21 +19,36 @@ import { cn } from '@/lib/utils'
 
 type VendorWithStats = Vendor & { avg_on_time_rate: number | null }
 
-const URGENCY_OPTIONS: { value: Urgency; label: string }[] = [
-  { value: 'stat', label: 'STAT' },
-  { value: 'urgent', label: 'Urgent' },
-  { value: 'routine', label: 'Routine' },
+// The three urgency tiers, each with a real delivery window. STAT is a distinct, tighter
+// promise than Urgent — picking a tier fills "Needed by" with now + these hours.
+const URGENCY_OPTIONS: { value: Urgency; label: string; window: string; hours: number }[] = [
+  { value: 'stat', label: 'STAT', window: 'within 4 hours', hours: 4 },
+  { value: 'urgent', label: 'Urgent', window: 'same day · ~8h', hours: 8 },
+  { value: 'routine', label: 'Routine', window: 'next day · ~24h', hours: 24 },
 ]
+const URGENCY_HOURS: Record<Urgency, number> = { stat: 4, urgent: 8, routine: 24 }
 
-/** Plain-English one-liner about what each urgency promises, shown under the segmented control. */
-const URGENCY_NOTE: Record<Urgency, string> = {
-  stat: 'Same day — we’ll push the vendor hard and flag it the second it slips.',
-  urgent: 'Same day where possible. Watched closely against its deadline.',
-  routine: 'Within about a day. Still tracked end-to-end, no calls needed.',
+/** How each tier is watched once placed — the honest promise behind the window. */
+const URGENCY_TAIL: Record<Urgency, string> = {
+  stat: 'We’ll push the vendor hard and flag it the second it slips.',
+  urgent: 'Watched closely against its deadline — no calls needed.',
+  routine: 'Tracked end-to-end. You’ll only hear about it if it slips.',
 }
 
-/** The four demo-scenario items lead the equipment list; the bed defaults first. */
 const DEFAULT_CODE = BED_CODE
+const DEFAULT_URGENCY: Urgency = 'urgent'
+
+/** Format a Date for a <input type="datetime-local"> value (local time, minute precision). */
+function toLocalInput(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+function deadlineFrom(urgency: Urgency): string {
+  return toLocalInput(new Date(Date.now() + URGENCY_HOURS[urgency] * 3_600_000))
+}
+function formatWhen(d: Date): string {
+  return d.toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+}
 
 export default function Order() {
   const navigate = useNavigate()
@@ -45,8 +59,10 @@ export default function Order() {
   const [patientId, setPatientId] = useState('')
   const [hcpcs, setHcpcs] = useState(DEFAULT_CODE)
   const [quantity, setQuantity] = useState('1')
-  const [urgency, setUrgency] = useState<Urgency>('urgent')
-  const [neededBy, setNeededBy] = useState('')
+  const [urgency, setUrgency] = useState<Urgency>(DEFAULT_URGENCY)
+  // Seeded from the default urgency so the deadline is never blank; a tier click or a manual
+  // edit both flow through here, so the field and the urgency always agree.
+  const [neededBy, setNeededBy] = useState(() => deadlineFrom(DEFAULT_URGENCY))
   const [vendorId, setVendorId] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
@@ -62,22 +78,27 @@ export default function Order() {
       .catch(() => setLoadError(true))
   }, [])
 
-  const activePatients = useMemo(
-    () => patients.filter((p) => p.status === 'active'),
-    [patients],
-  )
-  const item = useMemo<CatalogItem | undefined>(
-    () => CATALOG.find((c) => c.hcpcs_code === hcpcs),
-    [hcpcs],
-  )
-  const patient = useMemo(
-    () => patients.find((p) => String(p.id) === patientId),
-    [patients, patientId],
-  )
-  const vendor = useMemo(
-    () => vendors.find((v) => String(v.id) === vendorId),
-    [vendors, vendorId],
-  )
+  const activePatients = useMemo(() => patients.filter((p) => p.status === 'active'), [patients])
+  const item = useMemo<CatalogItem | undefined>(() => CATALOG.find((c) => c.hcpcs_code === hcpcs), [hcpcs])
+  const patient = useMemo(() => patients.find((p) => String(p.id) === patientId), [patients, patientId])
+
+  // Only vendors that cover the patient's market, best on-time first. Before a patient is
+  // chosen we can't scope, so show them all.
+  const coveringVendors = useMemo(() => {
+    const list = patient ? vendors.filter((v) => v.service_area.includes(patient.market)) : vendors
+    return [...list].sort((a, b) => (b.avg_on_time_rate ?? 0) - (a.avg_on_time_rate ?? 0))
+  }, [vendors, patient])
+  const vendor = useMemo(() => vendors.find((v) => String(v.id) === vendorId), [vendors, vendorId])
+
+  // Drop a chosen vendor that no longer covers the patient's market after a patient change.
+  useEffect(() => {
+    if (vendorId && !coveringVendors.some((v) => String(v.id) === vendorId)) setVendorId('')
+  }, [coveringVendors, vendorId])
+
+  function chooseUrgency(u: Urgency) {
+    setUrgency(u)
+    setNeededBy(deadlineFrom(u))
+  }
 
   const canSubmit = patientId !== '' && vendorId !== '' && !!item && !submitting
 
@@ -86,7 +107,7 @@ export default function Order() {
     if (!canSubmit || !item) return
     setSubmitting(true)
     try {
-      const order = await api.post<Order>('/api/orders', {
+      await api.post<Order>('/api/orders', {
         patient_id: Number(patientId),
         vendor_id: Number(vendorId),
         hcpcs_code: item.hcpcs_code,
@@ -99,12 +120,11 @@ export default function Order() {
         description: `${item.equipment_name} for ${patient?.name ?? 'the patient'} is on the board.`,
         action: { label: 'View board', onClick: () => navigate('/hospice') },
       })
-      // Reset for the next admission, keeping equipment/urgency defaults.
+      // Reset for the next admission, keeping equipment/urgency and re-seeding the deadline.
       setPatientId('')
       setQuantity('1')
-      setNeededBy('')
       setVendorId('')
-      void order
+      setNeededBy(deadlineFrom(urgency))
     } catch {
       toast.error('Couldn’t place the order', {
         description: 'Something went wrong reaching the server. Try again.',
@@ -116,11 +136,12 @@ export default function Order() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-10">
-      <PersonaHeader
-        persona="Admissions Nurse"
-        title="Place an order"
-        description="Phone or desktop, finishable in under a minute. We text the vendor the moment you place it."
-      />
+      <div>
+        <h1 className="font-display text-3xl font-extrabold tracking-tight text-foreground">Place an order</h1>
+        <p className="mt-1.5 max-w-2xl text-sm text-muted-foreground">
+          New equipment for a patient. The vendor is texted the moment you place it.
+        </p>
+      </div>
 
       {loadError ? (
         <Card>
@@ -131,12 +152,14 @@ export default function Order() {
       ) : (
         <form onSubmit={submit} className="grid gap-9 lg:grid-cols-[1fr_300px]">
           <div className="space-y-7">
-            <div className="text-xs font-extrabold uppercase tracking-[0.14em] text-primary">
-              New DME order
+            <div>
+              <div className="text-xs font-extrabold uppercase tracking-[0.14em] text-primary">
+                Durable medical equipment
+              </div>
+              <h2 className="mt-0.5 font-display text-2xl font-extrabold tracking-tight">
+                What does the patient need?
+              </h2>
             </div>
-            <h2 className="-mt-3 font-display text-2xl font-extrabold tracking-tight">
-              What does the patient need?
-            </h2>
 
             <Field label="Patient">
               <Select value={patientId} onValueChange={setPatientId}>
@@ -179,7 +202,7 @@ export default function Order() {
                   onChange={(e) => setQuantity(e.target.value)}
                 />
               </Field>
-              <Field label="Needed by">
+              <Field label="Needed by" hint="set by urgency">
                 <Input
                   type="datetime-local"
                   value={neededBy}
@@ -188,16 +211,16 @@ export default function Order() {
               </Field>
             </div>
 
-            <Field label="Urgency" note={URGENCY_NOTE[urgency]}>
+            <Field label="Urgency" note={urgencyNote(urgency, neededBy)}>
               <div className="flex gap-2">
                 {URGENCY_OPTIONS.map((o) => (
                   <button
                     key={o.value}
                     type="button"
-                    onClick={() => setUrgency(o.value)}
+                    onClick={() => chooseUrgency(o.value)}
                     aria-pressed={urgency === o.value}
                     className={cn(
-                      'h-11 flex-1 rounded-md border text-sm font-semibold transition-colors',
+                      'flex flex-1 flex-col items-center gap-0.5 rounded-md border py-2.5 transition-colors',
                       urgency === o.value
                         ? o.value === 'stat'
                           ? 'border-transparent bg-destructive text-destructive-foreground'
@@ -205,19 +228,20 @@ export default function Order() {
                         : 'border-border bg-card text-muted-foreground hover:bg-muted',
                     )}
                   >
-                    {o.label}
+                    <span className="text-sm font-bold">{o.label}</span>
+                    <span className="text-[11px] font-semibold tabular-nums opacity-85">{o.window}</span>
                   </button>
                 ))}
               </div>
             </Field>
 
-            <Field label="Vendor">
+            <Field label="Vendor" hint={patient ? `covering ${patient.market}` : undefined}>
               <Select value={vendorId} onValueChange={setVendorId}>
                 <SelectTrigger>
                   <SelectValue placeholder="Choose a vendor…" />
                 </SelectTrigger>
                 <SelectContent>
-                  {vendors.map((v) => (
+                  {coveringVendors.map((v) => (
                     <SelectItem key={v.id} value={String(v.id)}>
                       {v.name}{' '}
                       <OnTime rate={v.avg_on_time_rate} />
@@ -227,33 +251,46 @@ export default function Order() {
               </Select>
             </Field>
 
-            <div className="pt-1">
+            <div className="flex justify-end pt-1">
               <Button type="submit" size="lg" disabled={!canSubmit}>
                 {submitting ? 'Placing…' : 'Place order'}
               </Button>
             </div>
           </div>
 
-          <WhyItMatters patient={patient} item={item} vendor={vendor} neededBy={neededBy} />
+          <ThisOrder patient={patient} item={item} vendor={vendor} neededBy={neededBy} />
         </form>
       )}
     </div>
   )
 }
 
+/** The urgency helper line: the concrete deadline it resolves to, plus how it's watched. */
+function urgencyNote(urgency: Urgency, neededBy: string): string {
+  const tail = URGENCY_TAIL[urgency]
+  if (!neededBy) return tail
+  const due = new Date(neededBy)
+  const hoursOut = Math.round((due.getTime() - Date.now()) / 3_600_000)
+  const out = hoursOut <= 0 ? 'in the past — double-check the time' : `about ${hoursOut} hours out`
+  return `Needed by ${formatWhen(due)} — ${out}. ${tail}`
+}
+
 function Field({
   label,
+  hint,
   note,
   children,
 }: {
   label: string
+  hint?: string
   note?: string
   children: React.ReactNode
 }) {
   return (
     <label className="block">
-      <span className="mb-2 block text-xs font-bold uppercase tracking-[0.1em] text-muted-foreground">
+      <span className="mb-2 flex items-baseline justify-between text-xs font-bold uppercase tracking-[0.1em] text-muted-foreground">
         {label}
+        {hint && <span className="font-medium normal-case tracking-normal text-faint">{hint}</span>}
       </span>
       {children}
       {note && <span className="mt-2 block text-xs text-muted-foreground">{note}</span>}
@@ -272,8 +309,8 @@ function OnTime({ rate }: { rate: number | null }) {
   )
 }
 
-/** The context rail — plain-English stakes so the nurse knows why this order gets watched. */
-function WhyItMatters({
+/** The context rail — the operational facts a nurse acts on, not a pitch for the product. */
+function ThisOrder({
   patient,
   item,
   vendor,
@@ -284,39 +321,77 @@ function WhyItMatters({
   vendor?: VendorWithStats
   neededBy: string
 }) {
-  const when = neededBy
-    ? new Date(neededBy).toLocaleString(undefined, {
-        weekday: 'long',
-        hour: 'numeric',
-        minute: '2-digit',
-      })
-    : null
+  const due = neededBy ? new Date(neededBy) : null
+  const hoursOut = due ? Math.round((due.getTime() - Date.now()) / 3_600_000) : null
+  const pct = vendor && vendor.avg_on_time_rate != null ? Math.round(vendor.avg_on_time_rate * 100) : null
 
   return (
     <aside className="h-fit rounded-2xl border border-[#f3ddd2] bg-coral-tint p-5 lg:sticky lg:top-6">
-      <div className="text-xs font-extrabold uppercase tracking-[0.14em] text-primary">
-        Why it matters
-      </div>
-      <p className="mt-2.5 text-sm leading-relaxed text-[#8a4a2e]">
-        {patient ? <b className="text-foreground">{patient.name}</b> : 'This patient'} needs{' '}
-        {item ? <b className="text-foreground">{item.equipment_name.toLowerCase()}</b> : 'equipment'}
-        {when ? (
+      <div className="text-xs font-extrabold uppercase tracking-[0.14em] text-primary">This order</div>
+
+      <Fact label="Delivering to">
+        {patient ? (
           <>
-            {' '}
-            by <b className="text-foreground">{when}</b>
+            <b className="text-foreground">{patient.name}</b>
+            <span className="block font-normal text-muted-foreground">
+              {patient.address} · {patient.market}
+            </span>
           </>
         ) : (
-          ''
+          <span className="font-normal text-muted-foreground">Choose a patient</span>
         )}
-        . We’ll text {vendor ? <b className="text-foreground">{vendor.name}</b> : 'the vendor'} the
-        moment you place this and flag it the second it’s at risk — you won’t have to call to check.
-      </p>
+      </Fact>
+
+      <Fact label="Needed by">
+        {due ? (
+          <>
+            {formatWhen(due)}
+            {hoursOut != null && (
+              <span className="block font-normal text-muted-foreground">
+                {hoursOut <= 0 ? 'in the past' : `about ${hoursOut} hours out`}
+              </span>
+            )}
+          </>
+        ) : (
+          <span className="font-normal text-muted-foreground">—</span>
+        )}
+      </Fact>
+
+      <Fact label="Vendor">
+        {vendor ? (
+          <>
+            {vendor.name}
+            <span className="block font-normal text-muted-foreground">
+              Covers {vendor.service_area}
+              {pct != null && (
+                <>
+                  {' · '}
+                  <span className={pct >= 85 ? 'text-success' : 'text-primary'}>
+                    {pct}% on-time{pct < 85 ? ' — watch this one' : ''}
+                  </span>
+                </>
+              )}
+            </span>
+          </>
+        ) : (
+          <span className="font-normal text-muted-foreground">Choose a vendor</span>
+        )}
+      </Fact>
+
       {item?.rental && (
-        <p className="mt-3 text-xs text-muted-foreground">
-          This is rented equipment, so a late pickup later costs money — we track it all the way to
-          return.
+        <p className="mt-3 border-t border-[#f3ddd2] pt-3 text-xs text-muted-foreground">
+          Rented equipment — tracked through pickup and return, so a late return can’t cost the hospice.
         </p>
       )}
     </aside>
+  )
+}
+
+function Fact({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="mt-3.5 border-t border-[#f3ddd2] pt-3 first:mt-3">
+      <div className="text-[11px] font-bold uppercase tracking-[0.08em] text-[#b06a4a]">{label}</div>
+      <div className="mt-0.5 text-sm font-semibold text-foreground">{children}</div>
+    </div>
   )
 }
