@@ -32,7 +32,10 @@ Express 5 + better-sqlite3, vitest. No new dependencies anywhere in this plan.
 
 ## Orchestration policy (main session, overnight)
 
-- **Push policy:** push after every green wave (pre-authorized for this run).
+- **Push policy (amended by Angel):** NO pushes overnight. All merges stay on local `main`;
+  Angel manually reviews in the morning before anything ships. Consequence: agent worktrees
+  branch from origin, so every brief points at authority docs via the main checkout's absolute
+  path (`/Users/angelherrera/code/personal/betterrx-hackathon-2026/docs/...`).
 - **Failure policy:** if a merged wave goes red, one fix attempt; still red → `git revert` the
   merge, park the branch, log it, continue with independent work. Never leave main red.
 - **Teammate collisions:** pull/merge before each push; their surfaces win on their files, this
