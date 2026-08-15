@@ -9,6 +9,8 @@ import { PersonaHeader } from '@/components/PersonaHeader'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { Combobox } from '@/components/ui/combobox'
+import type { ComboboxOption } from '@/components/ui/combobox'
 import {
   Select,
   SelectContent,
@@ -65,6 +67,19 @@ export default function Order() {
   const activePatients = useMemo(
     () => patients.filter((p) => p.status === 'active'),
     [patients],
+  )
+  const patientOptions = useMemo<ComboboxOption[]>(
+    () => activePatients.map((p) => ({ value: String(p.id), label: p.name, hint: p.market })),
+    [activePatients],
+  )
+  const vendorOptions = useMemo<ComboboxOption[]>(
+    () =>
+      vendors.map((v) => ({
+        value: String(v.id),
+        label: v.name,
+        hint: <OnTime rate={v.avg_on_time_rate} />,
+      })),
+    [vendors],
   )
   const item = useMemo<CatalogItem | undefined>(
     () => CATALOG.find((c) => c.hcpcs_code === hcpcs),
@@ -138,19 +153,16 @@ export default function Order() {
               What does the patient need?
             </h2>
 
-            <Field label="Patient">
-              <Select value={patientId} onValueChange={setPatientId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Choose a patient…" />
-                </SelectTrigger>
-                <SelectContent>
-                  {activePatients.map((p) => (
-                    <SelectItem key={p.id} value={String(p.id)}>
-                      {p.name} · {p.market}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <Field label="Patient" htmlFor="order-patient">
+              <Combobox
+                id="order-patient"
+                options={patientOptions}
+                value={patientId}
+                onValueChange={setPatientId}
+                placeholder="Type a patient’s name…"
+                emptyMessage="No one matches"
+                clearLabel="Clear patient"
+              />
             </Field>
 
             <Field label="Equipment">
@@ -211,20 +223,16 @@ export default function Order() {
               </div>
             </Field>
 
-            <Field label="Vendor">
-              <Select value={vendorId} onValueChange={setVendorId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Choose a vendor…" />
-                </SelectTrigger>
-                <SelectContent>
-                  {vendors.map((v) => (
-                    <SelectItem key={v.id} value={String(v.id)}>
-                      {v.name}{' '}
-                      <OnTime rate={v.avg_on_time_rate} />
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <Field label="Vendor" htmlFor="order-vendor">
+              <Combobox
+                id="order-vendor"
+                options={vendorOptions}
+                value={vendorId}
+                onValueChange={setVendorId}
+                placeholder="Type a vendor’s name…"
+                emptyMessage="No vendor matches"
+                clearLabel="Clear vendor"
+              />
             </Field>
 
             <div className="pt-1">
@@ -244,21 +252,27 @@ export default function Order() {
 function Field({
   label,
   note,
+  htmlFor,
   children,
 }: {
   label: string
   note?: string
+  htmlFor?: string
   children: React.ReactNode
 }) {
-  return (
-    <label className="block">
-      <span className="mb-2 block text-xs font-bold uppercase tracking-[0.1em] text-muted-foreground">
-        {label}
-      </span>
+  const caption = (
+    <span className="mb-2 block text-xs font-bold uppercase tracking-[0.1em] text-muted-foreground">
+      {label}
+    </span>
+  )
+  const body = (
+    <>
+      {htmlFor ? <label htmlFor={htmlFor}>{caption}</label> : caption}
       {children}
       {note && <span className="mt-2 block text-xs text-muted-foreground">{note}</span>}
-    </label>
+    </>
   )
+  return htmlFor ? <div className="block">{body}</div> : <label className="block">{body}</label>
 }
 
 /** Vendor on-time reads green when strong, coral when it needs a second look. */
