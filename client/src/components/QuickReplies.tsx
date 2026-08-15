@@ -1,5 +1,5 @@
 import { digitOffset } from '../../../shared/slots'
-import type { FamilyTemplate, Message, SmsReplyResult, VendorTemplate } from '../../../shared/types'
+import type { FamilyTemplate, Message, VendorTemplate } from '../../../shared/types'
 
 /**
  * Reading digit replies in the two phone simulators.
@@ -80,35 +80,4 @@ export function answeredQuestion(thread: Message[], index: number): Message | un
     if (m.direction === 'out' && m.template) return m
   }
   return undefined
-}
-
-/** Delivery-receipt line, so the consequence of a reply reads as part of the conversation. */
-export function ReplyReceipt({ result }: { result: SmsReplyResult }) {
-  const label = result.digit ? digitLabel({ template: result.template, reply_slot: result.slot }, result.digit) : null
-  const digit = result.digit ? `${result.digit}${label ? ` · ${label}` : ''} — ` : ''
-
-  if (result.outcome === 'applied') {
-    return (
-      <div className="pt-1 text-right text-[11px] text-green-600">
-        {digit}applied{result.digit ? ' · no model needed' : ''}
-      </div>
-    )
-  }
-  if (result.outcome === 'prompt') {
-    return <div className="pt-1 text-right text-[11px] text-slate-400">{digit}we texted back a question</div>
-  }
-  if (result.outcome === 'clarify') {
-    return (
-      <div className="pt-1 text-right text-[11px] text-amber-600">
-        {digit}that code isn't open — we asked which order rather than guessing
-      </div>
-    )
-  }
-  return (
-    <div className="pt-1 text-right text-[11px] text-amber-600">
-      {result.outcome === 'unmapped'
-        ? "Couldn't match that to the question — sent to a person rather than guessed"
-        : 'Sent to a person rather than guessed'}
-    </div>
-  )
 }

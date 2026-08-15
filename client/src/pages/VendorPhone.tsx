@@ -1,8 +1,8 @@
-import { Fragment, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { api } from '../lib/api'
 import { useLive } from '../lib/useLive'
 import { Bubble, Linkify, PhoneScreen, ThreadEmpty } from '../components/PhoneScreen'
-import { ReplyReceipt, answeredQuestion, digitLabel, isOpenQuestion } from '../components/QuickReplies'
+import { answeredQuestion, digitLabel, isOpenQuestion } from '../components/QuickReplies'
 import type { Message, SmsReplyResult, Vendor } from '../../../shared/types'
 
 /**
@@ -108,7 +108,6 @@ function Thread({ vendor, picker }: { vendor: Vendor; picker: React.ReactNode })
   // must not say "reading…". This is the only place that distinction is visible live.
   const [pending, setPending] = useState<null | 'digit' | 'prose'>(null)
   const sending = pending !== null
-  const [reply, setReply] = useState<SmsReplyResult | null>(null)
 
   const thread = useMemo(() => messages ?? [], [messages])
 
@@ -125,7 +124,9 @@ function Thread({ vendor, picker }: { vendor: Vendor; picker: React.ReactNode })
       // Exactly what a gateway webhook posts: a sender and a body, no reply-to. The server
       // resolves an owned digit through the routing table with no model, and everything
       // else through the parse gate — this screen carries no routing knowledge at all.
-      setReply(await api.post<SmsReplyResult>('/api/messages/inbound', { vendor_id: vendor.id, body }))
+      // The outcome renders as the bubble's own receipt line once the SSE refetch lands;
+      // a real phone shows nothing extra under a sent text, so neither do we.
+      await api.post<SmsReplyResult>('/api/messages/inbound', { vendor_id: vendor.id, body })
       setDraft('')
     } finally {
       setPending(null)
@@ -137,7 +138,7 @@ function Thread({ vendor, picker }: { vendor: Vendor; picker: React.ReactNode })
       title={vendor.contact_name || vendor.name}
       subtitle={`${vendor.name} · ${vendor.phone}`}
       picker={picker}
-      scrollKey={`${thread.length}:${sending}:${reply?.message_id ?? ''}`}
+      scrollKey={`${thread.length}:${sending}`}
       draft={draft}
       onDraft={setDraft}
       onSend={send}
@@ -153,25 +154,20 @@ function Thread({ vendor, picker }: { vendor: Vendor; picker: React.ReactNode })
         const digit = mine && /^[0-9]$/.test(m.body.trim()) ? m.body.trim() : null
         const label = digit ? digitLabel(answeredQuestion(thread, i), digit) : null
         return (
-          <Fragment key={m.id}>
-            <Bubble
-              side={mine ? 'sent' : 'received'}
-              meta={
-                <>
-                  {time(m.created_at)}
-                  {mine && replyMeta(m, label)}
-                </>
-              }
-            >
-              <Linkify text={m.body} />
-            </Bubble>
-            {mine && reply?.message_id === m.id && <ReplyReceipt result={reply} />}
-          </Fragment>
+          <Bubble
+            key={m.id}
+            side={mine ? 'sent' : 'received'}
+            meta={
+              <>
+                {time(m.created_at)}
+                {mine && replyMeta(m, label)}
+              </>
+            }
+          >
+            <Linkify text={m.body} />
+          </Bubble>
         )
       })}
-
-      {/* Until the SSE refetch brings the new row in, the receipt is the only feedback. */}
-      {reply && !thread.some((m) => m.id === reply.message_id) && <ReplyReceipt result={reply} />}
 
       {sending && (
         <Bubble side="sent">
