@@ -1,400 +1,320 @@
-# Page map, user flows, and the three hospice roles
+# Page map and navigation flow
 
-**What this is:** every screen that exists, every screen we think should exist, how each of the
-three hospice users moves through them, and what each one is allowed to see.
+**What this is:** every page in the app as a labelled box, with arrows showing where each user can
+actually go from where.
 
-**Why it exists:** we built surfaces fast and in parallel. The nav is flat — all seven links are
-visible to everyone — and the three personas are currently a *coral text label* at the top of a
-page. Nobody has drawn the actual flow. A judge asking "so who logs in and what do they see?" is
-asking the 15% UX row and part of the 25% core-user-problems row at the same time.
+**How this was verified — read this before trusting the arrows.** Every arrow below is a real
+navigation affordance found in the code, not an inferred user journey. The search that produced it:
 
-Read with [FEATURES.md](FEATURES.md) (what's built) and
-[deliverables/DIFFERENTIATION.md](deliverables/DIFFERENTIATION.md) (why it matters).
+```bash
+grep -rnE "useNavigate|navigate\(|window\.location|<Link|<NavLink|href=" client/src/pages/ client/src/components/
+```
 
-**Viewing the diagrams:** they're mermaid, which GitHub renders natively — just open this file in
-the repo on github.com. In VS Code you need the *Markdown Preview Mermaid Support* extension, then
-`Cmd+Shift+V`. Deliberately not in Figma: the diagrams belong next to the code so they go stale
-loudly rather than quietly.
+That returns **exactly two** programmatic navigations in the entire application. Everything else is
+the global nav bar. An earlier draft of this document drew vendor and driver arrows that were really
+*system events*, not navigation — those now live in §4, clearly separated.
+
+**Viewing:** mermaid renders on github.com natively; in VS Code use *Markdown Preview Mermaid
+Support* + `Cmd+Shift+V`. All diagrams here were rendered through `mermaid-cli` v9 and v10 before
+committing, not eyeballed.
+
+Read with [FEATURES.md](FEATURES.md) and
+[deliverables/DIFFERENTIATION.md](deliverables/DIFFERENTIATION.md).
 
 ---
 
-## 1 · The page count
+## 1 · Every page, one line each
 
 **11 routes, 10 page components** (`VendorPortal` serves both `/vendor-portal` and `/portal/:token`).
 
-### Who each screen actually serves
+### Hospice staff — 4 pages
 
-| Audience | Count | Routes |
-|---|---:|---|
-| **Hospice staff** — our three users | **4** | `/hospice` · `/order` · `/nurse` · `/reports` |
-| Vendor side | 5 | `/vendor` · `/vendor-portal` · `/portal/:token` · `/status/:token` · `/vendor-phone` |
-| Field & household | 2 | `/driver` · `/caregiver` |
+| Route | Persona in code | What the page is |
+|---|---|---|
+| `/order` | Admissions Nurse | Blank order form: patient, equipment, qty, needed-by, urgency, vendor |
+| `/hospice` | Case Manager | The board. Orders by state, escalation bar, risk flags, AI review queue, vendor swap, inline order form, EMR simulator |
+| `/nurse` | Field Nurse | Two taps: pick patient, then discharged/deceased. Fires the pickup trigger |
+| `/reports` | Director of Nursing | Vendor scorecards, condition stats, calls avoided, pickup latency, DME spend, **and the cost-approval queue** |
 
-### The finding
+### Vendor side — 5 pages
 
-Of 11 screens, **4 serve the hospice — and all three roles see all four, identically.** There is no
-role concept anywhere:
-
-- `grep -rn "role\|approv" server/ shared/` → **one hit**, and it's `role: 'user'` in the Claude
-  API call. Nothing else.
-- `PersonaHeader.tsx` renders `persona` as a coral uppercase string. It is a caption.
-- `AccountControl` in `App.tsx:38` is hardcoded `"Case Manager"` behind a local `useState`.
-- `shared/types.ts:26` — `Actor = 'hospice' | 'vendor' | 'driver' | 'system' | 'ai' | 'family'`.
-  **`hospice` is one undivided actor.** The append-only ledger — the thing our whole
-  accountability story rests on — cannot record *which* hospice user did something.
-
-That last one matters most. We tell judges the ledger records "who said it and through which
-channel." For vendors that's true. For our own staff it currently is not.
-
----
-
-## 2 · The three roles
-
-Named from the sponsor briefing. The repo's older names are noted where they drift.
-
-### Admissions nurse *(repo: "ordering nurse")*
-
-**The job:** patient is admitted to hospice; the bed, the oxygen concentrator, the wheelchair have
-to be in the house before the patient gets home. Places most of the order volume.
-
-**Where she is:** in the field, on a phone, often in the patient's home or the discharging hospital.
-
-**Wants:** place an order in under a minute and stop thinking about it. She does *not* want a
-board, a risk score, or a vendor scorecard — she wants a promise that someone else is watching.
-
-**Should not have:** vendor swap, escalation acknowledge, reports, approvals.
-
-### Case manager *(repo: "case worker")*
-
-**The job:** owns the patient's whole episode. Orders too — but on a *different trigger*: the
-diagnosis changes, the patient declines, and now they need a hospital bed where a walker was fine
-last week. Then owns everything after the order: chasing, escalations, swaps.
-
-**Where she is:** at a desk, the board open all day. This is the primary daily driver of the product.
-
-**Wants:** one screen that shows only what's off-track, with the reason in a sentence.
-
-**The ordering difference that matters for design:** the admissions nurse starts from a *blank
-form*; the case manager starts from a *patient*. Same order, two entry points. Today `/order` only
-supports the blank form.
-
-### Director of nursing *(repo: "directing nurse")*
-
-**The job:** approves orders above a cost threshold, reads reports, and is accountable for the
-balance between care quality and spend. The only role with a budget in their head.
-
-**Where they are:** in reports weekly, in the approval queue daily.
-
-**Wants:** to approve fast without becoming the bottleneck, and to see whether cost decisions are
-hurting care.
-
-**Has that nobody else does:** approval authority, spend visibility, vendor scorecards.
-
-**Note the tension in the role, because it's the interesting part:** the DON is asked to hold down
-cost *and* not delay care. Those pull opposite directions, and the approval step is where they
-collide. See §5.
-
----
-
-## 3 · Access matrix
-
-✅ full · 👁 read-only · ⛔ hidden · 🆕 doesn't exist yet
-
-| Screen | Admissions nurse | Case manager | Director of nursing |
-|---|:--:|:--:|:--:|
-| `/order` — place an order | ✅ | ✅ *(from patient)* | 👁 |
-| `/hospice` — the board | 👁 *own patients* | ✅ | 👁 *all* |
-| `/nurse` — status change / pickup trigger | ✅ | ✅ | ⛔ |
-| `/approvals` — approve high-cost 🆕 | ⛔ | 👁 | ✅ |
-| `/reports` — scorecards & spend | ⛔ | 👁 *on-time only* | ✅ |
-| Vendor swap | ⛔ | ✅ | ✅ |
-| Acknowledge escalation | ⛔ | ✅ | ✅ |
-| AI review queue | ⛔ | ✅ | ⛔ |
-| Condition ratings | ⛔ | 👁 *own patients* | ✅ *aggregate* |
-
-**The design rule behind the matrix:** *seniority widens what you can see, and narrows what you
-have to do.* The admissions nurse sees one patient and acts constantly. The DON sees everything and
-acts rarely. The case manager is the only role that both sees broadly and acts constantly — which
-is exactly why she's the one drowning today, and why she gets the escalation machinery.
-
----
-
-## 4 · The flows
-
-Two lenses on the same product. The first is organised **by role** — what each person does, start to
-finish. The second is organised **by screen** — what exists and who touches it. The per-role
-detail follows.
-
-### All three roles in one picture
-
-```mermaid
-flowchart LR
-  subgraph AN["ADMISSIONS NURSE"]
-    A1["Patient admitted"] --> A2["New order form"]
-    A2 --> A3{"Cost over<br/>threshold?"}
-    A3 -->|No| A4["Sent to vendor"]
-    A3 -->|Yes| A5["Needs DON approval"]
-    A4 --> A6["We're watching it"]
-    A5 --> A6
-  end
-
-  subgraph CM["CASE MANAGER"]
-    B1["The board"] --> B2["Escalation:<br/>unconfirmed 6h"]
-    B1 --> B3["Risk flag:<br/>62% on-time Tuesdays"]
-    B1 --> B4["AI review queue:<br/>parse below 0.8"]
-    B1 --> B5["Condition alert:<br/>household rated 1-2"]
-    B1 --> B6["Diagnosis changed:<br/>reorder"]
-    B2 --> B7["Acknowledge<br/>or swap vendor"]
-    B3 --> B7
-    B7 --> B1
-  end
-
-  subgraph DON["DIRECTOR OF NURSING"]
-    C1["Approvals queue"] --> C2{"Decision"}
-    C2 -->|Approve| C3["Releases to vendor"]
-    C2 -->|Substitute| C4["Cheaper equivalent"]
-    C2 -->|Deny| C5["Back with a reason"]
-    C3 --> C6["Reports"]
-    C4 --> C6
-    C5 --> C6
-    C6 --> C7["Care vs cost"]
-  end
-
-  A5 -.->|"cross-role handoff"| C1
-  A4 --> B1
-  C3 --> B1
-```
-
-**The one dashed line is the whole point.** It is the only place the three roles hand work to each
-other, and it is the only one of these paths that doesn't exist in the product today.
-
-### System map — every screen, colored by who touches it
-
-```mermaid
-flowchart TB
-  subgraph HOSPICE["🏥 Hospice staff"]
-    ORD["/order<br/>place order"]
-    BOARD["/hospice<br/>the board"]
-    APPR["/approvals 🆕<br/>DON approval queue"]
-    NURSE["/nurse<br/>status change"]
-    REP["/reports<br/>scorecards + spend"]
-  end
-
-  subgraph VENDOR["🚚 Vendor"]
-    PORTAL["/portal/:token<br/>magic link, no login"]
-    VBOARD["/vendor<br/>dispatcher board"]
-    VPHONE["/vendor-phone<br/>SMS simulator"]
-    VSTAT["/status/:token"]
-  end
-
-  subgraph FIELD["🏠 Field & household"]
-    DRIVER["/driver<br/>POD capture"]
-    CARE["/caregiver<br/>condition reply"]
-  end
-
-  ORD -->|"over threshold"| APPR
-  ORD -->|"under threshold"| PORTAL
-  APPR -->|approved| PORTAL
-  APPR -->|denied / substituted| ORD
-  PORTAL --> VBOARD
-  VPHONE -.->|"free text, AI parsed"| BOARD
-  VBOARD --> DRIVER
-  DRIVER -->|"POD captured"| CARE
-  DRIVER --> BOARD
-  CARE -->|"1-5 rating"| REP
-  CARE -->|"rating 1 or 2"| BOARD
-  NURSE -->|"death / discharge"| PORTAL
-  BOARD -.->|"silence ladder, risk"| BOARD
-  BOARD --> REP
-  APPR --> REP
-```
-
-### Admissions nurse — the one-minute flow
-
-```mermaid
-flowchart LR
-  A["Patient admitted"] --> B["/order"]
-  B --> C["Pick patient"]
-  C --> D["Pick equipment<br/>CMS catalog"]
-  D --> E{"Cost over<br/>threshold?"}
-  E -->|No| F["Sent to vendor"]
-  E -->|Yes| G["🆕 'Needs DON approval'<br/>shown before submit"]
-  G --> H["Queued for DON"]
-  F --> I["Confirmation:<br/>'We're watching it'"]
-  H --> I
-  I --> J["She stops thinking<br/>about it"]
-```
-
-The 🆕 node is the important one: she learns her order needs approval **at the moment she places
-it**, not an hour later when nothing has moved. Silence is the enemy in this product — including
-our own silence.
-
-### Case manager — the exception-handling loop
-
-```mermaid
-flowchart TB
-  A["/hospice board"] --> B{"What needs me?"}
-  B -->|"Escalation bar"| C["Unconfirmed 6h<br/>· unproven delivery<br/>· pickup overdue"]
-  B -->|"Risk flag"| D["'62% on-time for this<br/>equipment on Tuesdays'"]
-  B -->|"Review queue"| E["AI parse below 0.8<br/>confirm / reject"]
-  B -->|"Condition alert"| F["Household rated 1-2"]
-  B -->|"Diagnosis changed"| G["Order from patient context"]
-  C --> H["Acknowledge<br/>or swap vendor"]
-  D --> H
-  E --> I["Applied to order"]
-  F --> J["Call family<br/>+ vendor scorecard"]
-  G --> K["/order prefilled"]
-  H --> A
-  I --> A
-  J --> A
-  K --> A
-```
-
-### Director of nursing — approve, then look up
-
-```mermaid
-flowchart TB
-  A["/approvals 🆕"] --> B["Queue sorted by<br/>hours waiting ⚠️"]
-  B --> C{"Decision"}
-  C -->|Approve| D["Order releases<br/>to vendor"]
-  C -->|"Substitute"| E["Cheaper equivalent<br/>from CMS catalog"]
-  C -->|Deny| F["Back to orderer<br/>with a reason"]
-  D --> G["/reports"]
-  E --> G
-  F --> G
-  G --> H["Vendor scorecards<br/>on-time · condition"]
-  G --> I["DME spend"]
-  G --> J["🆕 Approval latency<br/>= our own delay"]
-  H --> K{"Care vs cost"}
-  I --> K
-  J --> K
-```
-
----
-
-## 5 · The approval gate, and why it's more than a form
-
-Adding DON approval means a new state before `ordered`:
-
-```
-[pending_approval] → ordered → dispatched → in_transit → delivered → pickup_pending → …
-```
-
-Straightforward. But it has a consequence worth putting on a slide:
-
-**An approval step is the first delay in this system that is the hospice's own fault.**
-
-Everything we've built measures the vendor — silence ladder, on-time rate, unproven claims,
-condition. If a DON sits on an approval for six hours, the bed is six hours late and **not one of
-our existing metrics would show it.** Worse, if the SLA clock starts at *approval* rather than at
-*order*, the vendor absorbs a delay they didn't cause, and our scorecards — the thing we're asking a
-hospice to pick vendors with — get quietly wrong.
-
-So:
-
-1. **The clock starts at order placement**, and the ledger records approval latency as its own
-   span, attributed to the hospice.
-2. **`/reports` gets an approval-latency stat next to the vendor scorecards.** The DON's own
-   screen shows the DON's own drag.
-3. `Actor` splits so the ledger can name which hospice user did what (§7).
-
-That last bit is the honest version of "balance between care and cost." A system that only ever
-measures the vendor is a system that flatters whoever bought it. Ours shouldn't.
-
-**Threshold:** config (`APPROVAL_THRESHOLD_USD`), applied against the CMS allowed amount already in
-`shared/catalog.ts`. **Any specific dollar figure is an assumption we have not validated** — real
-thresholds vary by hospice and we'd confirm with the sponsor. Per FAQ §6, we say that rather than
-invent a number that sounds researched.
-
-### Proposed `/approvals` wireframe
-
-```
-┌──────────────────────────────────────────────────────────────────┐
-│ DIRECTOR OF NURSING                                              │
-│ Approvals                                    3 waiting · 1 urgent│
-├──────────────────────────────────────────────────────────────────┤
-│ ⚠ WAITING 4h 20m                                                 │
-│ Hospital bed, semi-electric  ·  E0261      CMS allowed $1,067    │
-│ M. Alvarez · admitted today · discharge home 4pm                 │
-│ Requested by Admissions nurse · Urgent                           │
-│ ┌────────────────────────────────────────────────────────────┐   │
-│ │ Cheaper equivalent: manual bed E0250 · $612 · saves $455    │   │
-│ │ ⓘ Patient cannot self-reposition — clinical note attached  │   │
-│ └────────────────────────────────────────────────────────────┘   │
-│         [ Approve ]   [ Substitute ]   [ Deny with reason ]      │
-├──────────────────────────────────────────────────────────────────┤
-│   WAITING 40m                                                    │
-│ Oxygen concentrator · E1390 · $189/mo rental                     │
-│ …                                                                │
-└──────────────────────────────────────────────────────────────────┘
-```
-
-The substitution card is the care-versus-cost decision made *visible in one place* — the cheaper
-option and the clinical reason not to take it, side by side. That's the DON's actual job rendered as
-a UI, and it's a better answer to "addresses core user problems" than another chart.
-
----
-
-## 6 · Nav, per role
-
-Today: seven links, flat, same for everyone.
-
-```
-Board · New order · Nurse · Vendor phone · Driver · Portal · Reports
-```
-
-Proposed:
-
-| Role | Nav |
+| Route | What the page is |
 |---|---|
-| Admissions nurse | **New order** · My patients |
-| Case manager | **Board** · New order · Nurse · Reports |
-| Director of nursing | **Approvals** · Board · Reports |
+| `/portal/:token` | Magic link, no login. One order: Confirm, Set ETA, Can't fill it |
+| `/vendor-portal` | Same component, no token — the demo entry |
+| `/status/:token` | Read-only vendor status view |
+| `/vendor` | Dispatcher board + in-page phone simulator |
+| `/vendor-phone` | Full-screen SMS simulator, shows parse intent + confidence |
 
-**Demo-safety recommendation:** make the `AccountControl` dropdown a **live role switcher** rather
-than hard-filtering routes. Presenter switches role on stage and the nav visibly changes — which
-*demonstrates* the role model instead of describing it — and no screen becomes unreachable if we
-switch mid-demo. Vendor/driver/caregiver props stay reachable by direct URL as they are now.
+### Field & household — 2 pages
 
-This is the cheapest high-visibility UX win available: one dropdown, one context, one filtered
-array.
+| Route | What the page is |
+|---|---|
+| `/driver` | Phone-sized. Today's stops, POD capture: photo, signature, condition checklist |
+| `/caregiver` | Family's phone. Condition check arrives, reply 1-5 |
+
+### Proposed — 2 more
+
+| Route | What it would be | Why |
+|---|---|---|
+| `/approvals` | The DON's queue, sorted by how long each order has waited | Today it's a card buried on a weekly-reading page |
+| `/my-patients` | Admissions nurse's "did my stuff arrive" list | She can place an order and then has nowhere to look |
+
+---
+
+## 2 · The navigation map
+
+`App.tsx:103` splits the app in two. `/caregiver` and `/vendor-phone` render **outside** the Shell —
+no nav bar, full-screen phone simulators. Everything else renders **inside** the Shell and gets the
+same seven-link nav bar.
+
+```mermaid
+graph TD
+  NAV["GLOBAL NAV BAR<br/>7 links, on every page inside the Shell<br/>identical for every role"]
+
+  subgraph Inside the Shell - has the nav bar
+    BOARD["/hospice<br/>the board"]
+    ORDER["/order<br/>place an order"]
+    NURSE["/nurse<br/>patient status"]
+    REPORTS["/reports<br/>scorecards + approvals"]
+    VBOARD["/vendor<br/>dispatcher board"]
+    VPORTAL["/vendor-portal<br/>demo entry"]
+    DRIVER["/driver<br/>POD capture"]
+    PORTAL["/portal/:token<br/>magic link"]
+    VSTATUS["/status/:token<br/>read-only"]
+  end
+
+  subgraph Outside the Shell - no nav bar
+    CARE["/caregiver<br/>condition reply"]
+    VPHONE["/vendor-phone<br/>SMS simulator"]
+  end
+
+  NAV --> BOARD
+  NAV --> ORDER
+  NAV --> NURSE
+  NAV --> REPORTS
+  NAV --> VBOARD
+  NAV --> VPORTAL
+  NAV --> DRIVER
+
+  BOARD ==>|"+ New order button<br/>Hospice.tsx:39"| ORDER
+  ORDER ==>|"View board toast<br/>Order.tsx:100"| BOARD
+
+  SMS["SMS link to vendor"] -.-> PORTAL
+  SMS -.-> VSTATUS
+  TYPED["typed URL, demo only"] -.-> CARE
+  TYPED -.-> VPHONE
+```
+
+Thick arrows are the only two real in-app jumps. Thin arrows are the nav bar. Dashed arrows are
+external entry — a texted link or a URL typed by the presenter.
+
+**Three things this makes visible:**
+
+1. **`/nurse` and `/reports` have no exit at all.** No button, no link, no redirect. You leave by
+   clicking the nav bar or you don't leave.
+2. **The two real jumps use different mechanisms.** `/hospice` uses
+   `window.location.href = '/order'` — a **full page reload** that drops SSE and re-fetches
+   everything. `/order` uses React Router's `navigate()`. One of these is a bug.
+3. **`/portal/:token` renders inside the Shell**, so a vendor who taps a no-login magic link is
+   shown the hospice's full internal nav — Board, Reports, Driver. We pitch "the vendor logs into
+   nothing"; the demo hands them the hospice's own navigation. See §5.
+
+---
+
+## 3 · Where each user can actually go
+
+Roles now exist in the app — see §5 — so "can go" still means the same seven links for everyone.
+These diagrams show where each role *needs* to go, with the gap called out.
+
+### Admissions nurse
+
+```mermaid
+graph LR
+  A["/order<br/>place an order"]
+  B["/my-patients<br/>PROPOSED"]
+  C["/hospice<br/>everyone's patients"]
+  A ==>|"View board toast"| C
+  A -->|"form resets<br/>place another"| A
+  A -.->|"proposed"| B
+```
+
+**One page, and its only real exit lands her on the wrong screen.** The "View board" toast sends her
+to the case manager's board showing every patient in the hospice, not hers. `/my-patients` is the
+missing box.
+
+### Case manager
+
+```mermaid
+graph LR
+  A["/hospice<br/>the board"]
+  B["/order"]
+  C["/nurse"]
+  D["/reports"]
+  A ==>|"+ New order"| B
+  B ==>|"View board"| A
+  A -->|"inline order card<br/>stays on page"| A
+  A -->|"nav bar only"| C
+  A -->|"nav bar only"| D
+```
+
+**The only well-connected role.** Both real navigations in the app belong to her, and the board has
+its own inline order form so the common case never leaves the page. This is the one journey that was
+actually designed.
+
+### Director of nursing
+
+```mermaid
+graph LR
+  A["/reports"]
+  B["/approvals<br/>PROPOSED"]
+  C["/hospice"]
+  A -->|"scroll to find<br/>the approvals card"| A
+  A -->|"nav bar only"| C
+  A -.->|"proposed"| B
+```
+
+**One page doing two jobs.** Approving orders is daily; reading scorecards is weekly. They share a
+screen and the daily task is the one you scroll to find.
+
+### Field nurse
+
+```mermaid
+graph LR
+  A["/nurse<br/>who changed?"]
+  B["/nurse<br/>discharged / deceased"]
+  A --> B
+  B -->|"no navigation<br/>after confirm"| B
+```
+
+**Two taps and a dead stop.** The screen fires the pickup trigger and then shows her nothing about
+what she just set in motion. The consequences all land on the case manager's board, which she has no
+reason to open.
+
+---
+
+## 4 · System events — NOT navigation
+
+These are the arrows I previously drew on the navigation map by mistake. Nobody clicks these; they
+are events propagating through the backend and out over SSE. Keeping them separate is the point.
+
+```mermaid
+graph LR
+  N["field nurse taps<br/>deceased / discharged"]
+  P["every delivered order<br/>flips to pickup"]
+  T["vendor texted<br/>24h clock starts"]
+  E["/hospice<br/>overdue escalates"]
+  V["vendor taps<br/>magic link"]
+  B["/hospice<br/>board updates live"]
+  D["driver captures POD"]
+  C["/caregiver<br/>condition text sent"]
+  R["/reports<br/>vendor scorecard"]
+  N --> P
+  P --> T
+  T --> E
+  V --> B
+  D --> C
+  C --> R
+```
+
+---
+
+## 5 · Roles: identity shipped, authorization did not
+
+**This changed under us mid-build.** Commit `16e242e feat(client): mock role-based login in the
+shell` landed while this document was being written, so an earlier version of it — pushed as
+`098edfa` — claimed there was no role state anywhere. That claim is now wrong.
+
+**What exists** (`client/src/lib/auth.tsx`): a `ROLES` array of **six** roles — Case Manager,
+Admissions Nurse, Field Nurse, Dispatcher, Driver, Director of Nursing — plus `AuthProvider`,
+`useAuth()`, sign in, sign out, switch role, persisted to `localStorage`.
+
+**What it does:** changes the avatar initials and the name in the top-right corner.
+
+```bash
+grep -rn "useAuth" client/src --include="*.tsx" --include="*.ts" | grep -v "lib/auth"
+# client/src/App.tsx:47   <- the dropdown itself, and nothing else
+```
+
+`useAuth` has **exactly one consumer: the dropdown that sets it.** `surfaceLinks.map()`
+(`App.tsx:148`) is not filtered. No page branches on role. No route guards. Signed in as Driver, you
+still see Board, Reports, and every hospice screen.
+
+That is **identity without authorization** — and it's genuinely half the work done. The remaining
+half is one `.filter()` on the nav array plus a redirect guard.
+
+**The deeper gap is unchanged:** `shared/types.ts:26` has
+`Actor = 'hospice' | 'vendor' | 'driver' | 'system' | 'ai' | 'family'`. **`hospice` is one undivided
+value.** Six roles now exist in the client and the ledger still cannot record which of them acted.
+We tell judges the append-only ledger captures who acted and through which channel. For vendors
+that's true; for hospice staff it isn't.
+
+---
+
+## 6 · The approval gate — what's real, what isn't
+
+**Cost approvals already exist**, correcting another earlier error of mine: `mocks.ts` defines
+`COST_APPROVAL_THRESHOLD_USD = 150` and `mockApprovals()`, and `Reports.tsx:437` renders
+`CostApprovals` with working Approve/Deny buttons. My first grep covered only `server/` and
+`shared/` for `*.ts` and missed the client `.tsx` entirely.
+
+**But it is a mock, and the seam matters.** `decide()` (`Reports.tsx:450`) calls `setDecisions` —
+local React state. No API call, no persistence, no ledger event, and **nothing gates dispatch**. An
+order over $150/mo goes to the vendor whether or not the DON ever looks. The UI is real; the control
+is not. **Don't demo the approve button as though it gates anything.**
+
+Making it real means a `pending_approval` state ahead of `ordered`:
+
+```
+[pending_approval] -> ordered -> dispatched -> in_transit -> delivered -> pickup_pending
+```
+
+And that has a consequence worth a slide:
+
+**An approval step is the first delay in this system that is the hospice's own fault.** Everything
+we've built measures the vendor — silence ladder, on-time rate, unproven claims, condition. If a DON
+sits on an approval for six hours, the bed is six hours late and **not one of our metrics would show
+it.** Worse, if the SLA clock starts at *approval*, the vendor absorbs a delay they didn't cause and
+the scorecards we ask a hospice to choose vendors with go quietly wrong.
+
+So: **the clock starts at order placement**, approval latency is its own span attributed to the
+hospice, and it shows on `/reports` beside the vendor scorecards. The DON's own screen shows the
+DON's own drag. That's the honest version of "balance between care and cost" — a system that only
+measures the vendor flatters whoever bought it.
+
+**On the number:** `$150/mo` is real in the code but **not validated against any hospice**. Per
+FAQ §6 we say that rather than let it read as researched.
 
 ---
 
 ## 7 · Build plan
 
-Ordered by payoff per hour. Nothing here is started.
-
 | # | Item | Size | Why |
 |---:|---|:--:|---|
-| 1 | Role switcher in `AccountControl` + filtered `surfaceLinks` | **S** | Turns three captions into a visible role model. Highest ratio on this list |
-| 2 | Split `Actor: 'hospice'` → `admissions_nurse` \| `case_manager` \| `don` | **S** | The ledger can finally name our own people. Touches types + seed |
-| 3 | `pending_approval` state + `/approvals` screen | **M** | The DON's missing job. Needs state machine + guard + tests |
-| 4 | Cost shown at order time + threshold warning | **S** | Data already exists in `shared/catalog.ts`; `/order` just never shows it |
-| 5 | Approval latency on `/reports` | **S** | The honesty beat in §5. Cheap once 3 exists |
-| 6 | Order-from-patient entry for the case manager | **S** | Prefilled `/order`; the diagnosis-change trigger |
-| 7 | Per-role board filtering (own patients vs all) | **M** | Needs a patient→staff assignment that doesn't exist in the seed |
+| 1 | **Filter `surfaceLinks` by `role`** | **XS** | Identity already shipped in `16e242e`. This is one `.filter()` and it makes the whole role model visible on stage |
+| 2 | Split `Actor: 'hospice'` into the six roles that already exist in `auth.tsx` | **S** | The ledger can finally name our own people. Client already has the enum |
+| 3 | Give `/nurse` and `/reports` an exit | **XS** | Both are dead ends. A "back to board" button each |
+| 4 | Fix `window.location.href` on `Hospice.tsx:39` to `navigate()` | **XS** | Full page reload drops SSE mid-demo |
+| 5 | Show cost + threshold warning on `/order` | **S** | CMS amounts are in `shared/catalog.ts`; the form never reads them |
+| 6 | `/approvals` page — move `CostApprovals` off `/reports` | **S** | Component exists. Mostly a move plus queue sorting |
+| 7 | Persist approvals: server state + `pending_approval` + dispatch gate | **M** | Turns the mock into the feature |
+| 8 | Approval latency on `/reports` | **S** | The honesty beat in §6 |
+| 9 | `/my-patients` | **M** | Needs a patient-to-staff assignment the seed doesn't have |
 
-**If only one thing gets built: #1 and #2 together.** They're both small, they make the three-persona
-claim true rather than decorative, and #2 is the one that closes a real hole in the accountability
-story we're already telling on stage.
-
-**If the day runs short:** #3 is the one to *draw* rather than build. This document plus the
-wireframe in §5 is a legitimate Deliverable-D style answer, and FAQ §9 explicitly rewards
-forward-compatible design that's honestly labelled as designed-not-built.
+**Items 1, 3 and 4 are XS and together they fix the demo's worst UX moments.** Item 1 in particular
+is now nearly free: a teammate already built the hard half.
 
 ---
 
 ## 8 · Open questions
 
-1. **Who taps "patient died"?** `/nurse` fires the pickup trigger, but none of the three named roles
-   is obviously the person standing in the house at 2am. Is that a fourth role (visiting/on-call
-   nurse), or does the case manager do it from a phone call? **This affects whether `/nurse` is a
-   role surface or a shared utility** — the flows in §4 assume shared.
-2. **Can the case manager approve?** Some hospices let the case manager approve under a second,
-   lower threshold. Currently modelled as DON-only.
-3. **What is the threshold?** See §5 — unvalidated.
-4. **Does the admissions nurse ever see the board?** Matrix says read-only for her own patients,
-   but that requires a patient→staff assignment the seed doesn't have (build item #7).
-5. **`/vendor` vs `/vendor-phone`** — pre-existing naming collision, see FEATURES.md §8.1. Still
-   unresolved and the demo driver needs to know which one to open.
+1. **Does the vendor magic link need its own chrome?** `/portal/:token` renders inside the hospice
+   Shell today, showing an external vendor our full internal nav. Either move it outside the Shell
+   like `/caregiver`, or accept it and don't dwell on it during the demo.
+2. **Six roles in `auth.tsx` but three in the pitch.** Dispatcher, Driver and Field Nurse are in the
+   switcher. Do we present six personas or three plus supporting cast?
+3. **Can the case manager approve** under a lower second threshold? Currently modelled DON-only.
+4. **Is $150/mo right?** Real in code, unvalidated against any hospice.
+5. **Two order forms** — `/order` and the inline card on `/hospice`. They should share a component.
+6. **`/vendor` vs `/vendor-phone`** — pre-existing naming collision, FEATURES.md §8.1. The demo
+   driver needs to know which to open.
