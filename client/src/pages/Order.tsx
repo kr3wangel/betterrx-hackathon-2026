@@ -68,6 +68,13 @@ export default function Order() {
   const [vendorId, setVendorId] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
+  // The rolodex rung: add a vendor we already know by phone. They join scoped to the
+  // chosen patient's market; their first order text is their invite.
+  const [addingVendor, setAddingVendor] = useState(false)
+  const [newVendorName, setNewVendorName] = useState('')
+  const [newVendorPhone, setNewVendorPhone] = useState('')
+  const [savingVendor, setSavingVendor] = useState(false)
+
   useEffect(() => {
     Promise.all([
       api.get<Patient[]>('/api/patients'),
@@ -103,6 +110,34 @@ export default function Order() {
   }
 
   const canSubmit = patientId !== '' && vendorId !== '' && !!item && !submitting
+
+  async function addVendor() {
+    const name = newVendorName.trim()
+    const phone = newVendorPhone.trim()
+    if (!name || !phone || savingVendor) return
+    setSavingVendor(true)
+    try {
+      const created = await api.post<VendorWithStats & { existed?: boolean }>('/api/vendors', {
+        name,
+        phone,
+        service_area: patient?.market ?? '',
+      })
+      setVendors((prev) => (prev.some((v) => v.id === created.id) ? prev : [...prev, created]))
+      setVendorId(String(created.id))
+      setAddingVendor(false)
+      setNewVendorName('')
+      setNewVendorPhone('')
+      toast.success(created.existed ? 'Already on file — selected' : `${created.name} added`, {
+        description: created.existed
+          ? 'That phone number belongs to a vendor you already work with.'
+          : 'Their first text — with their portal link — goes out when you place this order.',
+      })
+    } catch {
+      toast.error('Couldn’t add the vendor', { description: 'Something went wrong reaching the server. Try again.' })
+    } finally {
+      setSavingVendor(false)
+    }
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -254,6 +289,47 @@ export default function Order() {
                 placeholder="Choose a vendor…"
                 emptyMessage="No vendor matches"
               />
+              {addingVendor && patient ? (
+                <div className="mt-2 flex flex-col gap-2 rounded-md border border-border bg-muted/40 p-3 sm:flex-row sm:items-center">
+                  <Input
+                    aria-label="New vendor name"
+                    placeholder="Vendor name"
+                    value={newVendorName}
+                    onChange={(e) => setNewVendorName(e.target.value)}
+                  />
+                  <Input
+                    aria-label="New vendor phone"
+                    type="tel"
+                    placeholder="Phone (SMS)"
+                    className="tabular-nums"
+                    value={newVendorPhone}
+                    onChange={(e) => setNewVendorPhone(e.target.value)}
+                  />
+                  <div className="flex shrink-0 gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={addVendor}
+                      disabled={!newVendorName.trim() || !newVendorPhone.trim() || savingVendor}
+                    >
+                      {savingVendor ? 'Adding…' : 'Add vendor'}
+                    </Button>
+                    <Button type="button" size="sm" variant="ghost" onClick={() => setAddingVendor(false)}>
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  className="mt-2 text-xs font-semibold text-primary hover:underline disabled:cursor-not-allowed disabled:text-faint disabled:no-underline"
+                  onClick={() => setAddingVendor(true)}
+                  disabled={!patient}
+                  title={patient ? undefined : 'Choose a patient first — the vendor joins covering their area'}
+                >
+                  Not listed? Add a vendor by phone — no signup on their end, their first text does the rest.
+                </button>
+              )}
             </Field>
 
             <div className="flex justify-end pt-1">
