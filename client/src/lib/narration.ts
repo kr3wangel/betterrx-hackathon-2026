@@ -45,6 +45,8 @@ export function isNarratableType(event: ServerEvent): boolean {
       return false
     case 'message':
       return false
+    case 'vendor_capacity':
+      return false
     case 'escalation':
       return true
     case 'order_event':
@@ -59,7 +61,7 @@ export function decideNarration(
   expectations: Expectation[],
   now: number,
 ): NarrationDecision {
-  if (event.type === 'heartbeat' || event.type === 'message') {
+  if (event.type === 'heartbeat' || event.type === 'message' || event.type === 'vendor_capacity') {
     return { narrate: false, reason: 'not_narratable' }
   }
   if (event.type === 'order_event' && MUTED_TYPES.includes(event.event_type)) {

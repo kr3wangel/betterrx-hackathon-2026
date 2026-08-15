@@ -102,6 +102,13 @@ CREATE TABLE IF NOT EXISTS condition_reports (
   comment TEXT,
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
+CREATE TABLE IF NOT EXISTS vendor_capacity (
+  vendor_id INTEGER NOT NULL REFERENCES vendors(id),
+  day TEXT NOT NULL,
+  stops INTEGER NOT NULL,
+  declared_at TEXT NOT NULL,
+  PRIMARY KEY (vendor_id, day)
+);
 CREATE INDEX IF NOT EXISTS idx_condition_vendor ON condition_reports (vendor_id);
 CREATE INDEX IF NOT EXISTS idx_condition_order ON condition_reports (order_id);
 `)
