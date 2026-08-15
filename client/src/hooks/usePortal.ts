@@ -1,16 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from '@/lib/api'
 import { useEventStream } from './useEventStream'
-import type { Order, Vendor } from '../../../shared/types'
+import type { Order, Vendor, VendorLoad } from '../../../shared/types'
 
 interface PortalPayload {
   vendor: Vendor
   orders: Order[]
+  load: VendorLoad
 }
 
 export interface UsePortal {
   vendor: Vendor | null
   orders: Order[]
+  /** Today's stop load + the vendor's own capacity declaration. */
+  load: VendorLoad | null
   loading: boolean
   error: string | null
   /** Vendor accepts the order (optionally with an ETA). */
@@ -19,6 +22,8 @@ export interface UsePortal {
   setEta: (orderId: number, etaIso: string) => Promise<void>
   /** Vendor declines the order — raises an escalation on the board. */
   decline: (orderId: number, reason?: string) => Promise<void>
+  /** Vendor declares how many stops they can take today; resolves with the fresh load. */
+  declareCapacity: (stops: number) => Promise<VendorLoad>
   reload: () => void
 }
 
@@ -31,12 +36,13 @@ export function usePortal(token: string | undefined): UsePortal {
   const { lastEvent } = useEventStream()
   const [vendor, setVendor] = useState<Vendor | null>(null)
   const [orders, setOrders] = useState<Order[]>([])
+  const [load, setLoad] = useState<VendorLoad | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const tokenRef = useRef(token)
   tokenRef.current = token
 
-  const load = useCallback(() => {
+  const reload = useCallback(() => {
     const t = tokenRef.current
     if (!t) {
       setError('Missing portal link')
@@ -48,13 +54,14 @@ export function usePortal(token: string | undefined): UsePortal {
       .then((payload) => {
         setVendor(payload.vendor)
         setOrders(payload.orders)
+        setLoad(payload.load)
         setError(null)
       })
       .catch((e: unknown) => setError(e instanceof Error ? e.message : 'Could not load portal'))
       .finally(() => setLoading(false))
   }, [])
 
-  useEffect(load, [load, token, lastEvent])
+  useEffect(reload, [reload, token, lastEvent])
 
   const confirm = useCallback(
     async (orderId: number, etaIso?: string) => {
@@ -68,6 +75,10 @@ export function usePortal(token: string | undefined): UsePortal {
   const decline = useCallback(async (orderId: number, reason?: string) => {
     await api.post(`/api/portal/${tokenRef.current}/orders/${orderId}/decline`, { reason: reason ?? null })
   }, [])
+  const declareCapacity = useCallback(
+    (stops: number) => api.post<VendorLoad>(`/api/portal/${tokenRef.current}/capacity`, { stops }),
+    []
+  )
 
-  return { vendor, orders, loading, error, confirm, setEta, decline, reload: load }
+  return { vendor, orders, load, loading, error, confirm, setEta, decline, declareCapacity, reload }
 }
