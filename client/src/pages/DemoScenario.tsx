@@ -3,7 +3,7 @@ import { ArrowLeft } from 'lucide-react'
 import { EmptyState } from '@/components/EmptyState'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { SeedCommand, StopLink, useDemoLinks, type DemoLink, type Stop } from './Demo'
+import { DemoSeedBlock, StageSilence, StopLink, useDemoLinks, type DemoLink, type Stop } from './Demo'
 
 interface Beat {
   n: string
@@ -337,7 +337,7 @@ const SCENARIO_PAGES: Record<string, ScenarioPage> = {
       ],
     },
     notes: [
-      'Seed this one as you start the beat — the silence clock starts at seed time, and you want the nag and the escalation to land live.',
+      'Tap “Stage the silence” as you start this scenario — the combined seed leaves Eleanor out on purpose, because her clock starts when the order is placed and would otherwise fire during scenario 1. The nag lands within 30s, the escalation on the tick after.',
       'The alt block’s phone number must not collide with a seeded vendor (801-555-01xx): POST /api/vendors is idempotent on phone, so a collision selects the existing vendor and the beat dies. 385-555-0142 is safe.',
       'Never cut the silence variant — it is the differentiator. If the escalation hasn’t landed when you arrive, narrate it and move on; never stand in silence waiting for a tick.',
       'The digit beat ends the silence beat: only type 1 into Beehive’s thread after beats 6 and 7 have landed.',
@@ -401,7 +401,8 @@ export default function DemoScenario() {
           <CardTitle>The beats</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <SeedCommand command={`npm run db:reset && npm run seed ${page.seed}`} />
+          <DemoSeedBlock fallbackSeed={page.seed} />
+          {n === '3' && <StageSilence />}
           <BeatList beats={page.beats} links={links} />
         </CardContent>
       </Card>

@@ -4,6 +4,7 @@ import { db } from './db'
 import { applyEvent, escalate } from './statemachine'
 import { getOrder, getVendor, listOrders, listOrderEvents, rowToMessage, rowToPod } from './store'
 import { recordPodCondition } from './pods'
+import { stageSilence } from './demo'
 import {
   applyParsed,
   deliveredThanksText,
@@ -237,6 +238,10 @@ routes.post('/portal/:token/capacity', (req, res) => {
 
 routes.get('/demo/links', (_req, res) => {
   res.json(demoLinks())
+})
+
+routes.post('/demo/stage/silence', (_req, res) => {
+  res.status(201).json(stageSilence())
 })
 
 routes.get('/vendors/load', (_req, res) => {

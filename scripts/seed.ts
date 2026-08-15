@@ -4,6 +4,7 @@ import { slotDigits, SLOT_BASES } from '../server/slots'
 import { computeRisk, RISK_THRESHOLD } from '../server/risk'
 import { conditionCheckText } from '../server/condition'
 import { demoDay } from '../server/portal'
+import { nextBusinessDeadline } from '../server/demo'
 import { getOrder } from '../server/store'
 import { CATALOG, byCode } from '../shared/catalog'
 import type { Order, VendorStat } from '../shared/types'
@@ -686,16 +687,6 @@ const OXY = 'E1390'
 const CHAIR = 'K0001'
 const CPAP = 'E0601'
 
-/**
- * Beehive is M–F 9–5, so a routine deadline that would land on their weekend is quoted for
- * the Monday. Keeps #1061 off the at-risk panel on every demo date: scenario 3's second
- * order has to be flagged by SILENCE, not by a weekend risk score that fires at seed time.
- */
-function nextBusinessDeadline(h: number): number {
-  const day = new Date(Date.now() + h * 3_600_000).getDay()
-  return day === 6 ? h + 48 : day === 0 ? h + 24 : h
-}
-
 if (scenario === 'scenario1') {
   // A (vendor × code × weekday) cell holds ~20 orders, so its on-time rate swings either
   // side of the risk rule's 85% and cannot carry this card alone. The 6h backdate and the
@@ -708,6 +699,15 @@ if (scenario === 'scenario1') {
 } else if (scenario === 'scenario3') {
   seedOrder(1060, 4, 4, BED, 'ordered', 20, null)
   seedOrder(1061, 1, 2, CHAIR, 'ordered', nextBusinessDeadline(44), null, 5)
+} else if (scenario === 'demo') {
+  // All three scenarios staged at once on different patients, so the demo runs back-to-back
+  // off one seed. Eleanor Vance is deliberately absent: her silence ladder is clock-driven
+  // and would fire during scenario 1 — POST /api/demo/stage/silence stages her on cue.
+  seedOrder(1042, 3, 2, BED, 'ordered', 12, null, 6)
+  seedOrder(1043, 3, 3, OXY, 'dispatched', 16, 12)
+  seedOrder(1050, 5, 1, BED, 'delivered', null, null)
+  seedOrder(1051, 5, 1, OXY, 'delivered', null, null)
+  seedOrder(1060, 4, 4, BED, 'ordered', 20, null)
 } else {
   seedOrder(1042, 3, 2, BED, 'ordered', 12, null, 6)
   seedOrder(1050, 5, 1, OXY, 'delivered', null, null)
@@ -748,6 +748,18 @@ console.log(
   `    ${COLD_START_VENDOR.name.padEnd(24)} no history — ` +
     `${allStats.filter((s) => s.vendor_id === COLD_START_VENDOR.id).length} vendor_stats rows (the cold start)`,
 )
+
+if (scenario === 'demo') {
+  console.log(
+    '\n  demo world — all three scenarios staged at once, on different patients:' +
+      '\n    S1  Margaret Osei   #1042 Beehive, ordered 6h ago, deadline +12h  → the at-risk row' +
+      '\n                        #1043 Canyon, dispatched                      → the healthy contrast' +
+      '\n    S2  Ruth Nakamura   #1050 + #1051 Wasatch, delivered              → Done, until the nurse taps' +
+      '\n    S3a Frank Delgado   #1060 Timpanogos, ordered just now            → cold start, inside the nag grace window' +
+      '\n    S3b Eleanor Vance   NOT SEEDED — POST /api/demo/stage/silence (the button on /demo/scenario/3)' +
+      '\n                        stages her order backdated 5h; the next tick nags, the one after escalates',
+  )
+}
 
 const dowName = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const rateFor = (vendorId: number, code: string, dow: number) =>

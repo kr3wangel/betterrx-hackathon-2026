@@ -167,6 +167,8 @@ function DemoFlows({ links }: { links: DemoLink[] }) {
         </p>
       </div>
 
+      <DemoSeedBlock />
+
       {SCENARIOS.map((s) => (
         <ScenarioCard key={s.seed} scenario={s} links={links} />
       ))}
@@ -177,8 +179,6 @@ function DemoFlows({ links }: { links: DemoLink[] }) {
 }
 
 function ScenarioCard({ scenario, links }: { scenario: Scenario; links: DemoLink[] }) {
-  const command = `npm run db:reset && npm run seed ${scenario.seed}`
-
   return (
     <Card>
       <CardHeader className="flex-row flex-wrap items-center justify-between gap-x-4 gap-y-1">
@@ -191,8 +191,6 @@ function ScenarioCard({ scenario, links }: { scenario: Scenario; links: DemoLink
         </Link>
       </CardHeader>
       <CardContent className="space-y-4">
-        <SeedCommand command={command} />
-
         <ol className="space-y-1.5">
           {scenario.stops.map((stop, i) => (
             <li key={stop.label} className="flex gap-2 text-sm">
@@ -203,8 +201,83 @@ function ScenarioCard({ scenario, links }: { scenario: Scenario; links: DemoLink
             </li>
           ))}
         </ol>
+
+        {scenario.n === '3' && <StageSilence />}
       </CardContent>
     </Card>
+  )
+}
+
+export const DEMO_SEED_COMMAND = 'npm run db:reset && npm run seed demo'
+
+export function DemoSeedBlock({ fallbackSeed }: { fallbackSeed?: string }) {
+  return (
+    <div className="space-y-2">
+      <SeedCommand command={DEMO_SEED_COMMAND} />
+      <p className="text-xs text-muted-foreground">
+        One seed for the whole demo — all three scenarios are staged at once, on different
+        patients, so nothing is reseeded between them. Scenario 3’s silence beat is the one
+        exception: its clock starts when you tap “Stage the silence”.
+      </p>
+      <p className="text-xs text-muted-foreground">
+        Fallback: isolated seeds, for rehearsing one scenario on its own —{' '}
+        {fallbackSeed ? (
+          <code className="font-mono">npm run db:reset &amp;&amp; npm run seed {fallbackSeed}</code>
+        ) : (
+          <>
+            <code className="font-mono">npm run seed scenario1</code> ·{' '}
+            <code className="font-mono">scenario2</code> ·{' '}
+            <code className="font-mono">scenario3</code>
+          </>
+        )}
+        .
+      </p>
+    </div>
+  )
+}
+
+export function StageSilence() {
+  const [staging, setStaging] = useState(false)
+  const [result, setResult] = useState<string | null>(null)
+
+  async function stage() {
+    setStaging(true)
+    try {
+      const order = await api.post<Order>('/api/demo/stage/silence')
+      setResult(`Staged #${order.id} — the watchdog nags within 30s, escalates the tick after`)
+      toast.success('Eleanor’s order is staged', {
+        description: 'The watchdog nags within 30s and escalates the tick after.',
+      })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : ''
+      if (message.includes('→ 409')) {
+        setResult('Already staged — Eleanor already has an open order')
+        toast.info('Already staged', { description: 'Eleanor already has an open order.' })
+      } else {
+        setResult(null)
+        toast.error('Staging didn’t go through', { description: message || 'Try again in a moment.' })
+      }
+    } finally {
+      setStaging(false)
+    }
+  }
+
+  return (
+    <div className="rounded-[10px] border border-border bg-muted/40 px-3 py-2.5">
+      <div className="flex items-center justify-between gap-3">
+        <p className="min-w-0 text-sm text-foreground">
+          Stage the silence (Eleanor → Beehive)
+          <span className="mt-0.5 block text-xs text-muted-foreground">
+            Tap as you start this scenario — it places her order backdated 5h, so the ladder runs
+            live.
+          </span>
+        </p>
+        <Button size="sm" variant="secondary" className="shrink-0" disabled={staging} onClick={stage}>
+          {staging ? 'Staging…' : 'Stage'}
+        </Button>
+      </div>
+      {result && <p className="mt-1.5 text-xs font-medium text-primary">{result}</p>}
+    </div>
   )
 }
 
