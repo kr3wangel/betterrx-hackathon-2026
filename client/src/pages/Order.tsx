@@ -15,6 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Combobox } from '@/components/ui/combobox'
 import { cn } from '@/lib/utils'
 
 type VendorWithStats = Vendor & { avg_on_time_rate: number | null }
@@ -161,19 +162,18 @@ export default function Order() {
               </h2>
             </div>
 
-            <Field label="Patient">
-              <Select value={patientId} onValueChange={setPatientId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Choose a patient…" />
-                </SelectTrigger>
-                <SelectContent>
-                  {activePatients.map((p) => (
-                    <SelectItem key={p.id} value={String(p.id)}>
-                      {p.name} · {p.market}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <Field label="Patient" htmlFor="order-patient">
+              <Combobox
+                id="order-patient"
+                options={activePatients.map((p) => ({
+                  value: String(p.id),
+                  label: p.name,
+                  hint: <span className="text-faint">{p.market}</span>,
+                }))}
+                value={patientId}
+                onValueChange={setPatientId}
+                placeholder="Choose a patient…"
+              />
             </Field>
 
             <Field label="Equipment">
@@ -235,20 +235,19 @@ export default function Order() {
               </div>
             </Field>
 
-            <Field label="Vendor" hint={patient ? `covering ${patient.market}` : undefined}>
-              <Select value={vendorId} onValueChange={setVendorId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Choose a vendor…" />
-                </SelectTrigger>
-                <SelectContent>
-                  {coveringVendors.map((v) => (
-                    <SelectItem key={v.id} value={String(v.id)}>
-                      {v.name}{' '}
-                      <OnTime rate={v.avg_on_time_rate} />
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <Field label="Vendor" hint={patient ? `covering ${patient.market}` : undefined} htmlFor="order-vendor">
+              <Combobox
+                id="order-vendor"
+                options={coveringVendors.map((v) => ({
+                  value: String(v.id),
+                  label: v.name,
+                  hint: <OnTime rate={v.avg_on_time_rate} />,
+                }))}
+                value={vendorId}
+                onValueChange={setVendorId}
+                placeholder="Choose a vendor…"
+                emptyMessage="No vendor matches"
+              />
             </Field>
 
             <div className="flex justify-end pt-1">
@@ -279,21 +278,40 @@ function Field({
   label,
   hint,
   note,
+  htmlFor,
   children,
 }: {
   label: string
   hint?: string
   note?: string
+  htmlFor?: string
   children: React.ReactNode
 }) {
-  return (
-    <label className="block">
-      <span className="mb-2 flex items-baseline justify-between text-xs font-bold uppercase tracking-[0.1em] text-muted-foreground">
-        {label}
-        {hint && <span className="font-medium normal-case tracking-normal text-faint">{hint}</span>}
-      </span>
+  const caption = (
+    <span className="mb-2 flex items-baseline justify-between text-xs font-bold uppercase tracking-[0.1em] text-muted-foreground">
+      {label}
+      {hint && <span className="font-medium normal-case tracking-normal text-faint">{hint}</span>}
+    </span>
+  )
+  const body = (
+    <>
       {children}
       {note && <span className="mt-2 block text-xs text-muted-foreground">{note}</span>}
+    </>
+  )
+  // A wrapping <label> re-forwards option clicks to the combobox input and reopens the list.
+  if (htmlFor) {
+    return (
+      <div className="block">
+        <label htmlFor={htmlFor}>{caption}</label>
+        {body}
+      </div>
+    )
+  }
+  return (
+    <label className="block">
+      {caption}
+      {body}
     </label>
   )
 }
