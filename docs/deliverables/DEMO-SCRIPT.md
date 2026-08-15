@@ -367,10 +367,9 @@ board at all. They are inside **Done · N this week** (open `history ▸` if you
   EMR fallback firing — in the real product the nurse's tap gets there first, and this is the
   belt-and-suspenders behind her."* Do not call an EMR button a nurse tap on stage; a judge who read
   the FAQ will catch it.
-- `[QUIRK]` The post-death pickup text still ends *"Family is present — please schedule promptly."*
-  (`server/messaging.ts:127`) — right for a discharge, tone-deaf for a death. A judge reading
-  Wasatch's thread in this scenario will see it. Don't open that thread on stage; if asked, own it
-  as a copy bug we caught and didn't ship a fix for.
+- ~~`[QUIRK]` pickup-text tone~~ **FIXED** — the pickup request now reads *"Reply 1 if you can
+  get it today, 2 to give us a window"* with no mention of the family. Safe to open Wasatch's
+  thread on stage.
 - Optional one-liner if you have slack: *"and if that pickup sits past the window, the watchdog
   escalates it on its own — the hospice knows before the family has to look at that bed another
   day."* (`server/watchdog.ts:107-113`.)
@@ -435,11 +434,9 @@ one, so this is a stage direction, not a problem.
   notes *"Vendor accepted by text (replied 1)"* at confidence 1.0 — a template × digit lookup
   (`server/sms.ts` `REPLY_ROUTES`), no model call at all. **This ends the silence beat**, so only do
   it after beats 6 and 7 have landed.
-- `[FE PENDING: evidence source on the timeline]` — portal taps write `payload.source: 'portal'`
-  (`server/portal.ts:38-39`), but the ledger derives its badge from actor + verification
-  (`RowDetail.tsx:102-105` via `mockEvidenceSource`) and never reads the real field. So "confidence
-  1.0, no model" is a spoken claim with nothing on screen backing it. Rendering *"via magic link ·
-  no model"* turns it into evidence. **The data is already there.**
+- ~~`[FE PENDING: evidence source on the timeline]`~~ **DONE** — the ledger now reads the real
+  `payload.source` + actor and prints *"digit reply · no model"*, *"nurse tap · no model"*,
+  *"vendor text · parsed by Claude"* per event. Point at it when you say "no model."
 - `[QUIRK]` One open escalation per order can mask a newer, worse one (`statemachine.ts:80-84`). If
   you run 5b all the way through to a delivered claim *without* swapping first, the *"marked
   delivered without proof of delivery"* escalation is silently dropped and #1061 keeps sitting in
@@ -466,8 +463,8 @@ This beat is no longer cuttable-by-default; cut it only if you are behind.
   (`Reports.tsx:137-151`), and the overwhelming majority of it is the seeded synthetic year, not
   your five minutes on stage. The cost cards further down the same page *are* labelled
   `synthetic` — which makes the unlabelled hero look deliberate. FAQ §6 penalises manufactured
-  precision. `[FE PENDING: SYNTHETIC label on the calls-avoided hero]` — ~10 lines, and the
-  cheapest honesty point on the board.
+  precision. ~~`[FE PENDING: SYNTHETIC label]`~~ **DONE** — the hero now wears the same
+  `synthetic` badge as the cost cards, with the server's counting rule printed underneath.
 - **Do not demo the cost-approval queue as a gate.** The approve/decline buttons are local
   `useState` — no API call, no persistence, and nothing stops an over-threshold order from shipping
   (`Reports.tsx:450-457`, `docs/FEATURES.md` §2). Show it as a *design* if it comes up, never as a
@@ -528,22 +525,16 @@ items were verified shipped on 2026-08-14 (`docs/E2E-WALKTHROUGH.md`).
 7. ~~**Render `family_notified` payload text**~~ — **DONE on the driver's completion card**
    (`Driver.tsx:73-81,221-226`) **and in the `/caregiver` thread**. Still **not** on the board's
    event ledger, which prints labels only — S2 step 5 works around it by staying on the driver card.
-8. **SYNTHETIC label on the calls-avoided hero** (`Reports.tsx:137-151`) — ~10 lines.
-   *(While you're in there: the on-screen breakdown prints three of the four counters the API
-   returns — `household_confirmations` is computed and never rendered.)* Highest-value
-   remaining item: it is the one number on screen that could read as a claim about the demo itself,
-   and FAQ §6 penalises exactly that. The cost cards on the same page already do this correctly.
+8. ~~**SYNTHETIC label on the calls-avoided hero**~~ **DONE** — badge + counting rule shipped.
+   *(Still open from the aside: `household_confirmations` is computed by the API and never
+   rendered in the breakdown.)*
 9. **Render the escalation reason in `RowDetail`** — `detail.escalations` is already fetched and
    never rendered (`RowDetail.tsx:15,36-37`). Today the watchdog's best sentence — *"No response to
    the automated check-in — order #1061 is still unconfirmed 5h after placement"* — exists only in
    the API. This is the single line that would let scenario 3's climax be *read* instead of
    described.
-10. **Render event `payload.source`** (`portal` / `vendor_message` / `nurse` / `emr`) in the ledger —
-    `RowDetail.tsx:102-105` derives the badge from `mockEvidenceSource(...)` and never reads the
-    real field the portal writes (`server/portal.ts:38-39`). Turns "confidence 1.0, no model" into
-    something visible.
-11. **Post-death pickup copy** (`server/messaging.ts:127`) still reads *"Family is present — please
-    schedule promptly."* Correct for a discharge, tone-deaf for a death, and visible to any judge
-    who opens Wasatch's thread during scenario 2. One string.
+10. ~~**Render event `payload.source`**~~ **DONE** — real source + actor rendered per event;
+    `mockEvidenceSource` survives only as the fallback for seeded history rows with null payloads.
+11. ~~**Post-death pickup copy**~~ **DONE** — gentler wording shipped and test-pinned.
 </content>
 </invoke>

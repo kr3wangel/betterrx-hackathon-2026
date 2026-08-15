@@ -33,7 +33,7 @@ Read with [FEATURES.md](FEATURES.md) and
 | Route | Persona in code | What the page is |
 |---|---|---|
 | `/order` | Admissions Nurse | Blank order form: patient, equipment, qty, needed-by, urgency, vendor |
-| `/hospice` | Case Manager | The board. Orders by state, escalation bar, risk flags, AI review queue, vendor swap, inline order form, EMR simulator |
+| `/hospice` | Case Manager | The board. Three sections (Needs you / On the way / Done), five-slot rows, tap-open detail with risk reasons + evidence, swap-vendor dialog, review-queue card when non-empty. Order form lives at `/order`; EMR simulator moved to `/demo` |
 | `/nurse` | Field Nurse | Two taps: pick patient, then discharged/deceased. Fires the pickup trigger |
 | `/reports` | Director of Nursing | Vendor scorecards, condition stats, calls avoided, pickup latency, DME spend, **and the cost-approval queue** |
 

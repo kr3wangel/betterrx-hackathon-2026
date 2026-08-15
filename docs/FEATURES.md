@@ -95,7 +95,7 @@ these up or don't claim them.
 
 | Thing | Evidence | Status |
 |---|---|---|
-| `POST /api/messages/send` — send any templated message | `sms.ts` `sendTemplate` | **Still no client caller** (re-checked 08-14) |
+| `POST /api/messages/send` — send any templated message | `sms.ts` `sendTemplate` | **Now called** by `/demo`'s send-a-text form (`Demo.tsx`) and RowDetail's "Send another nudge" |
 | Cost-threshold approvals on `/reports` | `Reports.tsx:450` `decide()` | **UI only.** Local `useState` — no API call, no persistence, no ledger event, and **nothing gates dispatch** |
 | Roles / sign-in | `App.tsx:47` is the only `useAuth` consumer | **Nav filtering only.** No page branches on role, no route guards, and `Actor` on the server has no matching split |
 
