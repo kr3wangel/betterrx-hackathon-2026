@@ -157,8 +157,15 @@ routes.post('/orders/:id/pod', (req, res) => {
   )
   const order = applyEvent(orderId, kind === 'pickup' ? 'picked_up' : 'delivered', { pod: true }, 'driver', roleFrom(req))
   const thanks = kind === 'pickup' ? pickedUpThanksText() : deliveredThanksText(order)
-  applyEvent(orderId, 'family_notified', { text: thanks }, 'system')
-  sendToFamily(order.patient_id, orderId, thanks, kind === 'pickup' ? 'f_picked_up_thanks' : 'f_delivered_thanks')
+  // Second POD of the same trip: the gate refuses the duplicate thanks, and the ledger has to
+  // agree — the driver card quotes this payload back as the text the household received.
+  const notified = sendToFamily(
+    order.patient_id,
+    orderId,
+    thanks,
+    kind === 'pickup' ? 'f_picked_up_thanks' : 'f_delivered_thanks',
+  )
+  if (notified !== null) applyEvent(orderId, 'family_notified', { text: thanks }, 'system')
 
   // Delivery is the one moment the household can see what actually arrived, so the
   // condition check rides along with proof of delivery. Never on a pickup — the guards

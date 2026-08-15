@@ -3,10 +3,13 @@ import { db } from '../server/db'
 import {
   ackNagText,
   applyParsed,
+  deliveredThanksText,
   deliveryConfirmText,
   etaCheckText,
   householdGate,
   orderRequestText,
+  pickedUpThanksText,
+  pickupGroupText,
   pickupNoticeText,
   pickupRequestText,
   sendToFamily,
@@ -22,14 +25,14 @@ import {
   sendTemplate,
   type ReplyAction,
 } from '../server/sms'
-import { portalOrders } from '../server/portal'
+import { portalLink, portalOrders } from '../server/portal'
 import { setPatientStatus } from '../server/pickups'
 import { SLOT_BASES, liveQuestions, slotDigits, type SlotDigits } from '../server/slots'
 import { applyEvent } from '../server/statemachine'
 import { getOrder, rowToMessage } from '../server/store'
 import { tick } from '../server/watchdog'
 import { seedFixtures, seedOrder } from './helpers'
-import type { MessageTemplate, ParsedMessage, VendorTemplate } from '../shared/types'
+import type { FamilyTemplate, MessageTemplate, Order, ParsedMessage, VendorTemplate } from '../shared/types'
 
 beforeEach(() => {
   seedFixtures()
@@ -457,6 +460,140 @@ describe('householdGate', () => {
     expect(body).toMatch(/nothing you need to do/i)
     expect(body).not.toMatch(/reply/i)
     expect(body).not.toContain(`#${id}`)
+  })
+})
+
+// One truck visit closes every item on the stop, so the closing text is scoped to the
+// visit and not to the order the POD happened to ride in on.
+describe('one visit, one thanks', () => {
+  function backdate(template: FamilyTemplate, hoursAgo: number) {
+    db.prepare("UPDATE messages SET created_at = ? WHERE template = ?").run(
+      new Date(Date.now() - hoursAgo * 3_600_000).toISOString(),
+      template,
+    )
+  }
+
+  it('thanks the household once for a two-item pickup trip', () => {
+    const bed = seedOrder({ state: 'pickup_pending' })
+    const oxygen = seedOrder({ state: 'pickup_pending', equipment_name: 'Oxygen concentrator, portable' })
+
+    expect(sendToFamily(1, bed, pickedUpThanksText(), 'f_picked_up_thanks')).not.toBeNull()
+    expect(sendToFamily(1, oxygen, pickedUpThanksText(), 'f_picked_up_thanks')).toBeNull()
+    expect(householdGate(getOrder(oxygen)!, 'f_picked_up_thanks').reason).toMatch(/visit/i)
+    expect(messages().filter((m) => m.template === 'f_picked_up_thanks')).toHaveLength(1)
+  })
+
+  it('thanks again when the truck comes back hours later', () => {
+    const first = seedOrder({ state: 'pickup_pending' })
+    const second = seedOrder({ state: 'pickup_pending', equipment_name: 'Walker, folding' })
+
+    expect(sendToFamily(1, first, pickedUpThanksText(), 'f_picked_up_thanks')).not.toBeNull()
+    backdate('f_picked_up_thanks', 3)
+
+    expect(sendToFamily(1, second, pickedUpThanksText(), 'f_picked_up_thanks')).not.toBeNull()
+    expect(messages().filter((m) => m.template === 'f_picked_up_thanks')).toHaveLength(2)
+  })
+
+  it('still refuses a repeat thanks for the same order after the window', () => {
+    const id = seedOrder({ state: 'pickup_pending' })
+    expect(sendToFamily(1, id, pickedUpThanksText(), 'f_picked_up_thanks')).not.toBeNull()
+    backdate('f_picked_up_thanks', 3)
+    expect(sendToFamily(1, id, pickedUpThanksText(), 'f_picked_up_thanks')).toBeNull()
+  })
+
+  it('dedupes a multi-item delivery drop the same way', () => {
+    const bed = seedOrder({ state: 'delivered' })
+    const oxygen = seedOrder({ state: 'delivered', equipment_name: 'Oxygen concentrator, portable' })
+
+    expect(sendToFamily(1, bed, deliveredThanksText(getOrder(bed)!), 'f_delivered_thanks')).not.toBeNull()
+    expect(sendToFamily(1, oxygen, deliveredThanksText(getOrder(oxygen)!), 'f_delivered_thanks')).toBeNull()
+    expect(messages().filter((m) => m.template === 'f_delivered_thanks')).toHaveLength(1)
+  })
+
+  it('never lets one household mute another', () => {
+    db.prepare(
+      "INSERT INTO patients (id, name, market, caregiver_name, caregiver_phone, contact_ok) VALUES (3, 'Other Patient', 'SLC', 'Other Caregiver', '801-555-0303', 1)",
+    ).run()
+    const mine = seedOrder({ state: 'pickup_pending' })
+    const theirs = seedOrder({ patient_id: 3, state: 'pickup_pending' })
+
+    expect(sendToFamily(1, mine, pickedUpThanksText(), 'f_picked_up_thanks')).not.toBeNull()
+    expect(sendToFamily(3, theirs, pickedUpThanksText(), 'f_picked_up_thanks')).not.toBeNull()
+    expect(messages().filter((m) => m.template === 'f_picked_up_thanks')).toHaveLength(2)
+  })
+
+  it('leaves the pickup notice keyed to the order, not the visit', () => {
+    const bed = seedOrder({ state: 'pickup_pending' })
+    const oxygen = seedOrder({ state: 'pickup_pending', equipment_name: 'Walker, folding' })
+
+    expect(sendToFamily(1, bed, pickupNoticeText(), 'f_pickup_notice')).not.toBeNull()
+    expect(sendToFamily(1, oxygen, pickupNoticeText(), 'f_pickup_notice')).not.toBeNull()
+    expect(messages().filter((m) => m.template === 'f_pickup_notice')).toHaveLength(2)
+  })
+})
+
+describe('pickup group body', () => {
+  function stop(names: string[]): Order[] {
+    return names.map((equipment_name) => getOrder(seedOrder({ state: 'pickup_pending', equipment_name }))!)
+  }
+
+  // Quoted verbatim in DEMO-SCRIPT.md — a presenter reads this off the phone on stage.
+  it('renders the two-item demo stop exactly as scripted', () => {
+    const orders = stop(['Hospital bed, semi-electric', 'Oxygen concentrator, portable'])
+    expect(pickupGroupText(orders, 'Ogden', ['1', '2'])).toBe(
+      `Pickup needed — 2 items from one home (hospital bed, oxygen concentrator), area Ogden. Family is present — please schedule promptly. Reply 1 if you can get both today, 2 to give us a window: ${portalLink(1)}`,
+    )
+  })
+
+  it('rolls repeats up into a count instead of listing them', () => {
+    const orders = stop([
+      'Portable oxygen system',
+      'Hospital bed, semi-electric',
+      'Portable oxygen system',
+      'Portable oxygen system',
+      'Portable oxygen system',
+      'Hospital bed, semi-electric',
+      'Walker, folding wheeled',
+    ])
+
+    const body = pickupGroupText(orders, 'Ogden', ['1', '2'])
+
+    expect(body).toContain('(4× portable oxygen system, 2× hospital bed, walker)')
+    expect(body).toContain('7 items from one home')
+    expect(body).toContain('if you can get all 7 today')
+  })
+
+  it('drops the manifest when even the deduped list is too long to text', () => {
+    const orders = stop([
+      'Hospital bed, semi-electric',
+      'Oxygen concentrator, portable',
+      'Walker, folding wheeled',
+      'Cpap device, auto-titrating',
+      'Wheelchair, manual',
+      'Nebulizer, tabletop',
+      'Suction pump, portable',
+    ])
+
+    const body = pickupGroupText(orders, 'Ogden', ['1', '2'])
+
+    expect(body).toContain('Pickup needed — 7 items from one home, area Ogden.')
+    expect(body).not.toContain('(')
+    expect(body).toContain('if you can get all 7 today')
+    expect(body).toContain(portalLink(1))
+  })
+
+  it('keeps a five-item stop naming its items', () => {
+    const orders = stop([
+      'Hospital bed, semi-electric',
+      'Oxygen concentrator, portable',
+      'Walker, folding wheeled',
+      'Cpap device, auto-titrating',
+      'Wheelchair, manual',
+    ])
+
+    expect(pickupGroupText(orders, 'Ogden', ['1', '2'])).toContain(
+      '(cpap device, hospital bed, oxygen concentrator, walker, wheelchair)',
+    )
   })
 })
 

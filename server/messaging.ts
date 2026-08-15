@@ -187,6 +187,8 @@ export function sendToFamily(
 }
 
 const FAMILY_QUESTIONS: FamilyTemplate[] = ['f_delivery_confirm', 'f_condition_check']
+const FAMILY_THANKS: FamilyTemplate[] = ['f_delivered_thanks', 'f_picked_up_thanks']
+const THANKS_WINDOW_HOURS = Number(process.env.THANKS_WINDOW_HOURS ?? 2)
 
 interface HouseholdContact {
   status: string
@@ -196,7 +198,8 @@ interface HouseholdContact {
 
 /**
  * One gate for every family send. Questions need a living patient and an empty thread;
- * notices are permitted after a death but carry no digits and go out once per order.
+ * notices are permitted after a death but carry no digits and go out once per order, and a
+ * closing thanks once per visit.
  */
 export function householdGate(order: Order, template: FamilyTemplate): { ok: boolean; reason?: string } {
   const patient = db
@@ -219,6 +222,19 @@ export function householdGate(order: Order, template: FamilyTemplate): { ok: boo
       .get(order.patient_id)
     if (open) return { ok: false, reason: 'a question is already open in this household thread' }
     return { ok: true }
+  }
+
+  // A thanks closes a visit, not an order. One truck emptying a house files a POD per item,
+  // so scoping this to the order would text a grieving household once per box on the truck.
+  if (FAMILY_THANKS.includes(template)) {
+    const since = new Date(Date.now() - THANKS_WINDOW_HOURS * 3_600_000).toISOString()
+    const recent = db
+      .prepare(
+        `SELECT id FROM messages WHERE patient_id = ? AND direction = 'out' AND recipient_type = 'family'
+           AND template = ? AND created_at >= ?`,
+      )
+      .get(order.patient_id, template, since)
+    if (recent) return { ok: false, reason: 'the household already heard about this visit' }
   }
 
   const already = db
@@ -260,11 +276,33 @@ export function pickupRequestText(order: Order, patientArea: string | undefined,
   return `Pickup needed for order #${order.id} (${order.equipment_name})${where}. Reply ${yes} if you can get it today, ${no} to give us a window: ${orderLink(order.id)}`
 }
 
+const MANIFEST_ITEM_LIMIT = 5
+
+/**
+ * The manifest as a driver would read it aloud: repeats rolled up, heaviest first.
+ *
+ * Returns null past MANIFEST_ITEM_LIMIT distinct items, where the list stops earning its
+ * SMS segments — the portal link carries the full manifest either way.
+ */
+function manifestText(orders: Order[]): string | null {
+  const counts = new Map<string, number>()
+  for (const order of orders) {
+    const name = order.equipment_name.split(',')[0].toLowerCase()
+    counts.set(name, (counts.get(name) ?? 0) + 1)
+  }
+  if (counts.size > MANIFEST_ITEM_LIMIT) return null
+  return [...counts]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([name, count]) => (count > 1 ? `${count}× ${name}` : name))
+    .join(', ')
+}
+
 export function pickupGroupText(orders: Order[], patientArea: string | undefined, [yes, no]: SlotDigits): string {
   const where = patientArea ? `, area ${patientArea}` : ''
-  const items = orders.map((o) => o.equipment_name.split(',')[0].toLowerCase()).join(', ')
+  const manifest = manifestText(orders)
+  const items = manifest ? ` (${manifest})` : ''
   const all = orders.length === 2 ? 'both' : `all ${orders.length}`
-  return `Pickup needed — ${orders.length} items from one home (${items})${where}. Family is present — please schedule promptly. Reply ${yes} if you can get ${all} today, ${no} to give us a window: ${portalLink(orders[0].vendor_id)}`
+  return `Pickup needed — ${orders.length} items from one home${items}${where}. Family is present — please schedule promptly. Reply ${yes} if you can get ${all} today, ${no} to give us a window: ${portalLink(orders[0].vendor_id)}`
 }
 
 export function ackNagText(order: Order, [yes, no]: SlotDigits): string {
