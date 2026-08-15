@@ -65,15 +65,16 @@ Read with [FEATURES.md](FEATURES.md) and
 
 ## 2 · The navigation map
 
-`App.tsx:103` splits the app in two. `/caregiver` and `/vendor-phone` render **outside** the Shell —
-no nav bar, full-screen phone simulators. Everything else renders **inside** the Shell and gets the
-same seven-link nav bar.
+`App.tsx` splits the app into **three** chrome levels. The full Shell carries the hospice nav bar.
+`PortalShell` carries the betterRX mark and the live indicator and nothing else — it wraps the two
+token links a vendor opens from a text. `/caregiver` and `/vendor-phone` get no chrome at all,
+because they stand in for real handsets.
 
 ```mermaid
 graph TD
   NAV["GLOBAL NAV BAR<br/>7 links, on every page inside the Shell<br/>identical for every role"]
 
-  subgraph Inside the Shell - has the nav bar
+  subgraph Full Shell - hospice nav bar
     BOARD["/hospice<br/>the board"]
     ORDER["/order<br/>place an order"]
     NURSE["/nurse<br/>patient status"]
@@ -81,11 +82,14 @@ graph TD
     VBOARD["/vendor<br/>dispatcher board"]
     VPORTAL["/vendor-portal<br/>demo entry"]
     DRIVER["/driver<br/>POD capture"]
+  end
+
+  subgraph PortalShell - brand and status only
     PORTAL["/portal/:token<br/>magic link"]
     VSTATUS["/status/:token<br/>read-only"]
   end
 
-  subgraph Outside the Shell - no nav bar
+  subgraph No chrome at all - phone simulators
     CARE["/caregiver<br/>condition reply"]
     VPHONE["/vendor-phone<br/>SMS simulator"]
   end
@@ -119,10 +123,11 @@ external entry — a texted link or a URL typed by the presenter.
    home. The field nurse can finally see what her two taps set in motion.
 2. ~~`/hospice` uses `window.location.href`, a full page reload that drops SSE.~~ **Fixed.** All
    four navigations are now `navigate()`. Nothing in the app tears down the event stream mid-demo.
-3. **`/portal/:token` renders inside the Shell** — still true. A vendor who taps a no-login magic
-   link is shown the hospice's internal nav. Role filtering (§5) softens this only if the vendor is
-   signed in as a vendor role, which they never are: they arrive with no session at all, and signed
-   out shows every link. **This is the one live UX bug left on this page.** See §8.1.
+3. ~~`/portal/:token` renders inside the Shell, showing an external vendor the hospice's nav.~~
+   **Fixed.** Both token routes moved out to `PortalShell`. Role filtering could never have fixed
+   this — a vendor arrives with no session, and signed out deliberately shows every link. The route
+   had to move. `/vendor-portal` (no token) stays in the full Shell: it's the internal demo entry
+   reached from the nav, not something a vendor is ever texted.
 
 ---
 
@@ -248,21 +253,25 @@ grep -rn "useAuth" client/src --include="*.tsx" --include="*.ts" | grep -v "lib/
 |---|---|
 | Case Manager | Board · New order · Nurse · Reports |
 | Admissions Nurse | Board · New order |
-| Field Nurse | Nurse |
+| Field Nurse | Board · Nurse |
 | Director of Nursing | Board · Reports |
 | Dispatcher | Vendor phone · Portal |
 | Driver | Driver |
 | *signed out* | *everything* |
+
+Field Nurse gets Board for a specific reason: `/nurse` now has a "View board" button, and **a nav
+that hides a page the page itself sends you to is worse than no filtering at all.** Any future link
+added to a page has to be checked against this table.
 
 **Routes are deliberately not guarded.** Filtering hides links; it does not block URLs. Every screen
 stays reachable by typing the path, so a mis-click during the demo can't strand the presenter — and
 switching role visibly rearranges the nav, which demonstrates the role model rather than describing
 it.
 
-**Signed out shows every link on purpose**, so nobody loses a screen before choosing a role. That
-choice has one consequence worth knowing: a vendor arriving on a magic link has no session, so they
-see the full hospice nav. Role filtering doesn't fix §2.3 — only moving the route out of the Shell
-does.
+**Signed out shows every link on purpose**, so nobody loses a screen before choosing a role. The one
+case where that would have leaked — a vendor on a magic link, who has no session at all — is handled
+by chrome rather than by roles: those routes render in `PortalShell` and never had a nav bar to
+leak. See §2.3.
 
 **The deeper gap is unchanged:** `shared/types.ts:26` has
 `Actor = 'hospice' | 'vendor' | 'driver' | 'system' | 'ai' | 'family'`. **`hospice` is one undivided
@@ -315,7 +324,7 @@ FAQ §6 we say that rather than let it read as researched.
 | 1 | Filter `surfaceLinks` by `role` | XS | ✅ **done** — `roles: RoleId[]` per link, filtered in `Shell()` |
 | 2 | Give `/nurse` and `/reports` an exit | XS | ✅ **done** — "View board" in both headers |
 | 3 | Replace `window.location.href` with `navigate()` | XS | ✅ **done** — no full page reloads left |
-| 4 | Move `/portal/:token` out of the Shell | **XS** | **next** — vendors on a magic link currently see the hospice nav. §2.3 |
+| 4 | Move `/portal/:token` out of the Shell | XS | ✅ **done** — new `PortalShell`, brand + status only |
 | 5 | Split `Actor: 'hospice'` into the six roles in `auth.tsx` | **S** | The ledger still can't name our own people. Client already has the enum |
 | 6 | Show cost + threshold warning on `/order` | **S** | CMS amounts are in `shared/catalog.ts`; the form never reads them |
 | 7 | `/approvals` page — move `CostApprovals` off `/reports` | **S** | Component exists. Mostly a move plus queue sorting |
@@ -323,21 +332,19 @@ FAQ §6 we say that rather than let it read as researched.
 | 9 | Approval latency on `/reports` | **S** | The honesty beat in §6 |
 | 10 | `/my-patients` | **M** | Needs a patient-to-staff assignment the seed doesn't have |
 
-**The XS batch (1–3) is done.** Item 4 is the last XS one and the only live UX bug left. After that
-the highest-value item is **5** — six roles now exist in the client and the ledger still records all
-of them as an undivided `hospice`.
+**Every XS item (1–4) is done.** The highest-value remaining item is **5** — six roles now exist in
+the client, the nav filters on them, and the ledger still records every one of them as an undivided
+`hospice`. That gap is now the most visible inconsistency in the product: the UI knows who you are
+and the audit trail doesn't.
 
 ---
 
 ## 8 · Open questions
 
-1. **Does the vendor magic link need its own chrome?** `/portal/:token` renders inside the hospice
-   Shell today, showing an external vendor our full internal nav. Either move it outside the Shell
-   like `/caregiver`, or accept it and don't dwell on it during the demo.
-2. **Six roles in `auth.tsx` but three in the pitch.** Dispatcher, Driver and Field Nurse are in the
+1. **Six roles in `auth.tsx` but three in the pitch.** Dispatcher, Driver and Field Nurse are in the
    switcher. Do we present six personas or three plus supporting cast?
-3. **Can the case manager approve** under a lower second threshold? Currently modelled DON-only.
-4. **Is $150/mo right?** Real in code, unvalidated against any hospice.
-5. **Two order forms** — `/order` and the inline card on `/hospice`. They should share a component.
-6. **`/vendor` vs `/vendor-phone`** — pre-existing naming collision, FEATURES.md §8.1. The demo
+2. **Can the case manager approve** under a lower second threshold? Currently modelled DON-only.
+3. **Is $150/mo right?** Real in code, unvalidated against any hospice.
+4. **Two order forms** — `/order` and the inline card on `/hospice`. They should share a component.
+5. **`/vendor` vs `/vendor-phone`** — pre-existing naming collision, FEATURES.md §8.1. The demo
    driver needs to know which to open.

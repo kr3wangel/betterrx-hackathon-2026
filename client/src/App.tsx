@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { NavLink, Navigate, Route, Routes } from 'react-router-dom'
 import { Check, ChevronDown, LogOut } from 'lucide-react'
 import { useEventStream } from './hooks/useEventStream'
@@ -28,7 +29,9 @@ import VendorPhone from './pages/VendorPhone'
 // Which roles see which surface in the nav. This filters the nav bar ONLY — routes stay
 // unguarded on purpose, so any screen is still reachable by URL if a demo goes sideways.
 const surfaceLinks: { to: string; label: string; roles: RoleId[] }[] = [
-  { to: '/hospice', label: 'Board', roles: ['case_manager', 'admissions_nurse', 'director_of_nursing'] },
+  // Field Nurse gets the board because /nurse links to it — a nav that hides a page the
+  // page itself sends you to is worse than no filtering at all.
+  { to: '/hospice', label: 'Board', roles: ['case_manager', 'admissions_nurse', 'director_of_nursing', 'field_nurse'] },
   { to: '/order', label: 'New order', roles: ['case_manager', 'admissions_nurse'] },
   { to: '/nurse', label: 'Nurse', roles: ['case_manager', 'field_nurse'] },
   { to: '/vendor', label: 'Vendor phone', roles: ['dispatcher'] },
@@ -102,8 +105,51 @@ export default function App() {
           so it gets no nav, no header, no site chrome. Reachable only by typing the URL. */}
       <Route path="/caregiver" element={<Caregiver />} />
       <Route path="/vendor-phone" element={<VendorPhone />} />
+      {/* Token links arrive by text, from someone who works for the vendor and has no
+          account here. They get brand and status, never the hospice's own navigation. */}
+      <Route
+        path="/portal/:token"
+        element={
+          <PortalShell>
+            <VendorPortal />
+          </PortalShell>
+        }
+      />
+      <Route
+        path="/status/:token"
+        element={
+          <PortalShell>
+            <VendorStatus />
+          </PortalShell>
+        }
+      />
       <Route path="*" element={<Shell />} />
     </Routes>
+  )
+}
+
+/** Chrome for magic-link pages: the brand mark and the live indicator, and nothing else. */
+function PortalShell({ children }: { children: ReactNode }) {
+  const { connected } = useEventStream()
+
+  return (
+    <div className="min-h-screen bg-background text-foreground">
+      <header className="border-b border-border bg-card">
+        <div className="flex items-center gap-4 px-5 py-3">
+          <span className="rounded-full bg-primary px-3 py-1 font-display text-sm font-extrabold tracking-tight text-primary-foreground">
+            betterRX
+          </span>
+          <span className="ml-auto flex items-center gap-2 text-xs font-medium text-muted-foreground">
+            <span
+              className={cn('h-2.5 w-2.5 rounded-full', connected ? 'bg-success' : 'bg-destructive')}
+            />
+            {connected ? 'Live' : 'Disconnected'}
+          </span>
+        </div>
+      </header>
+      <main className="mx-auto max-w-7xl px-5 py-8 md:px-8">{children}</main>
+      <Toaster />
+    </div>
   )
 }
 
@@ -166,9 +212,8 @@ function Shell() {
             <Route path="/nurse" element={<Nurse />} />
             <Route path="/vendor" element={<VendorPage />} />
             <Route path="/driver" element={<Driver />} />
+            {/* /portal/:token and /status/:token live outside the Shell — see PortalShell. */}
             <Route path="/vendor-portal" element={<VendorPortal />} />
-            <Route path="/portal/:token" element={<VendorPortal />} />
-            <Route path="/status/:token" element={<VendorStatus />} />
             <Route path="/reports" element={<Reports />} />
           </Routes>
         </main>
