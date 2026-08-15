@@ -15,10 +15,12 @@ import type { ServerEvent } from '../../../shared/types'
  */
 
 type Listener = (lastEvent: ServerEvent | null, connected: boolean) => void
+type FrameListener = (event: ServerEvent) => void
 
 interface Stream {
   es: EventSource
   listeners: Set<Listener>
+  frameListeners: Set<FrameListener>
   connected: boolean
   last: ServerEvent | null
 }
@@ -29,26 +31,38 @@ function notify(s: Stream) {
   for (const fn of s.listeners) fn(s.last, s.connected)
 }
 
-function acquire(url: string, listener: Listener): Stream {
-  let s = streams.get(url)
-  if (!s) {
-    const es = new EventSource(url)
-    s = { es, listeners: new Set(), connected: false, last: null }
-    streams.set(url, s)
-    const stream = s
-    es.onopen = () => {
-      stream.connected = true
-      notify(stream)
-    }
-    es.onerror = () => {
-      stream.connected = false
-      notify(stream)
-    }
-    es.onmessage = (e) => {
-      stream.last = JSON.parse(e.data) as ServerEvent
-      notify(stream)
-    }
+function ensure(url: string): Stream {
+  const existing = streams.get(url)
+  if (existing) return existing
+  const es = new EventSource(url)
+  const stream: Stream = { es, listeners: new Set(), frameListeners: new Set(), connected: false, last: null }
+  streams.set(url, stream)
+  es.onopen = () => {
+    stream.connected = true
+    notify(stream)
   }
+  es.onerror = () => {
+    stream.connected = false
+    notify(stream)
+  }
+  es.onmessage = (e) => {
+    const event = JSON.parse(e.data) as ServerEvent
+    stream.last = event
+    for (const fn of stream.frameListeners) fn(event)
+    notify(stream)
+  }
+  return stream
+}
+
+function closeIfIdle(url: string, s: Stream) {
+  if (streams.get(url) !== s) return
+  if (s.listeners.size > 0 || s.frameListeners.size > 0) return
+  s.es.close()
+  streams.delete(url)
+}
+
+function acquire(url: string, listener: Listener): Stream {
+  const s = ensure(url)
   s.listeners.add(listener)
   return s
 }
@@ -57,9 +71,20 @@ function release(url: string, listener: Listener) {
   const s = streams.get(url)
   if (!s) return
   s.listeners.delete(listener)
-  if (s.listeners.size === 0) {
-    s.es.close()
-    streams.delete(url)
+  closeIfIdle(url, s)
+}
+
+/**
+ * Every frame, synchronously, outside React state. A burst of frames arriving in one task
+ * collapses to a single re-render carrying only the last one, so anything that must act on
+ * each frame — narration — cannot read them off `lastEvent`.
+ */
+export function subscribeToEvents(listener: FrameListener, url = '/api/events'): () => void {
+  const s = ensure(url)
+  s.frameListeners.add(listener)
+  return () => {
+    s.frameListeners.delete(listener)
+    closeIfIdle(url, s)
   }
 }
 

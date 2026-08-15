@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { useEventStream } from './useEventStream'
+import { subscribeToEvents } from './useEventStream'
 import { api } from '../lib/api'
 import { activeExpectations } from '../lib/expectedEvents'
 import { collapseNarrations, decideNarration, isNarratableType } from '../lib/narration'
@@ -25,7 +25,6 @@ function readQuiet(): boolean {
 
 /** Mount exactly once, in Shell(), inside HighlightProvider. */
 export function useEventNarration() {
-  const { lastEvent } = useEventStream()
   const { pulse } = useHighlight()
   const [quiet] = useState(readQuiet)
   const queue = useRef<ServerEvent[]>([])
@@ -81,25 +80,26 @@ export function useEventNarration() {
   }, [])
 
   useEffect(() => {
-    if (!lastEvent) return
-    // StrictMode double-invokes effects in dev, which would narrate every event twice.
-    if (seen.current.has(lastEvent)) return
-    seen.current.add(lastEvent)
+    return subscribeToEvents((event) => {
+      // StrictMode double-invokes effects in dev, which would narrate every event twice.
+      if (seen.current.has(event)) return
+      seen.current.add(event)
 
-    if (!isNarratableType(lastEvent)) return
+      if (!isNarratableType(event)) return
 
-    if (quiet) {
-      if ('order_id' in lastEvent) pulseRef.current(lastEvent.order_id)
-      return
-    }
+      if (quiet) {
+        if ('order_id' in event) pulseRef.current(event.order_id)
+        return
+      }
 
-    queue.current.push(lastEvent)
-    if (timer.current) return
-    timer.current = setTimeout(() => {
-      timer.current = null
-      void drain()
-    }, DEBOUNCE_MS)
-  }, [lastEvent, quiet, drain])
+      queue.current.push(event)
+      if (timer.current) return
+      timer.current = setTimeout(() => {
+        timer.current = null
+        void drain()
+      }, DEBOUNCE_MS)
+    })
+  }, [quiet, drain])
 
   useEffect(() => {
     return () => {
