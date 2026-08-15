@@ -32,6 +32,7 @@ import Nurse from './pages/Nurse'
 import Caregiver from './pages/Caregiver'
 import VendorPhone from './pages/VendorPhone'
 import Demo from './pages/Demo'
+import DemoScenario from './pages/DemoScenario'
 import Landing from './pages/Landing'
 
 // The two people this system texts who never log in. Their screens are full-screen phone
@@ -256,6 +257,7 @@ function Shell() {
               <Route path="/vendor-portal" element={<VendorPortal />} />
               {/* Unlisted in the nav — a presenter prop, not a product surface. */}
               <Route path="/demo" element={<Demo />} />
+              <Route path="/demo/scenario/:n" element={<DemoScenario />} />
             </Routes>
           </main>
           <Toaster />

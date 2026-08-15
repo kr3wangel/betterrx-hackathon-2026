@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ExternalLink } from 'lucide-react'
+import { ArrowRight, ExternalLink } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '../lib/api'
 import { expectOwn } from '../lib/expectedEvents'
@@ -44,13 +44,13 @@ const TEMPLATES: { value: MessageTemplate; label: string }[] = [
   { value: 'f_picked_up_thanks', label: 'Family — picked up, thank you' },
 ]
 
-interface DemoLink {
+export interface DemoLink {
   vendor_id: number
   name: string
   portal_link: string
 }
 
-interface Stop {
+export interface Stop {
   label: string
   to?: string
   external?: boolean
@@ -58,6 +58,7 @@ interface Stop {
 }
 
 interface Scenario {
+  n: string
   seed: string
   name: string
   stops: Stop[]
@@ -65,6 +66,7 @@ interface Scenario {
 
 const SCENARIOS: Scenario[] = [
   {
+    n: '1',
     seed: 'scenario1',
     name: 'Scenario 1 — the case worker’s save',
     stops: [
@@ -81,6 +83,7 @@ const SCENARIOS: Scenario[] = [
     ],
   },
   {
+    n: '2',
     seed: 'scenario2',
     name: 'Scenario 2 — the nurse in the home',
     stops: [
@@ -100,6 +103,7 @@ const SCENARIOS: Scenario[] = [
     ],
   },
   {
+    n: '3',
     seed: 'scenario3',
     name: 'Scenario 3 — the cold-start vendor',
     stops: [
@@ -113,9 +117,7 @@ const SCENARIOS: Scenario[] = [
   },
 ]
 
-export default function Demo() {
-  const { data: patients } = useLive(() => api.get<Patient[]>('/api/patients'))
-  const { data: orders } = useLive(() => api.get<Order[]>('/api/orders'))
+export function useDemoLinks() {
   const [links, setLinks] = useState<DemoLink[]>([])
 
   useEffect(() => {
@@ -124,6 +126,14 @@ export default function Demo() {
       .then(setLinks)
       .catch(() => setLinks([]))
   }, [])
+
+  return links
+}
+
+export default function Demo() {
+  const { data: patients } = useLive(() => api.get<Patient[]>('/api/patients'))
+  const { data: orders } = useLive(() => api.get<Order[]>('/api/orders'))
+  const links = useDemoLinks()
 
   return (
     <div className="mx-auto max-w-3xl space-y-8">
@@ -171,32 +181,17 @@ function ScenarioCard({ scenario, links }: { scenario: Scenario; links: DemoLink
 
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="flex-row flex-wrap items-center justify-between gap-x-4 gap-y-1">
         <CardTitle>{scenario.name}</CardTitle>
+        <Link
+          to={`/demo/scenario/${scenario.n}`}
+          className="inline-flex shrink-0 items-center gap-1 text-sm font-semibold text-primary underline-offset-4 hover:underline"
+        >
+          Open scenario page <ArrowRight className="size-3.5" />
+        </Link>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="rounded-[10px] border border-border bg-muted/40 px-3 py-2.5">
-          <div className="flex items-center justify-between gap-3">
-            <code className="min-w-0 truncate font-mono text-xs text-foreground">{command}</code>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="shrink-0"
-              onClick={() => {
-                navigator.clipboard
-                  .writeText(command)
-                  .then(() => toast.success('Seed command copied'))
-                  .catch(() => toast.error('Copy it by hand', { description: command }))
-              }}
-            >
-              Copy
-            </Button>
-          </div>
-          <p className="mt-1.5 text-xs text-muted-foreground">
-            …then hard-refresh every open tab. Seeding writes straight to SQLite and broadcasts
-            nothing.
-          </p>
-        </div>
+        <SeedCommand command={command} />
 
         <ol className="space-y-1.5">
           {scenario.stops.map((stop, i) => (
@@ -213,8 +208,38 @@ function ScenarioCard({ scenario, links }: { scenario: Scenario; links: DemoLink
   )
 }
 
-function StopLink({ stop, links }: { stop: Stop; links: DemoLink[] }) {
+export function SeedCommand({ command }: { command: string }) {
+  return (
+    <div className="rounded-[10px] border border-border bg-muted/40 px-3 py-2.5">
+      <div className="flex items-center justify-between gap-3">
+        <code className="min-w-0 truncate font-mono text-xs text-foreground">{command}</code>
+        <Button
+          size="sm"
+          variant="ghost"
+          className="shrink-0"
+          onClick={() => {
+            navigator.clipboard
+              .writeText(command)
+              .then(() => toast.success('Seed command copied'))
+              .catch(() => toast.error('Copy it by hand', { description: command }))
+          }}
+        >
+          Copy
+        </Button>
+      </div>
+      <p className="mt-1.5 text-xs text-muted-foreground">
+        …then hard-refresh every open tab. Seeding writes straight to SQLite and broadcasts nothing.
+      </p>
+    </div>
+  )
+}
+
+export function StopLink({ stop, links }: { stop: Stop; links: DemoLink[] }) {
   const className = 'text-foreground underline-offset-4 hover:text-primary hover:underline'
+
+  if (stop.to === undefined && stop.portalVendorId === undefined) {
+    return <span className="text-foreground">{stop.label}</span>
+  }
 
   if (stop.portalVendorId !== undefined) {
     const href = links.find((l) => l.vendor_id === stop.portalVendorId)?.portal_link
