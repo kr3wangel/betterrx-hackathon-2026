@@ -10,9 +10,10 @@ navigation affordance found in the code, not an inferred user journey. The searc
 grep -rnE "useNavigate|navigate\(|window\.location|<Link|<NavLink|href=" client/src/pages/ client/src/components/
 ```
 
-That returns **exactly two** programmatic navigations in the entire application. Everything else is
-the global nav bar. An earlier draft of this document drew vendor and driver arrows that were really
-*system events*, not navigation — those now live in §4, clearly separated.
+That returns **four** programmatic navigations in the entire application — all of them
+`react-router` `navigate()` calls, no full page loads. Everything else is the global nav bar. An
+earlier draft of this document drew vendor and driver arrows that were really *system events*, not
+navigation — those now live in §4, clearly separated.
 
 **Viewing:** mermaid renders on github.com natively; in VS Code use *Markdown Preview Mermaid
 Support* + `Cmd+Shift+V`. All diagrams here were rendered through `mermaid-cli` v9 and v10 before
@@ -97,8 +98,10 @@ graph TD
   NAV --> VPORTAL
   NAV --> DRIVER
 
-  BOARD ==>|"+ New order button<br/>Hospice.tsx:39"| ORDER
+  BOARD ==>|"+ New order<br/>Hospice.tsx:41"| ORDER
   ORDER ==>|"View board toast<br/>Order.tsx:100"| BOARD
+  NURSE ==>|"View board<br/>Nurse.tsx:96"| BOARD
+  REPORTS ==>|"View board<br/>Reports.tsx:86"| BOARD
 
   SMS["SMS link to vendor"] -.-> PORTAL
   SMS -.-> VSTATUS
@@ -109,16 +112,17 @@ graph TD
 Thick arrows are the only two real in-app jumps. Thin arrows are the nav bar. Dashed arrows are
 external entry — a texted link or a URL typed by the presenter.
 
-**Three things this makes visible:**
+**Where this stands after the XS fix batch:**
 
-1. **`/nurse` and `/reports` have no exit at all.** No button, no link, no redirect. You leave by
-   clicking the nav bar or you don't leave.
-2. **The two real jumps use different mechanisms.** `/hospice` uses
-   `window.location.href = '/order'` — a **full page reload** that drops SSE and re-fetches
-   everything. `/order` uses React Router's `navigate()`. One of these is a bug.
-3. **`/portal/:token` renders inside the Shell**, so a vendor who taps a no-login magic link is
-   shown the hospice's full internal nav — Board, Reports, Driver. We pitch "the vendor logs into
-   nothing"; the demo hands them the hospice's own navigation. See §5.
+1. ~~`/nurse` and `/reports` have no exit at all.~~ **Fixed.** Both now carry a "View board" action
+   in their header, so every hospice page has a designed way out and the board is the consistent
+   home. The field nurse can finally see what her two taps set in motion.
+2. ~~`/hospice` uses `window.location.href`, a full page reload that drops SSE.~~ **Fixed.** All
+   four navigations are now `navigate()`. Nothing in the app tears down the event stream mid-demo.
+3. **`/portal/:token` renders inside the Shell** — still true. A vendor who taps a no-login magic
+   link is shown the hospice's internal nav. Role filtering (§5) softens this only if the vendor is
+   signed in as a vendor role, which they never are: they arrive with no session at all, and signed
+   out shows every link. **This is the one live UX bug left on this page.** See §8.1.
 
 ---
 
@@ -170,12 +174,12 @@ graph LR
   B["/approvals<br/>PROPOSED"]
   C["/hospice"]
   A -->|"scroll to find<br/>the approvals card"| A
-  A -->|"nav bar only"| C
+  A ==>|"View board"| C
   A -.->|"proposed"| B
 ```
 
 **One page doing two jobs.** Approving orders is daily; reading scorecards is weekly. They share a
-screen and the daily task is the one you scroll to find.
+screen and the daily task is the one you scroll to find. She now has a way back to the board.
 
 ### Field nurse
 
@@ -183,13 +187,14 @@ screen and the daily task is the one you scroll to find.
 graph LR
   A["/nurse<br/>who changed?"]
   B["/nurse<br/>discharged / deceased"]
+  C["/hospice<br/>the board"]
   A --> B
-  B -->|"no navigation<br/>after confirm"| B
+  B ==>|"View board"| C
 ```
 
-**Two taps and a dead stop.** The screen fires the pickup trigger and then shows her nothing about
-what she just set in motion. The consequences all land on the case manager's board, which she has no
-reason to open.
+**Two taps, and now a way to see what happened.** The screen fires the pickup trigger; the
+consequences land on the board. Until the XS batch she had no route there, so the most important
+thing she does in this app was also the thing she got no feedback on.
 
 ---
 
@@ -236,12 +241,28 @@ grep -rn "useAuth" client/src --include="*.tsx" --include="*.ts" | grep -v "lib/
 # client/src/App.tsx:47   <- the dropdown itself, and nothing else
 ```
 
-`useAuth` has **exactly one consumer: the dropdown that sets it.** `surfaceLinks.map()`
-(`App.tsx:148`) is not filtered. No page branches on role. No route guards. Signed in as Driver, you
-still see Board, Reports, and every hospice screen.
+**The nav now filters by role** (added in the XS batch). Each entry in `surfaceLinks` carries a
+`roles: RoleId[]`, and `Shell()` filters against the signed-in role:
 
-That is **identity without authorization** — and it's genuinely half the work done. The remaining
-half is one `.filter()` on the nav array plus a redirect guard.
+| Role | Sees in the nav |
+|---|---|
+| Case Manager | Board · New order · Nurse · Reports |
+| Admissions Nurse | Board · New order |
+| Field Nurse | Nurse |
+| Director of Nursing | Board · Reports |
+| Dispatcher | Vendor phone · Portal |
+| Driver | Driver |
+| *signed out* | *everything* |
+
+**Routes are deliberately not guarded.** Filtering hides links; it does not block URLs. Every screen
+stays reachable by typing the path, so a mis-click during the demo can't strand the presenter — and
+switching role visibly rearranges the nav, which demonstrates the role model rather than describing
+it.
+
+**Signed out shows every link on purpose**, so nobody loses a screen before choosing a role. That
+choice has one consequence worth knowing: a vendor arriving on a magic link has no session, so they
+see the full hospice nav. Role filtering doesn't fix §2.3 — only moving the route out of the Shell
+does.
 
 **The deeper gap is unchanged:** `shared/types.ts:26` has
 `Actor = 'hospice' | 'vendor' | 'driver' | 'system' | 'ai' | 'family'`. **`hospice` is one undivided
@@ -289,20 +310,22 @@ FAQ §6 we say that rather than let it read as researched.
 
 ## 7 · Build plan
 
-| # | Item | Size | Why |
+| # | Item | Size | Status |
 |---:|---|:--:|---|
-| 1 | **Filter `surfaceLinks` by `role`** | **XS** | Identity already shipped in `16e242e`. This is one `.filter()` and it makes the whole role model visible on stage |
-| 2 | Split `Actor: 'hospice'` into the six roles that already exist in `auth.tsx` | **S** | The ledger can finally name our own people. Client already has the enum |
-| 3 | Give `/nurse` and `/reports` an exit | **XS** | Both are dead ends. A "back to board" button each |
-| 4 | Fix `window.location.href` on `Hospice.tsx:39` to `navigate()` | **XS** | Full page reload drops SSE mid-demo |
-| 5 | Show cost + threshold warning on `/order` | **S** | CMS amounts are in `shared/catalog.ts`; the form never reads them |
-| 6 | `/approvals` page — move `CostApprovals` off `/reports` | **S** | Component exists. Mostly a move plus queue sorting |
-| 7 | Persist approvals: server state + `pending_approval` + dispatch gate | **M** | Turns the mock into the feature |
-| 8 | Approval latency on `/reports` | **S** | The honesty beat in §6 |
-| 9 | `/my-patients` | **M** | Needs a patient-to-staff assignment the seed doesn't have |
+| 1 | Filter `surfaceLinks` by `role` | XS | ✅ **done** — `roles: RoleId[]` per link, filtered in `Shell()` |
+| 2 | Give `/nurse` and `/reports` an exit | XS | ✅ **done** — "View board" in both headers |
+| 3 | Replace `window.location.href` with `navigate()` | XS | ✅ **done** — no full page reloads left |
+| 4 | Move `/portal/:token` out of the Shell | **XS** | **next** — vendors on a magic link currently see the hospice nav. §2.3 |
+| 5 | Split `Actor: 'hospice'` into the six roles in `auth.tsx` | **S** | The ledger still can't name our own people. Client already has the enum |
+| 6 | Show cost + threshold warning on `/order` | **S** | CMS amounts are in `shared/catalog.ts`; the form never reads them |
+| 7 | `/approvals` page — move `CostApprovals` off `/reports` | **S** | Component exists. Mostly a move plus queue sorting |
+| 8 | Persist approvals: server state + `pending_approval` + dispatch gate | **M** | Turns the mock into the feature |
+| 9 | Approval latency on `/reports` | **S** | The honesty beat in §6 |
+| 10 | `/my-patients` | **M** | Needs a patient-to-staff assignment the seed doesn't have |
 
-**Items 1, 3 and 4 are XS and together they fix the demo's worst UX moments.** Item 1 in particular
-is now nearly free: a teammate already built the hard half.
+**The XS batch (1–3) is done.** Item 4 is the last XS one and the only live UX bug left. After that
+the highest-value item is **5** — six roles now exist in the client and the ledger still records all
+of them as an undivided `hospice`.
 
 ---
 

@@ -1,7 +1,7 @@
 import { NavLink, Navigate, Route, Routes } from 'react-router-dom'
 import { Check, ChevronDown, LogOut } from 'lucide-react'
 import { useEventStream } from './hooks/useEventStream'
-import { ROLES, useAuth } from './lib/auth'
+import { ROLES, useAuth, type RoleId } from './lib/auth'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -25,14 +25,16 @@ import Caregiver from './pages/Caregiver'
 import VendorPhone from './pages/VendorPhone'
 
 // The persona surfaces of the DME module — the working tool.
-const surfaceLinks = [
-  { to: '/hospice', label: 'Board' },
-  { to: '/order', label: 'New order' },
-  { to: '/nurse', label: 'Nurse' },
-  { to: '/vendor', label: 'Vendor phone' },
-  { to: '/driver', label: 'Driver' },
-  { to: '/vendor-portal', label: 'Portal' },
-  { to: '/reports', label: 'Reports' },
+// Which roles see which surface in the nav. This filters the nav bar ONLY — routes stay
+// unguarded on purpose, so any screen is still reachable by URL if a demo goes sideways.
+const surfaceLinks: { to: string; label: string; roles: RoleId[] }[] = [
+  { to: '/hospice', label: 'Board', roles: ['case_manager', 'admissions_nurse', 'director_of_nursing'] },
+  { to: '/order', label: 'New order', roles: ['case_manager', 'admissions_nurse'] },
+  { to: '/nurse', label: 'Nurse', roles: ['case_manager', 'field_nurse'] },
+  { to: '/vendor', label: 'Vendor phone', roles: ['dispatcher'] },
+  { to: '/driver', label: 'Driver', roles: ['driver'] },
+  { to: '/vendor-portal', label: 'Portal', roles: ['dispatcher'] },
+  { to: '/reports', label: 'Reports', roles: ['case_manager', 'director_of_nursing'] },
 ]
 
 // The product-level nav: this app is the DME module inside BetterRX.
@@ -107,6 +109,9 @@ export default function App() {
 
 function Shell() {
   const { connected } = useEventStream()
+  const { role } = useAuth()
+  // Signed out shows everything, so nobody loses a screen before picking a role.
+  const links = role ? surfaceLinks.filter((l) => l.roles.includes(role.id)) : surfaceLinks
 
   return (
     <TooltipProvider delayDuration={200}>
@@ -145,7 +150,7 @@ function Shell() {
           </div>
           {/* Surface (persona) nav for the DME module */}
           <div className="flex flex-wrap gap-1 border-t border-border px-5 py-2">
-            {surfaceLinks.map((l) => (
+            {links.map((l) => (
               <NavLink key={l.to} to={l.to} className={surfaceLinkClass}>
                 {l.label}
               </NavLink>

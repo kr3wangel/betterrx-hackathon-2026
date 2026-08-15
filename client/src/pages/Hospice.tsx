@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Plus } from 'lucide-react'
 import { api } from '../lib/api'
 import { useLive } from '../lib/useLive'
@@ -17,6 +18,7 @@ import type { Escalation, Message, Order, Patient, ReportSummary, Vendor } from 
 type VendorWithStats = Vendor & { avg_on_time_rate: number | null }
 
 export default function Hospice() {
+  const navigate = useNavigate()
   const { data: orders } = useLive(() => api.get<Order[]>('/api/orders'))
   const { data: patients } = useLive(() => api.get<Patient[]>('/api/patients'))
   const { data: vendors } = useLive(() => api.get<VendorWithStats[]>('/api/vendors'))
@@ -36,7 +38,7 @@ export default function Hospice() {
         title="Hospice board"
         description="The short list that needs a person, then every order — updating itself as vendors reply."
         actions={
-          <Button className="rounded-xl" onClick={() => (window.location.href = '/order')}>
+          <Button className="rounded-xl" onClick={() => navigate('/order')}>
             <Plus className="size-4" strokeWidth={2.6} /> New order
           </Button>
         }
